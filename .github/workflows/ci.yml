@@ -58,16 +58,21 @@ jobs:
       fail-fast: false          # one app failing must not cancel the others
       matrix:
         include:
-          # Dart SDK floors differ between the apps (pubspec.yaml > environment),
-          # so the Flutter version must too. If the action reports
-          # "version not found", change the number to a real release:
-          # https://docs.flutter.dev/release/archive
+          # One version for all three. Each app's pubspec.yaml declares a Dart
+          # floor under `environment: sdk:` - customers ^3.9.0, delivery and
+          # partner ^3.12.2. Flutter 3.47.4 ships Dart 3.13.3, which satisfies
+          # all three. Verified against the official release list:
+          # https://storage.googleapis.com/flutter_infra_release/releases/releases_linux.json
+          #
+          # Do NOT downgrade delivery/partner below Flutter 3.44.x - 3.44.9 is
+          # the oldest release carrying Dart 3.12.2. 3.38.x ships Dart 3.10 and
+          # `flutter pub get` will refuse with "requires SDK version ^3.12.2".
           - app: rebesta_customers
-            flutter-version: '3.35.4'
+            flutter-version: '3.47.4'
           - app: rebesta_delivery
-            flutter-version: '3.38.1'
+            flutter-version: '3.47.4'
           - app: rebesta_partner
-            flutter-version: '3.38.1'
+            flutter-version: '3.47.4'
     defaults:
       run:
         working-directory: ${{ matrix.app }}
