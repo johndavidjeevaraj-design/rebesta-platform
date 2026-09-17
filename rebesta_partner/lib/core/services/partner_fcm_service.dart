@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:vibration/vibration.dart';
 
 import 'partner_auth_service.dart';
+import '../constants/api_constants.dart';
 
 class PartnerFcmService {
   // ============================================================
@@ -15,7 +16,7 @@ class PartnerFcmService {
   // ============================================================
 
   //static const String baseUrl = 'http://10.0.2.2:3000';
-  static const String baseUrl = 'http://172.16.255.167:3000';
+  static const String baseUrl = ApiConstants.baseUrl;
 
   static final FirebaseMessaging _messaging =
       FirebaseMessaging.instance;

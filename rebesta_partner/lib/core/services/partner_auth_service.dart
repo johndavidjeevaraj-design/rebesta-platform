@@ -4,11 +4,11 @@ import 'package:flutter/foundation.dart';
 
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../constants/api_constants.dart';
 
 class PartnerAuthService {
- //tatic const String baseUrl = 'http://10.0.2.2:3000';
 
-  static const String baseUrl = 'http://172.16.255.167:3000';
+  static const String baseUrl = ApiConstants.baseUrl;
 
   // ============================================================
   // SEND OTP

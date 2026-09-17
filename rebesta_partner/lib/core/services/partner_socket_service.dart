@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
+import '../constants/api_constants.dart';
 
 class PartnerSocketService {
   IO.Socket? _socket;
@@ -22,8 +23,7 @@ class PartnerSocketService {
     debugPrint('================================');
 
     _socket = IO.io(
-      //ttp://10.0.2.2:3000',
-      'http://172.16.255.167:3000',
+      ApiConstants.baseUrl,
       IO.OptionBuilder()
           .setTransports(['websocket'])
           .disableAutoConnect()

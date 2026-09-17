@@ -1,10 +1,10 @@
 import 'package:http/http.dart' as http;
 
 import '../core/services/partner_auth_service.dart';
+import '../core/constants/api_constants.dart';
 
 class ApiClient {
-  static const String baseUrl =
-      'http://172.16.255.167:3000';
+  static const String baseUrl = ApiConstants.baseUrl;
 
   static Future<Map<String, String>> headers() async {
     final token =

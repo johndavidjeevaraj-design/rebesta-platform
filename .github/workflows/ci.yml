@@ -7,15 +7,21 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# A new push cancels the previous run instead of queueing behind it.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  # ------------------------------------------------------------------
+  # NestJS backend
+  # ------------------------------------------------------------------
   backend:
     name: Backend
     runs-on: ubuntu-latest
-
     defaults:
       run:
         working-directory: rebesta_backend
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -33,9 +39,77 @@ jobs:
       - name: Build
         run: npm run build
 
+      # No SUPABASE_* secret needed: src/jest.setup.ts stubs the client.
+      # Never wire real credentials into CI - mock them instead.
       - name: Test
         run: npm test -- --runInBand
 
       - name: Lint
         run: npm run lint
         continue-on-error: true
+
+  # ------------------------------------------------------------------
+  # Flutter apps - one job per app, run in parallel
+  # ------------------------------------------------------------------
+  flutter:
+    name: ${{ matrix.app }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false          # one app failing must not cancel the others
+      matrix:
+        include:
+          # Dart SDK floors differ between the apps (pubspec.yaml > environment),
+          # so the Flutter version must too. If the action reports
+          # "version not found", change the number to a real release:
+          # https://docs.flutter.dev/release/archive
+          - app: rebesta_customers
+            flutter-version: '3.35.4'
+          - app: rebesta_delivery
+            flutter-version: '3.38.1'
+          - app: rebesta_partner
+            flutter-version: '3.38.1'
+    defaults:
+      run:
+        working-directory: ${{ matrix.app }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ matrix.flutter-version }}
+          channel: stable
+          cache: true
+
+      - name: Install packages
+        run: flutter pub get
+
+      # INFORMATIONAL ON PURPOSE. This has never been run against your code, so
+      # it may well report existing issues. Once it comes back clean, delete the
+      # `continue-on-error` line to make it block merges.
+      - name: Analyze
+        run: flutter analyze
+        continue-on-error: true
+
+      - name: Test
+        run: flutter test
+
+  # ------------------------------------------------------------------
+  # Guard: a service-account key must never be committed again
+  # ------------------------------------------------------------------
+  secrets:
+    name: No credentials committed
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0        # full history, so this scans every past commit
+
+      - name: Scan history for Firebase / service-account keys
+        run: |
+          if git log --all --pretty=format: --name-only --diff-filter=A \
+             | sort -u \
+             | grep -Ei 'adminsdk.*\.json$|google-services\.json$|\.p8$|\.p12$|^\.env$|serviceAccount.*\.json$'; then
+            echo "::error::A credential file exists somewhere in this repository's history."
+            exit 1
+          fi
+          echo "No credential files in history."
