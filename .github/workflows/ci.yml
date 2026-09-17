@@ -19,9 +19,11 @@ jobs:
   backend:
     name: Backend
     runs-on: ubuntu-latest
+
     defaults:
       run:
         working-directory: rebesta_backend
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -36,13 +38,43 @@ jobs:
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
 
+      - name: Verify Jest setup
+        run: |
+          echo "=== Jest setup file ==="
+          test -f src/jest.setup.ts
+          echo "src/jest.setup.ts exists."
+
+          echo ""
+          echo "=== Jest setup file size ==="
+          wc -l src/jest.setup.ts
+
+          echo ""
+          echo "=== Jest configuration ==="
+          npx jest --showConfig > jest-config-ci.json
+          grep -A 4 '"setupFiles"' jest-config-ci.json
+          grep '"rootDir"' jest-config-ci.json | head -n 1
+
+          echo ""
+          echo "=== Expected Jest setup path ==="
+          grep -F '"'"$(pwd)"'/src/jest.setup.ts"' jest-config-ci.json \
+            && echo "Jest setup path is correct." \
+            || {
+              echo "::error::Jest is NOT resolving src/jest.setup.ts"
+              exit 1
+            }
+
       - name: Build
         run: npm run build
 
-      # No SUPABASE_* secret needed: src/jest.setup.ts stubs the client.
-      # Never wire real credentials into CI - mock them instead.
+      # Never use real Supabase credentials in CI.
+      # jest.setup.ts mocks @supabase/supabase-js before application imports.
       - name: Test
-        run: npm test -- --runInBand
+        env:
+          SUPABASE_URL: http://supabase.test
+          SUPABASE_SERVICE_ROLE_KEY: test-service-role-key
+        run: |
+          echo "=== Running backend tests ==="
+          npm test -- --runInBand
 
       - name: Lint
         run: npm run lint
@@ -54,32 +86,30 @@ jobs:
   flutter:
     name: ${{ matrix.app }}
     runs-on: ubuntu-latest
+
     strategy:
-      fail-fast: false          # one app failing must not cancel the others
+      fail-fast: false
       matrix:
         include:
-          # One version for all three. Each app's pubspec.yaml declares a Dart
-          # floor under `environment: sdk:` - customers ^3.9.0, delivery and
-          # partner ^3.12.2. Flutter 3.47.4 ships Dart 3.13.3, which satisfies
-          # all three. Verified against the official release list:
-          # https://storage.googleapis.com/flutter_infra_release/releases/releases_linux.json
-          #
-          # Do NOT downgrade delivery/partner below Flutter 3.44.x - 3.44.9 is
-          # the oldest release carrying Dart 3.12.2. 3.38.x ships Dart 3.10 and
-          # `flutter pub get` will refuse with "requires SDK version ^3.12.2".
           - app: rebesta_customers
             flutter-version: '3.47.4'
+
           - app: rebesta_delivery
             flutter-version: '3.47.4'
+
           - app: rebesta_partner
             flutter-version: '3.47.4'
+
     defaults:
       run:
         working-directory: ${{ matrix.app }}
-    steps:
-      - uses: actions/checkout@v4
 
-      - uses: subosito/flutter-action@v2
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ matrix.flutter-version }}
           channel: stable
@@ -88,9 +118,6 @@ jobs:
       - name: Install packages
         run: flutter pub get
 
-      # INFORMATIONAL ON PURPOSE. This has never been run against your code, so
-      # it may well report existing issues. Once it comes back clean, delete the
-      # `continue-on-error` line to make it block merges.
       - name: Analyze
         run: flutter analyze
         continue-on-error: true
@@ -104,17 +131,21 @@ jobs:
   secrets:
     name: No credentials committed
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
-          fetch-depth: 0        # full history, so this scans every past commit
+          fetch-depth: 0
 
       - name: Scan history for Firebase / service-account keys
         run: |
           if git log --all --pretty=format: --name-only --diff-filter=A \
-             | sort -u \
-             | grep -Ei 'adminsdk.*\.json$|google-services\.json$|\.p8$|\.p12$|^\.env$|serviceAccount.*\.json$'; then
+            | sort -u \
+            | grep -Ei 'adminsdk.*\.json$|google-services\.json$|\.p8$|\.p12$|^\.env$|serviceAccount.*\.json$'; then
+
             echo "::error::A credential file exists somewhere in this repository's history."
             exit 1
           fi
+
           echo "No credential files in history."
