@@ -1,12 +1,35 @@
+
 import { Test, TestingModule } from '@nestjs/testing';
 import { OrdersService } from './orders.service';
+import { MapsService } from '../maps/maps.service';
+import { SocketGateway } from '../socket/socket.gateway';
+import { FcmService } from '../fcm/fcm.service';
+import { CouponsService } from '../coupons/coupons.service';
 
 describe('OrdersService', () => {
   let service: OrdersService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [OrdersService],
+      providers: [
+        OrdersService,
+        {
+          provide: MapsService,
+          useValue: {},
+        },
+        {
+          provide: SocketGateway,
+          useValue: {},
+        },
+        {
+          provide: FcmService,
+          useValue: {},
+        },
+        {
+          provide: CouponsService,
+          useValue: {},
+        },
+      ],
     }).compile();
 
     service = module.get<OrdersService>(OrdersService);
