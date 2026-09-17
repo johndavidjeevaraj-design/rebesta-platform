@@ -8,6 +8,7 @@
  * Stubbing the module means no test can reach a real Supabase project.
  * Anything that needs data must mock the client explicitly.
  */
+console.log('🔥 JEST SETUP LOADED');
 jest.mock('@supabase/supabase-js', () => {
   const chain: any = new Proxy(function () {}, {
     get: (_t, prop) => (prop === 'then' ? undefined : chain),
