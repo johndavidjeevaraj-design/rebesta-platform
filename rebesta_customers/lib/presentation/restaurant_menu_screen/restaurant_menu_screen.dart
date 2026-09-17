@@ -1,0 +1,2959 @@
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'dart:async';
+import '../../models/menu_item.dart';
+import '../../models/restaurant.dart';
+
+import '../../services/restaurant_service.dart';
+import '../../services/cart_service.dart';
+
+import '../../routes/app_routes.dart';
+
+import '../../widgets/custom_image_widget.dart';
+
+import './widgets/cart_summary_bar_widget.dart';
+import './widgets/menu_category_tabs_widget.dart';
+import './widgets/menu_item_card_widget.dart';
+import './widgets/restaurant_info_strip_widget.dart';
+
+class RestaurantMenuScreen extends StatefulWidget {
+  final String restaurantId;
+  final String restaurantPartnerId;
+
+  const RestaurantMenuScreen({
+    super.key,
+    required this.restaurantId,
+    required this.restaurantPartnerId,
+  });
+
+  @override
+  State<RestaurantMenuScreen> createState() =>
+      _RestaurantMenuScreenState();
+}
+
+class _RestaurantMenuScreenState
+    extends State<RestaurantMenuScreen> {
+  // ============================================================
+  // SERVICES
+  // ============================================================
+
+  final RestaurantService _restaurantService =
+      RestaurantService();
+
+  final CartService _cartService =
+      CartService();
+
+  // ============================================================
+  // DATA
+  // ============================================================
+
+  Restaurant? restaurant;
+
+  List<MenuItemModel> menu = [];
+
+  List<String> _categories = ['All'];
+
+  // ============================================================
+  // UI STATE
+  // ============================================================
+
+  bool loading = true;
+
+  bool _isFavorite = false;
+
+  int selectedCategory = 0;
+
+  String _searchQuery = '';
+
+  // ============================================================
+// OFFER CAROUSEL
+// ============================================================
+
+final PageController _offerPageController =
+    PageController();
+
+Timer? _offerAutoSlideTimer;
+
+int _currentOfferIndex = 0;
+
+  // ============================================================
+  // CART STATE
+  // ============================================================
+
+  int _cartItemCount = 0;
+
+  double _cartTotal = 0.0;
+
+  final Map<String, int> _cartQuantities =
+      <String, int>{};
+
+  // ============================================================
+  // RESTAURANT OFFERS / PROMOS
+  // ============================================================
+
+  final List<Map<String, String>> _restaurantOffers = [
+    {
+      'icon': '🎁',
+      'title': '20% OFF',
+      'subtitle': 'Up to ₹100',
+    },
+    {
+      'icon': '🚚',
+      'title': 'FREE DELIVERY',
+      'subtitle': 'On orders above ₹199',
+    },
+    {
+      'icon': '₹',
+      'title': '₹75 OFF',
+      'subtitle': 'On orders above ₹399',
+    },
+  ];
+
+  // ============================================================
+  // REBESTA COLORS
+  // ============================================================
+
+  static const Color _cream =
+      Color(0xFFFCF9F5);
+
+  static const Color _ink =
+      Color(0xFF2A1D1A);
+
+  static const Color _muted =
+      Color(0xFF70625F);
+
+  static const Color _line =
+      Color(0xFFEFEAE2);
+
+  static const Color _orange =
+      Color(0xFFF05C03);
+
+  static const Color _green =
+      Color(0xFF22A447);
+
+  // ============================================================
+  // INIT
+  // ============================================================
+
+  @override
+  void initState() {
+    super.initState();
+
+    loadData();
+    _startOfferAutoSlide();
+  }
+
+  // ============================================================
+  // LOAD RESTAURANT + MENU + CART
+  // ============================================================
+
+  Future<void> loadData() async {
+    try {
+      debugPrint('================================');
+      debugPrint('RESTAURANT SCREEN LOADING');
+      debugPrint(
+        'Restaurant ID: ${widget.restaurantId}',
+      );
+      debugPrint('================================');
+
+      // --------------------------------------------------------
+      // 1. RESTAURANT
+      // --------------------------------------------------------
+
+      debugPrint(
+        '1️⃣ Calling getRestaurant...',
+      );
+
+      final restaurantData =
+          await _restaurantService.getRestaurant(
+        widget.restaurantId,
+      );
+
+      debugPrint(
+        '✅ RESTAURANT SUCCESS: ${restaurantData.name}',
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        restaurant = restaurantData;
+        _isFavorite =
+            restaurantData.isFavorite;
+        loading = false;
+      });
+
+      // --------------------------------------------------------
+      // 2. MENU
+      // --------------------------------------------------------
+
+      debugPrint(
+        '2️⃣ Calling getRestaurantMenu...',
+      );
+
+      try {
+        final menuItems =
+            await _restaurantService
+                .getRestaurantMenu(
+          widget.restaurantId,
+        );
+
+        debugPrint(
+          '✅ MENU SUCCESS: ${menuItems.length} items',
+        );
+
+        final categorySet =
+            <String>{'All'};
+
+        for (final item in menuItems) {
+          final category =
+              item.category.trim();
+
+          if (category.isNotEmpty) {
+            categorySet.add(category);
+          }
+        }
+
+        if (!mounted) return;
+
+        setState(() {
+          menu = menuItems;
+          _categories =
+              categorySet.toList();
+          selectedCategory = 0;
+        });
+
+        debugPrint('✅ MENU LOADED');
+      } catch (e, stackTrace) {
+        debugPrint('================================');
+        debugPrint('❌ MENU API FAILED');
+        debugPrint('ERROR: $e');
+        debugPrint('STACK: $stackTrace');
+        debugPrint('================================');
+
+        if (!mounted) return;
+
+        setState(() {
+          menu = [];
+          _categories = ['All'];
+        });
+      }
+
+      // --------------------------------------------------------
+      // 3. CART
+      // --------------------------------------------------------
+
+      debugPrint(
+        '3️⃣ Calling _loadBackendCart...',
+      );
+
+      await _loadBackendCart();
+
+      debugPrint('✅ CART LOADED');
+      debugPrint('================================');
+      debugPrint('🎉 RESTAURANT SCREEN READY');
+      debugPrint('================================');
+    } catch (e, stackTrace) {
+      debugPrint('================================');
+      debugPrint('❌ RESTAURANT API FAILED');
+      debugPrint('ERROR: $e');
+      debugPrint('STACK: $stackTrace');
+      debugPrint('================================');
+
+      if (!mounted) return;
+
+      setState(() {
+        loading = false;
+      });
+    }
+  }
+
+  // ============================================================
+// OFFER AUTO SLIDE
+// ============================================================
+
+void _startOfferAutoSlide() {
+  _offerAutoSlideTimer =
+      Timer.periodic(
+    const Duration(seconds: 3),
+    (_) {
+      if (!_offerPageController.hasClients ||
+          _restaurantOffers.isEmpty) {
+        return;
+      }
+
+      final nextIndex =
+          (_currentOfferIndex + 1) %
+              _restaurantOffers.length;
+
+      _offerPageController.animateToPage(
+        nextIndex,
+        duration:
+            const Duration(milliseconds: 500),
+        curve: Curves.easeInOut,
+      );
+    },
+  );
+}
+
+  // ============================================================
+  // MENU ITEM DETAILS
+  // ============================================================
+
+  void _showMenuItemDetails(
+    BuildContext context,
+    MenuItemModel item,
+  ) {
+    int quantity =
+        _cartQuantities[item.id] ?? 0;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      barrierColor:
+          Colors.black.withAlpha(150),
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (
+            context,
+            setSheetState,
+          ) {
+            final imageUrl =
+                item.imageUrl ?? '';
+
+            final total =
+                item.price * quantity;
+
+            return DraggableScrollableSheet(
+              initialChildSize: 0.88,
+              minChildSize: 0.65,
+              maxChildSize: 0.96,
+              expand: false,
+              builder: (
+                context,
+                scrollController,
+              ) {
+                return Container(
+                  decoration:
+                      const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius:
+                        BorderRadius.vertical(
+                      top: Radius.circular(24),
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      // ==================================================
+                      // HANDLE
+                      // ==================================================
+
+                      Padding(
+                        padding:
+                            const EdgeInsets.only(
+                          top: 10,
+                          bottom: 6,
+                        ),
+                        child: Container(
+                          width: 42,
+                          height: 5,
+                          decoration:
+                              BoxDecoration(
+                            color:
+                                const Color(
+                              0xFFD8D8D8,
+                            ),
+                            borderRadius:
+                                BorderRadius.circular(
+                              10,
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      // ==================================================
+                      // CONTENT
+                      // ==================================================
+
+                      Expanded(
+                        child: ListView(
+                          controller:
+                              scrollController,
+                          padding:
+                              const EdgeInsets.fromLTRB(
+                            14,
+                            8,
+                            14,
+                            120,
+                          ),
+                          children: [
+                            // ==================================================
+                            // IMAGE
+                            // ==================================================
+
+                            ClipRRect(
+                              borderRadius:
+                                  BorderRadius.circular(
+                                18,
+                              ),
+                              child: imageUrl
+                                      .trim()
+                                      .isNotEmpty
+                                  ? Image.network(
+                                      imageUrl,
+                                      width:
+                                          double.infinity,
+                                      height: 330,
+                                      fit: BoxFit.cover,
+                                      errorBuilder:
+                                          (
+                                        context,
+                                        error,
+                                        stackTrace,
+                                      ) {
+                                        return _menuDetailPlaceholder();
+                                      },
+                                    )
+                                  : _menuDetailPlaceholder(),
+                            ),
+
+                            const SizedBox(
+                              height: 16,
+                            ),
+
+                            // ==================================================
+                            // ITEM NAME
+                            // ==================================================
+
+                            Row(
+                              crossAxisAlignment:
+                                  CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    item.name,
+                                    style:
+                                        GoogleFonts
+                                            .bricolageGrotesque(
+                                      fontSize: 21,
+                                      fontWeight:
+                                          FontWeight.w700,
+                                      color: _ink,
+                                    ),
+                                  ),
+                                ),
+
+                                const SizedBox(
+                                  width: 12,
+                                ),
+
+                                GestureDetector(
+                                  onTap: () {},
+                                  child:
+                                      const Icon(
+                                    Icons
+                                        .favorite_border_rounded,
+                                    size: 24,
+                                    color: _ink,
+                                  ),
+                                ),
+
+                                const SizedBox(
+                                  width: 14,
+                                ),
+
+                                GestureDetector(
+                                  onTap: () {},
+                                  child:
+                                      const Icon(
+                                    Icons
+                                        .share_outlined,
+                                    size: 23,
+                                    color: _ink,
+                                  ),
+                                ),
+                              ],
+                            ),
+
+                            const SizedBox(
+                              height: 7,
+                            ),
+
+                            // ==================================================
+                            // VEG
+                            // ==================================================
+
+                            Row(
+                              children: [
+                                Container(
+                                  width: 16,
+                                  height: 16,
+                                  decoration:
+                                      BoxDecoration(
+                                    border:
+                                        Border.all(
+                                      color:
+                                          item.isVeg
+                                              ? _green
+                                              : Colors.red,
+                                      width: 1.5,
+                                    ),
+                                    borderRadius:
+                                        BorderRadius.circular(
+                                      3,
+                                    ),
+                                  ),
+                                  child: Center(
+                                    child:
+                                        Container(
+                                      width: 7,
+                                      height: 7,
+                                      decoration:
+                                          BoxDecoration(
+                                        color:
+                                            item.isVeg
+                                                ? _green
+                                                : Colors.red,
+                                        shape:
+                                            BoxShape.circle,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+
+                                const SizedBox(
+                                  width: 8,
+                                ),
+
+                                Text(
+                                  item.isVeg
+                                      ? 'VEG'
+                                      : 'NON-VEG',
+                                  style:
+                                      GoogleFonts.sora(
+                                    fontSize: 10,
+                                    fontWeight:
+                                        FontWeight.w700,
+                                    color: _muted,
+                                  ),
+                                ),
+                              ],
+                            ),
+
+                            const SizedBox(
+                              height: 10,
+                            ),
+
+                            // ==================================================
+                            // PRICE
+                            // ==================================================
+
+                            Text(
+                              '₹${item.price.toStringAsFixed(0)}',
+                              style:
+                                  GoogleFonts.sora(
+                                fontSize: 17,
+                                fontWeight:
+                                    FontWeight.w700,
+                                color: _ink,
+                              ),
+                            ),
+
+                            const SizedBox(
+                              height: 12,
+                            ),
+
+                            // ==================================================
+                            // DESCRIPTION
+                            // ==================================================
+
+                            if (item.description
+                                .trim()
+                                .isNotEmpty)
+                              Text(
+                                item.description,
+                                style:
+                                    GoogleFonts.sora(
+                                  fontSize: 13,
+                                  height: 1.45,
+                                  color: _muted,
+                                ),
+                              ),
+
+                            const SizedBox(
+                              height: 22,
+                            ),
+
+                            const Divider(
+                              height: 1,
+                              color: _line,
+                            ),
+
+                            const SizedBox(
+                              height: 18,
+                            ),
+
+                            // ==================================================
+                            // QUANTITY
+                            // ==================================================
+
+                            Text(
+                              'Quantity',
+                              style:
+                                  GoogleFonts
+                                      .bricolageGrotesque(
+                                fontSize: 18,
+                                fontWeight:
+                                    FontWeight.w700,
+                                color: _ink,
+                              ),
+                            ),
+
+                            const SizedBox(
+                              height: 4,
+                            ),
+
+                            Text(
+                              'Select quantity',
+                              style:
+                                  GoogleFonts.sora(
+                                fontSize: 11,
+                                color: _muted,
+                              ),
+                            ),
+
+                            const SizedBox(
+                              height: 14,
+                            ),
+
+                            // ==================================================
+                            // QUANTITY CONTROL
+                            // ==================================================
+
+                            Container(
+                              height: 54,
+                              decoration:
+                                  BoxDecoration(
+                                color:
+                                    const Color(
+                                  0xFFFAF8F6,
+                                ),
+                                borderRadius:
+                                    BorderRadius.circular(
+                                  14,
+                                ),
+                                border:
+                                    Border.all(
+                                  color: _line,
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  const SizedBox(
+                                    width: 16,
+                                  ),
+
+                                  Text(
+                                    'Quantity',
+                                    style:
+                                        GoogleFonts.sora(
+                                      fontSize: 13,
+                                      fontWeight:
+                                          FontWeight.w600,
+                                      color: _ink,
+                                    ),
+                                  ),
+
+                                  const Spacer(),
+
+                                  GestureDetector(
+                                    onTap:
+                                        quantity > 0
+                                            ? () {
+                                                setSheetState(
+                                                  () {
+                                                    quantity--;
+                                                  },
+                                                );
+                                              }
+                                            : null,
+                                    child:
+                                        const Icon(
+                                      Icons
+                                          .remove_rounded,
+                                      size: 20,
+                                      color: _orange,
+                                    ),
+                                  ),
+
+                                  Padding(
+                                    padding:
+                                        const EdgeInsets
+                                            .symmetric(
+                                      horizontal: 16,
+                                    ),
+                                    child: Text(
+                                      '$quantity',
+                                      style:
+                                          GoogleFonts.sora(
+                                        fontSize: 15,
+                                        fontWeight:
+                                            FontWeight.w700,
+                                        color: _ink,
+                                      ),
+                                    ),
+                                  ),
+
+                                  GestureDetector(
+                                    onTap: () {
+                                      setSheetState(
+                                        () {
+                                          quantity++;
+                                        },
+                                      );
+                                    },
+                                    child:
+                                        const Icon(
+                                      Icons
+                                          .add_rounded,
+                                      size: 20,
+                                      color: _orange,
+                                    ),
+                                  ),
+
+                                  const SizedBox(
+                                    width: 16,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // ==================================================
+                      // BOTTOM ADD BAR
+                      // ==================================================
+
+                      SafeArea(
+                        top: false,
+                        child: Container(
+                          padding:
+                              const EdgeInsets.fromLTRB(
+                            14,
+                            10,
+                            14,
+                            12,
+                          ),
+                          decoration:
+                              const BoxDecoration(
+                            color: Colors.white,
+                            boxShadow: [
+                              BoxShadow(
+                                color:
+                                    Color(
+                                  0x18000000,
+                                ),
+                                blurRadius: 12,
+                                offset:
+                                    Offset(
+                                  0,
+                                  -3,
+                                ),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            children: [
+                              // ==================================================
+                              // QUANTITY SELECTOR
+                              // ==================================================
+
+                              Container(
+                                height: 52,
+                                width: 130,
+                                decoration:
+                                    BoxDecoration(
+                                  border:
+                                      Border.all(
+                                    color:
+                                        _orange,
+                                  ),
+                                  borderRadius:
+                                      BorderRadius.circular(
+                                    13,
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment
+                                          .spaceEvenly,
+                                  children: [
+                                    GestureDetector(
+                                      onTap:
+                                          quantity >
+                                                  0
+                                              ? () {
+                                                  setSheetState(
+                                                    () {
+                                                      quantity--;
+                                                    },
+                                                  );
+                                                }
+                                              : null,
+                                      child:
+                                          const Icon(
+                                        Icons
+                                            .remove_rounded,
+                                        color:
+                                            _orange,
+                                        size: 20,
+                                      ),
+                                    ),
+
+                                    Text(
+                                      '$quantity',
+                                      style:
+                                          GoogleFonts.sora(
+                                        fontSize:
+                                            15,
+                                        fontWeight:
+                                            FontWeight.w700,
+                                        color:
+                                            _ink,
+                                      ),
+                                    ),
+
+                                    GestureDetector(
+                                      onTap: () {
+                                        setSheetState(
+                                          () {
+                                            quantity++;
+                                          },
+                                        );
+                                      },
+                                      child:
+                                          const Icon(
+                                        Icons
+                                            .add_rounded,
+                                        color:
+                                            _orange,
+                                        size: 20,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+
+                              const SizedBox(
+                                width: 12,
+                              ),
+
+                              // ==================================================
+                              // ADD ITEM
+                              // ==================================================
+
+                              Expanded(
+                                child:
+                                    GestureDetector(
+                                  onTap:
+                                      quantity <=
+                                              0
+                                          ? null
+                                          : () async {
+                                              final current =
+                                                  _cartQuantities[
+                                                          item.id] ??
+                                                      0;
+
+                                              final difference =
+                                                  quantity -
+                                                      current;
+
+                                              if (difference >
+                                                  0) {
+                                                for (
+                                                  int i = 0;
+                                                  i <
+                                                      difference;
+                                                  i++
+                                                ) {
+                                                  await updateCart(
+                                                    item,
+                                                    1,
+                                                  );
+                                                }
+                                              } else if (difference <
+                                                  0) {
+                                                for (
+                                                  int i = 0;
+                                                  i <
+                                                      difference
+                                                          .abs();
+                                                  i++
+                                                ) {
+                                                  await updateCart(
+                                                    item,
+                                                    -1,
+                                                  );
+                                                }
+                                              }
+
+                                              if (!sheetContext
+                                                  .mounted) {
+                                                return;
+                                              }
+
+                                              Navigator.of(
+                                                sheetContext,
+                                              ).pop();
+                                            },
+                                  child:
+                                      Container(
+                                    height: 52,
+                                    decoration:
+                                        BoxDecoration(
+                                      color:
+                                          quantity >
+                                                  0
+                                              ? _orange
+                                              : const Color(
+                                                  0xFFE0DDD9,
+                                                ),
+                                      borderRadius:
+                                          BorderRadius
+                                              .circular(
+                                        13,
+                                      ),
+                                    ),
+                                    child:
+                                        Center(
+                                      child:
+                                          Text(
+                                        quantity >
+                                                0
+                                            ? 'Add item ₹${total.toStringAsFixed(0)}'
+                                            : 'Select quantity',
+                                        style:
+                                            GoogleFonts.sora(
+                                          color:
+                                              Colors.white,
+                                          fontSize:
+                                              14,
+                                          fontWeight:
+                                              FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // ============================================================
+  // CART UPDATE
+  // ============================================================
+
+  Future<void> updateCart(
+    MenuItemModel item,
+    int delta,
+  ) async {
+    final current =
+        _cartQuantities[item.id] ?? 0;
+
+    if (delta < 0 &&
+        current <= 0) {
+      return;
+    }
+
+    final newQuantity =
+        current + delta;
+
+    try {
+      // --------------------------------------------------------
+      // ADD
+      // --------------------------------------------------------
+
+      if (delta > 0) {
+        await _cartService.addItem(
+          menuItemId: item.id,
+          quantity: 1,
+        );
+      }
+
+      // --------------------------------------------------------
+      // REMOVE / UPDATE
+      // --------------------------------------------------------
+
+      else {
+        final response =
+            await _cartService.getCart(
+          restaurantPartnerId:
+              widget.restaurantPartnerId,
+        );
+
+        final cart =
+            response['cart'];
+
+        if (cart == null) {
+          return;
+        }
+
+        final items =
+            cart['items']
+                    as List? ??
+                [];
+
+        Map<String, dynamic>?
+            cartItem;
+
+        for (final rawItem in items) {
+          if (rawItem
+              is! Map<String, dynamic>) {
+            continue;
+          }
+
+          final menuItem =
+              rawItem['menuItem'];
+
+          if (menuItem == null) {
+            continue;
+          }
+
+          final menuItemId =
+              menuItem['id']
+                  ?.toString();
+
+          if (menuItemId ==
+              item.id.toString()) {
+            cartItem = rawItem;
+            break;
+          }
+        }
+
+        if (cartItem == null) {
+          return;
+        }
+
+        final cartItemId =
+            cartItem['id'].toString();
+
+        // ------------------------------------------------------
+        // REMOVE ENTIRE CART ITEM
+        // ------------------------------------------------------
+
+        if (newQuantity <= 0) {
+          await _cartService.removeItem(
+            cartItemId: cartItemId,
+          );
+        }
+
+        // ------------------------------------------------------
+        // UPDATE QUANTITY
+        // ------------------------------------------------------
+
+        else {
+          await _cartService.updateItem(
+            cartItemId: cartItemId,
+            quantity: newQuantity,
+          );
+        }
+      }
+
+      // --------------------------------------------------------
+      // REFRESH CART
+      // --------------------------------------------------------
+
+      await _loadBackendCart();
+    } catch (e) {
+      debugPrint(
+        'UPDATE CART ERROR: $e',
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        SnackBar(
+          behavior:
+              SnackBarBehavior.floating,
+          backgroundColor: _ink,
+          content: Text(
+            e.toString().replaceFirst(
+              'Exception: ',
+              '',
+            ),
+            style: GoogleFonts.sora(
+              fontSize: 12,
+              color: Colors.white,
+            ),
+          ),
+        ),
+      );
+    }
+  }
+
+  // ============================================================
+  // LOAD BACKEND CART
+  // ============================================================
+
+  Future<void> _loadBackendCart() async {
+    try {
+      final response =
+          await _cartService.getCart(
+        restaurantPartnerId:
+            widget.restaurantPartnerId,
+      );
+
+      final cart =
+          response['cart'];
+
+      if (cart == null) {
+        if (!mounted) return;
+
+        setState(() {
+          _cartQuantities.clear();
+          _cartItemCount = 0;
+          _cartTotal = 0;
+        });
+
+        return;
+      }
+
+      final items =
+          cart['items']
+                  as List? ??
+              [];
+
+      final quantities =
+          <String, int>{};
+
+      for (final rawItem in items) {
+        if (rawItem
+            is! Map<String, dynamic>) {
+          continue;
+        }
+
+        final menuItem =
+            rawItem['menuItem'];
+
+        if (menuItem == null) {
+          continue;
+        }
+
+        final id =
+            menuItem['id']?.toString();
+
+        if (id == null ||
+            id.isEmpty) {
+          continue;
+        }
+
+        final quantity =
+            (rawItem['quantity']
+                        as num?)
+                    ?.toInt() ??
+                0;
+
+        quantities[id] = quantity;
+      }
+
+      final itemCount =
+          quantities.values.fold(
+        0,
+        (sum, value) =>
+            sum + value,
+      );
+
+      final total =
+          (cart['total'] as num?)
+                  ?.toDouble() ??
+              0.0;
+
+      if (!mounted) return;
+
+      setState(() {
+        _cartQuantities
+          ..clear()
+          ..addAll(quantities);
+
+        _cartItemCount =
+            itemCount;
+
+        _cartTotal =
+            total;
+      });
+    } catch (e) {
+      debugPrint(
+        'LOAD CART ERROR: $e',
+      );
+    }
+  }
+
+  // ============================================================
+  // MENU CARD DATA
+  // ============================================================
+
+  Map<String, dynamic> _menuCardData(
+    MenuItemModel item,
+  ) {
+    return {
+      'id': item.id,
+      'name': item.name,
+      'description': item.description,
+      'price': item.price,
+      'imageUrl': item.imageUrl ?? '',
+      'semanticLabel': item.name,
+      'badges': <String>[],
+      'isVeg': item.isVeg,
+      'calories': 0,
+    };
+  }
+
+  // ============================================================
+  // BUILD
+  // ============================================================
+
+  @override
+  Widget build(BuildContext context) {
+    if (loading) {
+      return Scaffold(
+        backgroundColor: _cream,
+        body: const Center(
+          child: CircularProgressIndicator(
+            color: _orange,
+          ),
+        ),
+      );
+    }
+
+    if (restaurant == null) {
+      return _buildErrorScreen(
+        'Unable to load restaurant',
+      );
+    }
+
+    final isTablet =
+        MediaQuery.of(context).size.width >=
+            700;
+
+    return Scaffold(
+      backgroundColor: _cream,
+      body: isTablet
+          ? _buildTabletLayout(context)
+          : _buildPhoneLayout(context),
+    );
+  }
+
+  // ============================================================
+  // ERROR SCREEN
+  // ============================================================
+
+  Widget _buildErrorScreen(
+    String message,
+  ) {
+    return Scaffold(
+      backgroundColor: _cream,
+      body: Center(
+        child: Padding(
+          padding:
+              const EdgeInsets.all(30),
+          child: Column(
+            mainAxisAlignment:
+                MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.restaurant_outlined,
+                size: 52,
+                color: _muted,
+              ),
+
+              const SizedBox(
+                height: 18,
+              ),
+
+              Text(
+                message,
+                textAlign:
+                    TextAlign.center,
+                style:
+                    GoogleFonts
+                        .bricolageGrotesque(
+                  fontSize: 22,
+                  fontWeight:
+                      FontWeight.w700,
+                  color: _ink,
+                ),
+              ),
+
+              const SizedBox(
+                height: 8,
+              ),
+
+              Text(
+                'Please try again.',
+                style:
+                    GoogleFonts.sora(
+                  fontSize: 13,
+                  color: _muted,
+                ),
+              ),
+
+              const SizedBox(
+                height: 22,
+              ),
+
+              ElevatedButton(
+                onPressed: loadData,
+                style:
+                    ElevatedButton.styleFrom(
+                  backgroundColor:
+                      _orange,
+                  foregroundColor:
+                      Colors.white,
+                  elevation: 0,
+                  padding:
+                      const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 13,
+                  ),
+                  shape:
+                      RoundedRectangleBorder(
+                    borderRadius:
+                        BorderRadius.circular(
+                      12,
+                    ),
+                  ),
+                ),
+                child: Text(
+                  'Try Again',
+                  style:
+                      GoogleFonts.sora(
+                    fontWeight:
+                        FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // PHONE LAYOUT
+  // ============================================================
+
+  Widget _buildPhoneLayout(
+    BuildContext context,
+  ) {
+    return Stack(
+      children: [
+        NestedScrollView(
+          physics:
+              const ClampingScrollPhysics(),
+          headerSliverBuilder:
+              (
+            context,
+            innerBoxIsScrolled,
+          ) {
+            return [
+              // ------------------------------------------------
+              // HERO
+              // ------------------------------------------------
+
+              _buildHeroSliverAppBar(
+                context,
+              ),
+
+              // ------------------------------------------------
+              // RESTAURANT INFO
+              // ------------------------------------------------
+
+              SliverToBoxAdapter(
+                child:
+                    RestaurantInfoStripWidget(
+                  restaurant:
+                      restaurant!,
+                ),
+              ),
+
+              // ------------------------------------------------
+              // SEARCH
+              // ------------------------------------------------
+
+              SliverToBoxAdapter(
+                child:
+                    _buildSearchBar(context),
+              ),
+
+              // ------------------------------------------------
+              // CATEGORY TABS
+              // ------------------------------------------------
+
+              SliverPersistentHeader(
+                pinned: true,
+                delegate:
+                    _CategoryHeaderDelegate(
+                  child:
+                      MenuCategoryTabsWidget(
+                    categories:
+                        _categories,
+                    selectedIndex:
+                        selectedCategory,
+                    onSelected:
+                        (index) {
+                      setState(() {
+                        selectedCategory =
+                            index;
+                      });
+                    },
+                  ),
+                ),
+              ),
+            ];
+          },
+          body:
+              _buildMenuList(context),
+        ),
+
+        // ------------------------------------------------------
+        // CART BAR
+        // ------------------------------------------------------
+
+        if (_cartItemCount > 0)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child:
+                CartSummaryBarWidget(
+              itemCount:
+                  _cartItemCount,
+              total:
+                  _cartTotal,
+             onViewCart: () {
+  context.push(
+    AppRoutes.checkoutScreen,
+    extra: {
+      'restaurantPartnerId':
+          widget.restaurantPartnerId,
+      'restaurantName':
+          restaurant!.name,
+    },
+  );
+},
+            ),
+          ),
+      ],
+    );
+  }
+
+  // ============================================================
+  // CATEGORY FILTER
+  // ============================================================
+
+  List<MenuItemModel>
+      itemsForSelectedCategory() {
+    if (_categories.isEmpty) {
+      return menu;
+    }
+
+    final category =
+        _categories[
+          selectedCategory.clamp(
+            0,
+            _categories.length - 1,
+          )
+        ];
+
+    List<MenuItemModel> items;
+
+    if (category == 'All') {
+      items =
+          List<MenuItemModel>.from(menu);
+    } else {
+      items = menu.where((item) {
+        return item.category
+                .trim()
+                .toLowerCase() ==
+            category
+                .trim()
+                .toLowerCase();
+      }).toList();
+    }
+
+    // ----------------------------------------------------------
+    // SEARCH
+    // ----------------------------------------------------------
+
+    if (_searchQuery
+        .trim()
+        .isEmpty) {
+      return items;
+    }
+
+    final query =
+        _searchQuery.trim().toLowerCase();
+
+    return items.where((item) {
+      final name =
+          item.name.toLowerCase();
+
+      final description =
+          item.description.toLowerCase();
+
+      final itemCategory =
+          item.category.toLowerCase();
+
+      return name.contains(query) ||
+          description.contains(query) ||
+          itemCategory.contains(query);
+    }).toList();
+  }
+
+  // ============================================================
+  // MENU LIST
+  // ============================================================
+
+  Widget _buildMenuList(
+    BuildContext context,
+  ) {
+    final items =
+        itemsForSelectedCategory();
+
+    if (items.isEmpty) {
+      return Center(
+        child: Padding(
+          padding:
+              const EdgeInsets.only(
+            top: 60,
+          ),
+          child: Column(
+            mainAxisSize:
+                MainAxisSize.min,
+            children: [
+              Icon(
+                Icons
+                    .restaurant_menu_outlined,
+                size: 42,
+                color:
+                    Colors.grey.shade400,
+              ),
+
+              const SizedBox(
+                height: 12,
+              ),
+
+              Text(
+                _searchQuery
+                        .trim()
+                        .isNotEmpty
+                    ? 'No matching items'
+                    : 'No items available',
+                style:
+                    GoogleFonts
+                        .bricolageGrotesque(
+                  fontSize: 16,
+                  fontWeight:
+                      FontWeight.w600,
+                  color: _ink,
+                ),
+              ),
+
+              const SizedBox(
+                height: 5,
+              ),
+
+              Text(
+                _searchQuery
+                        .trim()
+                        .isNotEmpty
+                    ? 'Try another search'
+                    : 'This category is empty',
+                style:
+                    GoogleFonts.sora(
+                  fontSize: 11,
+                  color: _muted,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return ListView.separated(
+      physics:
+          const ClampingScrollPhysics(),
+      padding:
+          const EdgeInsets.fromLTRB(
+        16,
+        14,
+        16,
+        125,
+      ),
+      itemCount: items.length,
+      separatorBuilder:
+          (_, __) =>
+              const SizedBox(
+        height: 12,
+      ),
+      itemBuilder:
+          (context, index) {
+        final item = items[index];
+
+        final quantity =
+            _cartQuantities[
+                    item.id] ??
+                0;
+
+        return MenuItemCardWidget(
+          data:
+              _menuCardData(item),
+          quantity:
+              quantity,
+          onAdd: () {
+            updateCart(
+              item,
+              1,
+            );
+          },
+          onRemove: () {
+            updateCart(
+              item,
+              -1,
+            );
+          },
+          onTap: () {
+            _showMenuItemDetails(
+              context,
+              item,
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // ============================================================
+  // SEARCH BAR
+  // ============================================================
+
+  Widget _buildSearchBar(
+    BuildContext context,
+  ) {
+    return Container(
+      color: Colors.white,
+      padding:
+          const EdgeInsets.fromLTRB(
+        16,
+        4,
+        16,
+        2,
+      ),
+      child: Container(
+        height: 42,
+        decoration:
+            BoxDecoration(
+          color:
+              const Color(0xFFF8F7F5),
+          borderRadius:
+              BorderRadius.circular(14),
+          border: Border.all(
+            color: _line,
+          ),
+        ),
+        child: Row(
+          children: [
+            const SizedBox(
+              width: 14,
+            ),
+
+            const Icon(
+              Icons.search_rounded,
+              size: 22,
+              color: _muted,
+            ),
+
+            const SizedBox(
+              width: 10,
+            ),
+
+            Expanded(
+              child: TextField(
+                onChanged: (value) {
+                  setState(() {
+                    _searchQuery =
+                        value;
+                  });
+                },
+                style:
+                    GoogleFonts.sora(
+                  fontSize: 12,
+                  color: _ink,
+                ),
+                cursorColor:
+                    _orange,
+                decoration:
+                    InputDecoration(
+                  hintText:
+                      'Search in menu...',
+                  hintStyle:
+                      GoogleFonts.sora(
+                    fontSize: 12,
+                    color:
+                        const Color(
+                      0xFF918985,
+                    ),
+                  ),
+                  border:
+                      InputBorder.none,
+                  enabledBorder:
+                      InputBorder.none,
+                  focusedBorder:
+                      InputBorder.none,
+                  contentPadding:
+                      EdgeInsets.zero,
+                ),
+              ),
+            ),
+
+            if (_searchQuery
+                .isNotEmpty)
+              GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _searchQuery =
+                        '';
+                  });
+                },
+                child:
+                    const Padding(
+                  padding:
+                      EdgeInsets.all(12),
+                  child: Icon(
+                    Icons.close_rounded,
+                    size: 18,
+                    color: _muted,
+                  ),
+                ),
+              )
+            else
+              const SizedBox(
+                width: 12,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // HERO
+  // ============================================================
+
+  Widget _buildHeroSliverAppBar(
+    BuildContext context,
+  ) {
+    final imageUrl =
+        restaurant!.bannerImageUrl
+                    ?.trim()
+                    .isNotEmpty ==
+                true
+            ? restaurant!.bannerImageUrl!
+            : restaurant!.imageUrl
+                        ?.trim()
+                        .isNotEmpty ==
+                    true
+                ? restaurant!.imageUrl!
+                : 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd';
+
+    final isOpen =
+        restaurant!.isOpen;
+
+    final isFreeDelivery =
+        restaurant!.deliveryFee == 0;
+
+    return SliverAppBar(
+      expandedHeight: 200,
+      pinned: true,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      backgroundColor: Colors.white,
+      automaticallyImplyLeading: false,
+
+      flexibleSpace:
+          FlexibleSpaceBar(
+        collapseMode:
+            CollapseMode.parallax,
+
+        background:
+            Stack(
+          fit: StackFit.expand,
+          children: [
+            // ==================================================
+            // HERO IMAGE
+            // ==================================================
+
+            Hero(
+              tag:
+                  'restaurant_${restaurant!.id}',
+              child: ClipRRect(
+                borderRadius:
+                    const BorderRadius.only(
+                  bottomLeft:
+                      Radius.circular(24),
+                  bottomRight:
+                      Radius.circular(24),
+                ),
+                clipBehavior:
+                    Clip.antiAlias,
+                child:
+                    CustomImageWidget(
+                  imageUrl:
+                      imageUrl,
+                  width:
+                      double.infinity,
+                  height:
+                      double.infinity,
+                  fit:
+                      BoxFit.cover,
+
+                  // Restaurant name removed
+                  // from the image semantic label.
+                  semanticLabel:
+                      'Restaurant image',
+                ),
+              ),
+            ),
+
+            // ==================================================
+            // HERO CONTENT
+            // ==================================================
+
+            Positioned(
+              left: 16,
+              right: 16,
+              bottom: 8,
+              child: Column(
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+                children: [
+                  // ------------------------------------------------
+                  // STATUS
+                  // ------------------------------------------------
+
+                  Row(
+                    children: [
+                      Container(
+                        padding:
+                            const EdgeInsets
+                                .symmetric(
+                          horizontal: 11,
+                          vertical: 6,
+                        ),
+                        decoration:
+                            BoxDecoration(
+                          color: isOpen
+                              ? _green
+                              : const Color(
+                                  0xFF6B625F,
+                                ),
+                          borderRadius:
+                              BorderRadius.circular(
+                            20,
+                          ),
+                        ),
+                        child: Text(
+                          isOpen
+                              ? 'OPEN'
+                              : 'CLOSED',
+                          style:
+                              GoogleFonts.sora(
+                            color:
+                                Colors.white,
+                            fontSize: 9.5,
+                            fontWeight:
+                                FontWeight.w700,
+                            letterSpacing:
+                                0.2,
+                          ),
+                        ),
+                      ),
+
+                      if (isFreeDelivery) ...[
+                        const SizedBox(
+                          width: 8,
+                        ),
+
+                        Container(
+                          padding:
+                              const EdgeInsets
+                                  .symmetric(
+                            horizontal: 11,
+                            vertical: 6,
+                          ),
+                          decoration:
+                              BoxDecoration(
+                            color: _orange,
+                            borderRadius:
+                                BorderRadius.circular(
+                              20,
+                            ),
+                          ),
+                          child: Text(
+                            'FREE DELIVERY',
+                            style:
+                                GoogleFonts.sora(
+                              color:
+                                  Colors.white,
+                              fontSize:
+                                  9.5,
+                              fontWeight:
+                                  FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+
+                  const SizedBox(
+                    height: 8,
+                  ),
+
+                  // ------------------------------------------------
+                  // OFFERS
+                  // ------------------------------------------------
+
+                  _buildHeroOffers(),
+
+                  const SizedBox(
+                    height: 10,
+                  ),
+
+                  // ==================================================
+                  // RESTAURANT NAME REMOVED
+                  // ==================================================
+                  //
+                  // Previously:
+                  //
+                  // Text(
+                  //   restaurant!.name,
+                  //   ...
+                  // )
+                  //
+                  // It has intentionally been removed.
+                  //
+
+                  // ------------------------------------------------
+                  // CUISINE
+                  // ------------------------------------------------
+
+                  
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+
+      // ==========================================================
+      // BACK BUTTON
+      // ==========================================================
+
+      leading:
+          Padding(
+        padding:
+            const EdgeInsets.all(9),
+        child:
+            _HeroCircleButton(
+          icon:
+              Icons.arrow_back_rounded,
+          onTap: () {
+            context.pop();
+          },
+        ),
+      ),
+
+      // ==========================================================
+      // FAVORITE + SHARE
+      // ==========================================================
+
+      actions: [
+        _HeroCircleButton(
+          icon:
+              _isFavorite
+                  ? Icons.favorite_rounded
+                  : Icons
+                      .favorite_border_rounded,
+          iconColor:
+              _isFavorite
+                  ? Colors.red
+                  : _ink,
+          onTap: () {
+            setState(() {
+              _isFavorite =
+                  !_isFavorite;
+            });
+          },
+        ),
+
+        const SizedBox(
+          width: 7,
+        ),
+
+        Padding(
+          padding:
+              const EdgeInsets.only(
+            right: 10,
+          ),
+          child:
+              _HeroCircleButton(
+            icon:
+                Icons.share_rounded,
+            onTap: () {
+              // Share functionality
+              // can be connected later.
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ============================================================
+  // TABLET LAYOUT
+  // ============================================================
+
+  Widget _buildTabletLayout(
+    BuildContext context,
+  ) {
+    return Row(
+      children: [
+        Expanded(
+          flex: 6,
+          child:
+              _buildPhoneLayout(
+            context,
+          ),
+        ),
+
+        Container(
+          width: 1,
+          color: _line,
+        ),
+
+        Expanded(
+          flex: 4,
+          child:
+              _buildCartPanel(
+            context,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ============================================================
+  // MENU DETAIL PLACEHOLDER
+  // ============================================================
+
+  Widget _menuDetailPlaceholder() {
+    return Container(
+      width: double.infinity,
+      height: 330,
+      color:
+          const Color(0xFFE8E5E1),
+      child: const Center(
+        child: Icon(
+          Icons.restaurant_rounded,
+          size: 50,
+          color:
+              Color(0xFFAAA5A0),
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // HERO OFFERS
+  // ============================================================
+
+ // ============================================================
+// HERO OFFERS
+// ============================================================
+
+Widget _buildHeroOffers() {
+  if (_restaurantOffers.isEmpty) {
+    return const SizedBox.shrink();
+  }
+
+  return SizedBox(
+    height: 58,
+    width: double.infinity,
+    child: PageView.builder(
+      controller: _offerPageController,
+      itemCount: _restaurantOffers.length,
+      onPageChanged: (index) {
+        setState(() {
+          _currentOfferIndex = index;
+        });
+      },
+      itemBuilder: (context, index) {
+        final offer =
+            _restaurantOffers[index];
+
+        return Padding(
+          padding:
+              const EdgeInsets.only(right: 45),
+          child: GestureDetector(
+            behavior:
+                HitTestBehavior.opaque,
+            onTap: () {
+              _showOfferZone(
+                context,
+                offer,
+              );
+            },
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(
+                horizontal: 13,
+                vertical: 10,
+              ),
+              decoration:
+                  BoxDecoration(
+                color:
+                    Colors.white.withAlpha(205),
+                borderRadius:
+                    BorderRadius.circular(14),
+                border: Border.all(
+                  color:
+                      Colors.white.withAlpha(230),
+                  width: 0.8,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color:
+                        Colors.black.withAlpha(35),
+                    blurRadius: 12,
+                    offset:
+                        const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  // ------------------------------------------------
+                  // OFFER ICON
+                  // ------------------------------------------------
+
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration:
+                        BoxDecoration(
+                      color:
+                          Colors.white.withAlpha(150),
+                      shape:
+                          BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Text(
+                        offer['icon'] ??
+                            '🎁',
+                        style:
+                            const TextStyle(
+                          fontSize: 18,
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(
+                    width: 10,
+                  ),
+
+                  // ------------------------------------------------
+                  // OFFER TEXT
+                  // ------------------------------------------------
+
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment:
+                          MainAxisAlignment.center,
+                      crossAxisAlignment:
+                          CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          offer['title'] ??
+                              '',
+                          maxLines: 1,
+                          overflow:
+                              TextOverflow.ellipsis,
+                          style:
+                              GoogleFonts.sora(
+                            color:
+                                _ink,
+                            fontSize: 12,
+                            fontWeight:
+                                FontWeight.w800,
+                          ),
+                        ),
+
+                        const SizedBox(
+                          height: 3,
+                        ),
+
+                        Text(
+                          offer['subtitle'] ??
+                              '',
+                          maxLines: 1,
+                          overflow:
+                              TextOverflow.ellipsis,
+                          style:
+                              GoogleFonts.sora(
+                            color:
+                                _muted,
+                            fontSize: 8.5,
+                            fontWeight:
+                                FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(
+                    width: 8,
+                  ),
+
+                  // ------------------------------------------------
+                  // ARROW
+                  // ------------------------------------------------
+
+                  Container(
+                    width: 26,
+                    height: 26,
+                    decoration:
+                        BoxDecoration(
+                      color:
+                          _ink.withAlpha(12),
+                      shape:
+                          BoxShape.circle,
+                    ),
+                    child:
+                        const Icon(
+                      Icons
+                          .arrow_forward_ios_rounded,
+                      color:
+                          _ink,
+                      size: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    ),
+  );
+}
+
+// ============================================================
+// OFFER ZONE SHEET
+// ============================================================
+
+void _showOfferZone(
+  BuildContext context,
+  Map<String, String> offer,
+) {
+  showModalBottomSheet(
+    context: context,
+    backgroundColor:
+        Colors.transparent,
+    isScrollControlled: false,
+    barrierColor:
+        Colors.black.withAlpha(110),
+    builder: (sheetContext) {
+      return Container(
+        decoration:
+            const BoxDecoration(
+          color: Colors.white,
+          borderRadius:
+              BorderRadius.vertical(
+            top: Radius.circular(26),
+          ),
+        ),
+        padding:
+            const EdgeInsets.fromLTRB(
+          18,
+          10,
+          18,
+          22,
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize:
+                MainAxisSize.min,
+            crossAxisAlignment:
+                CrossAxisAlignment.start,
+            children: [
+              // ------------------------------------------------
+              // HANDLE
+              // ------------------------------------------------
+
+              Center(
+                child: Container(
+                  width: 42,
+                  height: 4,
+                  decoration:
+                      BoxDecoration(
+                    color:
+                        const Color(0xFFD8D3CE),
+                    borderRadius:
+                        BorderRadius.circular(
+                      10,
+                    ),
+                  ),
+                ),
+              ),
+
+              const SizedBox(
+                height: 18,
+              ),
+
+              // ------------------------------------------------
+              // HEADER
+              // ------------------------------------------------
+
+              Row(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration:
+                        BoxDecoration(
+                      color:
+                          const Color(0xFFFFF1E8),
+                      shape:
+                          BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Text(
+                        offer['icon'] ??
+                            '🎁',
+                        style:
+                            const TextStyle(
+                          fontSize: 21,
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(
+                    width: 12,
+                  ),
+
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment:
+                          CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Offer Zone',
+                          style:
+                              GoogleFonts
+                                  .bricolageGrotesque(
+                            fontSize: 13,
+                            fontWeight:
+                                FontWeight.w600,
+                            color:
+                                _muted,
+                          ),
+                        ),
+
+                        const SizedBox(
+                          height: 2,
+                        ),
+
+                        Text(
+                          offer['title'] ??
+                              '',
+                          style:
+                              GoogleFonts
+                                  .bricolageGrotesque(
+                            fontSize: 21,
+                            fontWeight:
+                                FontWeight.w800,
+                            color:
+                                _ink,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(
+                height: 18,
+              ),
+
+              // ------------------------------------------------
+              // OFFER CARD
+              // ------------------------------------------------
+
+              Container(
+                width:
+                    double.infinity,
+                padding:
+                    const EdgeInsets.all(
+                  15,
+                ),
+                decoration:
+                    BoxDecoration(
+                  color:
+                      const Color(0xFFFAF7F3),
+                  borderRadius:
+                      BorderRadius.circular(
+                    16,
+                  ),
+                  border:
+                      Border.all(
+                    color: _line,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.local_offer_rounded,
+                      color:
+                          _orange,
+                      size: 20,
+                    ),
+
+                    const SizedBox(
+                      width: 10,
+                    ),
+
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment:
+                            CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            offer['title'] ??
+                                '',
+                            style:
+                                GoogleFonts.sora(
+                              fontSize: 13,
+                              fontWeight:
+                                  FontWeight.w800,
+                              color:
+                                  _ink,
+                            ),
+                          ),
+
+                          const SizedBox(
+                            height: 3,
+                          ),
+
+                          Text(
+                            offer['subtitle'] ??
+                                '',
+                            style:
+                                GoogleFonts.sora(
+                              fontSize: 10,
+                              color:
+                                  _muted,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(
+                height: 12,
+              ),
+
+              // ------------------------------------------------
+              // TERMS
+              // ------------------------------------------------
+
+              Text(
+                'Offer terms',
+                style:
+                    GoogleFonts.sora(
+                  fontSize: 11,
+                  fontWeight:
+                      FontWeight.w700,
+                  color: _ink,
+                ),
+              ),
+
+              const SizedBox(
+                height: 5,
+              ),
+
+              Text(
+                'Valid on eligible orders. '
+                'Offer availability and minimum '
+                'order value may apply.',
+                style:
+                    GoogleFonts.sora(
+                  fontSize: 10,
+                  height: 1.4,
+                  color: _muted,
+                ),
+              ),
+
+              const SizedBox(
+                height: 16,
+              ),
+
+              // ------------------------------------------------
+              // USE OFFER
+              // ------------------------------------------------
+
+              SizedBox(
+                width:
+                    double.infinity,
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(
+                      sheetContext,
+                    ).pop();
+
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(
+                      SnackBar(
+                        behavior:
+                            SnackBarBehavior
+                                .floating,
+                        backgroundColor:
+                            _ink,
+                        content: Text(
+                          '${offer['title']} selected',
+                          style:
+                              GoogleFonts.sora(
+                            fontSize: 11,
+                            color:
+                                Colors.white,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                  style:
+                      ElevatedButton.styleFrom(
+                    backgroundColor:
+                        _orange,
+                    foregroundColor:
+                        Colors.white,
+                    elevation: 0,
+                    shape:
+                        RoundedRectangleBorder(
+                      borderRadius:
+                          BorderRadius.circular(
+                        13,
+                      ),
+                    ),
+                  ),
+                  child: Text(
+                    'Use Offer',
+                    style:
+                        GoogleFonts.sora(
+                      fontSize: 13,
+                      fontWeight:
+                          FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+  // ============================================================
+  // TABLET CART
+  // ============================================================
+
+  Widget _buildCartPanel(
+    BuildContext context,
+  ) {
+    final cartItems =
+        menu.where(
+      (item) {
+        return (_cartQuantities[
+                    item.id] ??
+                0) >
+            0;
+      },
+    ).toList();
+
+    return Container(
+      color: Colors.white,
+      child: Column(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+        children: [
+          // ------------------------------------------------------
+          // CART HEADER
+          // ------------------------------------------------------
+
+          SafeArea(
+            bottom: false,
+            child: Padding(
+              padding:
+                  const EdgeInsets.fromLTRB(
+                20,
+                18,
+                20,
+                12,
+              ),
+              child: Text(
+                'Your Cart',
+                style:
+                    GoogleFonts
+                        .bricolageGrotesque(
+                  fontSize: 23,
+                  fontWeight:
+                      FontWeight.w700,
+                  color: _ink,
+                ),
+              ),
+            ),
+          ),
+
+          // ------------------------------------------------------
+          // CART ITEMS
+          // ------------------------------------------------------
+
+          Expanded(
+            child:
+                cartItems.isEmpty
+                    ? _emptyCartPanel()
+                    : ListView.separated(
+                        padding:
+                            const EdgeInsets
+                                .symmetric(
+                          horizontal: 18,
+                          vertical: 8,
+                        ),
+                        itemCount:
+                            cartItems.length,
+                        separatorBuilder:
+                            (_, __) =>
+                                const Divider(
+                          height: 20,
+                          color: _line,
+                        ),
+                        itemBuilder:
+                            (
+                          context,
+                          index,
+                        ) {
+                          final item =
+                              cartItems[index];
+
+                          final quantity =
+                              _cartQuantities[
+                                      item.id] ??
+                                  0;
+
+                          return Row(
+                            children: [
+                              ClipRRect(
+                                borderRadius:
+                                    BorderRadius
+                                        .circular(
+                                  10,
+                                ),
+                                child:
+                                    CustomImageWidget(
+                                  imageUrl:
+                                      item.imageUrl ??
+                                          '',
+                                  width: 58,
+                                  height: 58,
+                                  fit:
+                                      BoxFit.cover,
+                                  semanticLabel:
+                                      item.name,
+                                ),
+                              ),
+
+                              const SizedBox(
+                                width: 10,
+                              ),
+
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment
+                                          .start,
+                                  children: [
+                                    Text(
+                                      item.name,
+                                      maxLines: 1,
+                                      overflow:
+                                          TextOverflow
+                                              .ellipsis,
+                                      style:
+                                          GoogleFonts
+                                              .bricolageGrotesque(
+                                        fontSize:
+                                            13,
+                                        fontWeight:
+                                            FontWeight
+                                                .w600,
+                                        color:
+                                            _ink,
+                                      ),
+                                    ),
+
+                                    const SizedBox(
+                                      height: 3,
+                                    ),
+
+                                    Text(
+                                      '₹${item.price.toStringAsFixed(0)}',
+                                      style:
+                                          GoogleFonts
+                                              .sora(
+                                        fontSize:
+                                            11,
+                                        color:
+                                            _muted,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+
+                              Text(
+                                '×$quantity',
+                                style:
+                                    GoogleFonts.sora(
+                                  fontSize: 12,
+                                  fontWeight:
+                                      FontWeight.w700,
+                                  color: _ink,
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+          ),
+
+          // ------------------------------------------------------
+          // CART BUTTON
+          // ------------------------------------------------------
+
+          if (_cartItemCount > 0)
+            Padding(
+              padding:
+                  const EdgeInsets.all(
+                18,
+              ),
+              child:
+                  CartSummaryBarWidget(
+                itemCount:
+                    _cartItemCount,
+                total:
+                    _cartTotal,
+                isEmbedded:
+                    true,
+                onViewCart: () {
+  context.push(
+    AppRoutes.checkoutScreen,
+    extra: {
+      'restaurantPartnerId':
+          widget.restaurantPartnerId,
+      'restaurantName':
+          restaurant!.name,
+    },
+  );
+},
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================
+  // EMPTY CART
+  // ============================================================
+
+  Widget _emptyCartPanel() {
+    return Center(
+      child: Column(
+        mainAxisSize:
+            MainAxisSize.min,
+        children: [
+          Icon(
+            Icons
+                .shopping_bag_outlined,
+            size: 46,
+            color:
+                Colors.grey.shade400,
+          ),
+
+          const SizedBox(
+            height: 12,
+          ),
+
+          Text(
+            'Your cart is empty',
+            style:
+                GoogleFonts
+                    .bricolageGrotesque(
+              fontSize: 16,
+              fontWeight:
+                  FontWeight.w600,
+              color: _ink,
+            ),
+          ),
+
+          const SizedBox(
+            height: 5,
+          ),
+
+          Text(
+            'Add something delicious',
+            style:
+                GoogleFonts.sora(
+              fontSize: 11,
+              color: _muted,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// =================================================================
+// HERO CIRCLE BUTTON
+// =================================================================
+
+class _HeroCircleButton
+    extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  final Color iconColor;
+
+  const _HeroCircleButton({
+    required this.icon,
+    required this.onTap,
+    this.iconColor =
+        const Color(0xFF2A1D1A),
+  });
+
+  @override
+  Widget build(
+    BuildContext context,
+  ) {
+    return Padding(
+      padding:
+          const EdgeInsets.all(8),
+      child: Material(
+        color: Colors.white,
+        elevation: 3,
+        shadowColor:
+            Colors.black.withAlpha(35),
+        shape:
+            const CircleBorder(),
+        child: InkWell(
+          customBorder:
+              const CircleBorder(),
+          onTap: onTap,
+          child:  SizedBox(
+            width: 38,
+            height: 38,
+            child: Icon(
+              icon,
+              color: iconColor,
+              size: 19,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// =================================================================
+// CATEGORY HEADER DELEGATE
+// =================================================================
+
+class _CategoryHeaderDelegate
+    extends SliverPersistentHeaderDelegate {
+  final Widget child;
+
+  const _CategoryHeaderDelegate({
+    required this.child,
+  });
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    return Material(
+      color: Colors.white,
+      elevation:
+          overlapsContent ? 2 : 0,
+      shadowColor:
+          Colors.black.withAlpha(15),
+      child: child,
+    );
+  }
+
+  @override
+  double get maxExtent => 52;
+
+  @override
+  double get minExtent => 52;
+
+  @override
+  bool shouldRebuild(
+    covariant
+        _CategoryHeaderDelegate
+        oldDelegate,
+  ) {
+    return oldDelegate.child !=
+        child;
+  }
+}

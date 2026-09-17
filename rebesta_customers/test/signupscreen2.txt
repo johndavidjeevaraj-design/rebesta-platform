@@ -1,0 +1,1402 @@
+import 'dart:ui' as ui;
+import 'package:go_router/go_router.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:google_fonts/google_fonts.dart';
+import '../../../routes/app_routes.dart';
+import '../../../theme/app_theme.dart';
+
+class SignupScreen extends StatefulWidget {
+  const SignupScreen({super.key});
+
+  @override
+  State<SignupScreen> createState() => _SignupScreenState();
+}
+
+class _SignupScreenState extends State<SignupScreen>
+    with SingleTickerProviderStateMixin {
+  // ===========================================================================
+  // FORM
+  // ===========================================================================
+
+  final _formKey = GlobalKey<FormState>();
+
+  // ===========================================================================
+  // CONTROLLERS
+  // ===========================================================================
+
+  final _nameController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+
+  // ===========================================================================
+  // FOCUS NODES
+  // ===========================================================================
+
+  final _nameFocus = FocusNode();
+  final _emailFocus = FocusNode();
+  final _phoneFocus = FocusNode();
+  final _passwordFocus = FocusNode();
+  final _confirmPasswordFocus = FocusNode();
+
+  // ===========================================================================
+  // STATE
+  // ===========================================================================
+
+  int _currentStep = 1;
+
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
+  bool _agreeToTerms = false;
+  bool _isLoading = false;
+
+  // ===========================================================================
+  // DISPOSE
+  // ===========================================================================
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    _phoneController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+
+    _nameFocus.dispose();
+    _emailFocus.dispose();
+    _phoneFocus.dispose();
+    _passwordFocus.dispose();
+    _confirmPasswordFocus.dispose();
+
+    super.dispose();
+  }
+
+  // ===========================================================================
+  // STEP NAVIGATION
+  // ===========================================================================
+
+  void _goToStep2() {
+    FocusScope.of(context).unfocus();
+
+    if (!_validateStep1()) return;
+
+    setState(() => _currentStep = 2);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      Future.delayed(const Duration(milliseconds: 250), () {
+        if (!mounted) return;
+        _passwordFocus.requestFocus();
+      });
+    });
+  }
+
+  void _goToStep1() {
+    FocusScope.of(context).unfocus();
+    setState(() => _currentStep = 1);
+  }
+
+  bool _validateStep1() {
+    final nameError = _validateName(_nameController.text);
+    if (nameError != null) {
+      _showError(nameError);
+      _nameFocus.requestFocus();
+      return false;
+    }
+
+    final emailError = _validateEmail(_emailController.text);
+    if (emailError != null) {
+      _showError(emailError);
+      _emailFocus.requestFocus();
+      return false;
+    }
+
+    final phoneError = _validatePhone(_phoneController.text);
+    if (phoneError != null) {
+      _showError(phoneError);
+      _phoneFocus.requestFocus();
+      return false;
+    }
+
+    return true;
+  }
+
+  // ===========================================================================
+  // CREATE ACCOUNT
+  // ===========================================================================
+
+  Future<void> _createAccount() async {
+    FocusScope.of(context).unfocus();
+
+    final passwordError = _validatePassword(_passwordController.text);
+    if (passwordError != null) {
+      _showError(passwordError);
+      _passwordFocus.requestFocus();
+      return;
+    }
+
+    final confirmError =
+        _validateConfirmPassword(_confirmPasswordController.text);
+    if (confirmError != null) {
+      _showError(confirmError);
+      _confirmPasswordFocus.requestFocus();
+      return;
+    }
+
+    if (!_agreeToTerms) {
+      _showError('Please agree to the Terms & Conditions');
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      await Future.delayed(const Duration(milliseconds: 900));
+      if (!mounted) return;
+      _showSuccessDialog();
+    } catch (_) {
+      if (!mounted) return;
+      _showError('Something went wrong. Please try again.');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  // ===========================================================================
+  // VALIDATION
+  // ===========================================================================
+
+  String? _validateName(String? value) {
+    final name = value?.trim() ?? '';
+    if (name.isEmpty) return 'Please enter your full name';
+    if (name.length < 2) return 'Name must be at least 2 characters';
+    return null;
+  }
+
+  String? _validateEmail(String? value) {
+    final email = value?.trim() ?? '';
+    if (email.isEmpty) return 'Please enter your email';
+    if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
+      return 'Please enter a valid email';
+    }
+    return null;
+  }
+
+  String? _validatePhone(String? value) {
+    final phone = value?.trim() ?? '';
+    if (phone.isEmpty) return 'Please enter your phone number';
+    if (phone.length != 10) return 'Please enter a valid 10-digit number';
+    return null;
+  }
+
+  String? _validatePassword(String? value) {
+    final password = value ?? '';
+    if (password.isEmpty) return 'Please enter a password';
+    if (password.length < 8) return 'Password must be at least 8 characters';
+    if (!RegExp(r'[A-Z]').hasMatch(password)) {
+      return 'Include at least one uppercase letter';
+    }
+    if (!RegExp(r'[0-9]').hasMatch(password)) {
+      return 'Include at least one number';
+    }
+    return null;
+  }
+
+  String? _validateConfirmPassword(String? value) {
+    final confirm = value ?? '';
+    if (confirm.isEmpty) return 'Please confirm your password';
+    if (confirm != _passwordController.text) return 'Passwords do not match';
+    return null;
+  }
+
+  // ===========================================================================
+  // ERROR SNACKBAR
+  // ===========================================================================
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          margin: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+          padding: EdgeInsets.zero,
+          content: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(
+              horizontal: 18,
+              vertical: 14,
+            ),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFFFFA51F), Color(0xFFFF3D21)],
+              ),
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFFF6428).withValues(alpha: 0.25),
+                  blurRadius: 14,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.info_outline_rounded,
+                    color: Colors.white, size: 20),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    message,
+                    style: GoogleFonts.dmSans(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+  }
+
+  // ===========================================================================
+  // BUILD
+  // ===========================================================================
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFFDEEDC),
+      extendBody: true,
+      resizeToAvoidBottomInset: false,
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // ================================================================
+            // BACKGROUND IMAGE
+            // ================================================================
+            Positioned.fill(
+              child: Image.asset(
+                'assets/images/signup_bg.png',
+                fit: BoxFit.cover,
+                alignment: Alignment.topCenter,
+              ),
+            ),
+
+            // ================================================================
+            // GLASS CARD
+            // ================================================================
+            SafeArea(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final keyboardOpen = bottomInset > 0;
+
+                  return Stack(
+                    children: [
+                      AnimatedPositioned(
+                        duration: const Duration(milliseconds: 250),
+                        curve: Curves.easeOut,
+                        left: 14,
+                        right: 14,
+                        bottom: keyboardOpen ? bottomInset + 12 : 18,
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxHeight: constraints.maxHeight -
+                                (keyboardOpen ? bottomInset + 24 : 36),
+                          ),
+                          child: SingleChildScrollView(
+                            physics: const BouncingScrollPhysics(),
+                            keyboardDismissBehavior:
+                                ScrollViewKeyboardDismissBehavior.onDrag,
+                            child: _buildGlassCard(size),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // PREMIUM GLASS CARD
+  // ===========================================================================
+
+// ===========================================================================
+// PREMIUM GLASS CARD
+// ===========================================================================
+
+Widget _buildGlassCard(Size size) {
+  return ClipRRect(
+    borderRadius: BorderRadius.circular(32),
+    child: BackdropFilter(
+      filter: ui.ImageFilter.blur(sigmaX: 25, sigmaY: 25),
+      child: Container(
+        width: double.infinity,
+        padding: EdgeInsets.fromLTRB(
+          size.width < 380 ? 20 : 24,
+          18,
+          size.width < 380 ? 20 : 24,
+          20,
+        ),
+        decoration: BoxDecoration(
+          // ============ TRANSPARENT GLASS GRADIENT ============
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.white.withValues(alpha: 0.35),
+              Colors.white.withValues(alpha: 0.20),
+              Colors.white.withValues(alpha: 0.25),
+              Colors.white.withValues(alpha: 0.40),
+            ],
+            stops: const [0.0, 0.35, 0.65, 1.0],
+          ),
+          borderRadius: BorderRadius.circular(32),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.55),
+            width: 1.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.10),
+              blurRadius: 40,
+              spreadRadius: 2,
+              offset: const Offset(0, 18),
+            ),
+            BoxShadow(
+              color: const Color(0xFFFF6428).withValues(alpha: 0.10),
+              blurRadius: 30,
+              spreadRadius: 1,
+              offset: const Offset(0, 8),
+            ),
+            BoxShadow(
+              color: Colors.white.withValues(alpha: 0.4),
+              blurRadius: 12,
+              spreadRadius: -4,
+              offset: const Offset(0, -3),
+            ),
+          ],
+        ),
+        // ============ MAIN FORM (NO STACK, NO OVERLAYS) ============
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Handle bar
+              Center(
+                child: Container(
+                  width: 44,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.8),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // Title Row
+              Row(
+                children: [
+                  if (_currentStep == 2)
+                    GestureDetector(
+                      onTap: _goToStep1,
+                      child: Container(
+                        width: 32,
+                        height: 32,
+                        margin: const EdgeInsets.only(right: 10),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.55),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.85),
+                            width: 1,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.06),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.arrow_back_rounded,
+                          size: 18,
+                          color: Color(0xFF374151),
+                        ),
+                      ),
+                    ),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _currentStep == 1
+                              ? 'Create Account'
+                              : 'Almost There!',
+                          style: GoogleFonts.dmSans(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                            color: const Color(0xFF111827),
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          _currentStep == 1
+                              ? 'Enter your details to get started'
+                              : 'Set your password to finish signup',
+                          style: GoogleFonts.dmSans(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w500,
+                            color: const Color(0xFF6B7280),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 16),
+
+              // Step Indicator
+              _buildStepIndicator(),
+
+              const SizedBox(height: 18),
+
+              // Animated Step Content
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 280),
+                switchInCurve: Curves.easeOut,
+                switchOutCurve: Curves.easeIn,
+                transitionBuilder: (child, animation) {
+                  return FadeTransition(
+                    opacity: animation,
+                    child: SlideTransition(
+                      position: Tween<Offset>(
+                        begin: const Offset(0.06, 0),
+                        end: Offset.zero,
+                      ).animate(animation),
+                      child: child,
+                    ),
+                  );
+                },
+                child: _currentStep == 1
+                    ? _buildStep1(size)
+                    : _buildStep2(size),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+  // ===========================================================================
+  // STEP INDICATOR
+  // ===========================================================================
+
+  Widget _buildStepIndicator() {
+    return Row(
+      children: [
+        // Step 1 circle
+        _stepCircle(1, true),
+        Expanded(
+          child: Container(
+            height: 3,
+            margin: const EdgeInsets.symmetric(horizontal: 8),
+            decoration: BoxDecoration(
+              gradient: _currentStep == 2
+                  ? const LinearGradient(
+                      colors: [Color(0xFFFFA51F), Color(0xFFFF3D21)],
+                    )
+                  : null,
+              color: _currentStep == 2
+                  ? null
+                  : Colors.white.withValues(alpha: 0.55),
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        ),
+        _stepCircle(2, _currentStep == 2),
+        const SizedBox(width: 10),
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 200),
+          child: Text(
+            'Step $_currentStep of 2',
+            key: ValueKey(_currentStep),
+            style: GoogleFonts.dmSans(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFF6B7280),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _stepCircle(int step, bool active) {
+    return Container(
+      width: 30,
+      height: 30,
+      decoration: BoxDecoration(
+        gradient: active
+            ? const LinearGradient(
+                colors: [Color(0xFFFFA51F), Color(0xFFFF3D21)],
+              )
+            : null,
+        color: active ? null : Colors.white.withValues(alpha: 0.6),
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: active
+              ? Colors.white.withValues(alpha: 0.9)
+              : Colors.white.withValues(alpha: 0.7),
+          width: 1.5,
+        ),
+        boxShadow: active
+            ? [
+                BoxShadow(
+                  color: const Color(0xFFFF6428).withValues(alpha: 0.35),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ]
+            : null,
+      ),
+      child: Center(
+        child: Text(
+          '$step',
+          style: GoogleFonts.dmSans(
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+            color: active ? Colors.white : const Color(0xFFFF5722),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // STEP 1
+  // ===========================================================================
+
+  Widget _buildStep1(Size size) {
+    return Column(
+      key: const ValueKey('signup-step-1'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildFieldLabel('Full name'),
+        const SizedBox(height: 6),
+        _buildInputField(
+          controller: _nameController,
+          focusNode: _nameFocus,
+          hint: 'Enter your full name',
+          icon: Icons.person_outline_rounded,
+          keyboardType: TextInputType.name,
+          textInputAction: TextInputAction.next,
+          onSubmitted: (_) => _emailFocus.requestFocus(),
+          validator: _validateName,
+          size: size,
+        ),
+        const SizedBox(height: 14),
+        _buildFieldLabel('Email address'),
+        const SizedBox(height: 6),
+        _buildInputField(
+          controller: _emailController,
+          focusNode: _emailFocus,
+          hint: 'Enter your email',
+          icon: Icons.mail_outline_rounded,
+          keyboardType: TextInputType.emailAddress,
+          textInputAction: TextInputAction.next,
+          onSubmitted: (_) => _phoneFocus.requestFocus(),
+          validator: _validateEmail,
+          size: size,
+        ),
+        const SizedBox(height: 14),
+        _buildFieldLabel('Phone number'),
+        const SizedBox(height: 6),
+        _buildPhoneField(size),
+        const SizedBox(height: 20),
+        _buildGradientButton(
+          text: 'Continue',
+          icon: Icons.arrow_forward_rounded,
+          onTap: _goToStep2,
+          loading: false,
+          size: size,
+        ),
+        const SizedBox(height: 14),
+        _buildSignInLink(size),
+      ],
+    );
+  }
+
+  // ===========================================================================
+  // STEP 2
+  // ===========================================================================
+
+  Widget _buildStep2(Size size) {
+    return Column(
+      key: const ValueKey('signup-step-2'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildFieldLabel('Password'),
+        const SizedBox(height: 6),
+        _buildPasswordField(size),
+        const SizedBox(height: 6),
+        _buildPasswordStrength(),
+        const SizedBox(height: 14),
+        _buildFieldLabel('Confirm password'),
+        const SizedBox(height: 6),
+        _buildConfirmPasswordField(size),
+        const SizedBox(height: 14),
+        _buildTerms(),
+        const SizedBox(height: 16),
+        _buildGradientButton(
+          text: 'Create Account',
+          icon: Icons.check_rounded,
+          onTap: _createAccount,
+          loading: _isLoading,
+          size: size,
+        ),
+        const SizedBox(height: 14),
+        _buildSocialSignup(size),
+        const SizedBox(height: 12),
+        _buildSignInLink(size),
+      ],
+    );
+  }
+
+  // ===========================================================================
+  // FIELD LABEL
+  // ===========================================================================
+
+  Widget _buildFieldLabel(String text) {
+    return Text(
+      text,
+      style: GoogleFonts.dmSans(
+        fontSize: 12,
+        fontWeight: FontWeight.w700,
+        color: const Color(0xFF374151),
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // INPUT FIELD
+  // ===========================================================================
+
+  Widget _buildInputField({
+    required TextEditingController controller,
+    required FocusNode focusNode,
+    required String hint,
+    required IconData icon,
+    required TextInputType keyboardType,
+    required TextInputAction textInputAction,
+    required ValueChanged<String> onSubmitted,
+    required String? Function(String?) validator,
+    required Size size,
+  }) {
+    return SizedBox(
+      height: size.width < 380 ? 46 : 50,
+      child: TextFormField(
+        controller: controller,
+        focusNode: focusNode,
+        keyboardType: keyboardType,
+        textInputAction: textInputAction,
+        onFieldSubmitted: onSubmitted,
+        validator: validator,
+        autovalidateMode: AutovalidateMode.onUserInteraction,
+        style: GoogleFonts.dmSans(
+          fontSize: 13.5,
+          fontWeight: FontWeight.w500,
+          color: const Color(0xFF1F2937),
+        ),
+        decoration: _inputDecoration(hint: hint, icon: icon),
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // PHONE FIELD
+  // ===========================================================================
+
+  Widget _buildPhoneField(Size size) {
+    return SizedBox(
+      height: size.width < 380 ? 46 : 50,
+      child: TextFormField(
+        controller: _phoneController,
+        focusNode: _phoneFocus,
+        keyboardType: TextInputType.phone,
+        textInputAction: TextInputAction.next,
+        maxLength: 10,
+        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+        onFieldSubmitted: (_) => _goToStep2(),
+        validator: _validatePhone,
+        autovalidateMode: AutovalidateMode.onUserInteraction,
+        style: GoogleFonts.dmSans(
+          fontSize: 13.5,
+          fontWeight: FontWeight.w500,
+          color: const Color(0xFF1F2937),
+        ),
+        decoration: _inputDecoration(
+          hint: 'Enter your phone number',
+          icon: Icons.phone_outlined,
+        ).copyWith(
+          counterText: '',
+          prefixText: '+91  ',
+          prefixStyle: GoogleFonts.dmSans(
+            fontSize: 13.5,
+            fontWeight: FontWeight.w700,
+            color: const Color(0xFF374151),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // PASSWORD FIELD
+  // ===========================================================================
+
+  Widget _buildPasswordField(Size size) {
+    return SizedBox(
+      height: size.width < 380 ? 46 : 50,
+      child: TextFormField(
+        controller: _passwordController,
+        focusNode: _passwordFocus,
+        obscureText: _obscurePassword,
+        textInputAction: TextInputAction.next,
+        onChanged: (_) => setState(() {}),
+        onFieldSubmitted: (_) => _confirmPasswordFocus.requestFocus(),
+        validator: _validatePassword,
+        autovalidateMode: AutovalidateMode.onUserInteraction,
+        style: GoogleFonts.dmSans(
+          fontSize: 13.5,
+          fontWeight: FontWeight.w500,
+          color: const Color(0xFF1F2937),
+        ),
+        decoration: _inputDecoration(
+          hint: 'Create a password',
+          icon: Icons.lock_outline_rounded,
+        ).copyWith(
+          suffixIcon: IconButton(
+            padding: EdgeInsets.zero,
+            onPressed: () =>
+                setState(() => _obscurePassword = !_obscurePassword),
+            icon: Icon(
+              _obscurePassword
+                  ? Icons.visibility_off_outlined
+                  : Icons.visibility_outlined,
+              size: 19,
+              color: const Color(0xFF9CA3AF),
+            ),
+          ),
+          suffixIconConstraints:
+              const BoxConstraints(minWidth: 42, minHeight: 40),
+        ),
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // CONFIRM PASSWORD
+  // ===========================================================================
+
+  Widget _buildConfirmPasswordField(Size size) {
+    return SizedBox(
+      height: size.width < 380 ? 46 : 50,
+      child: TextFormField(
+        controller: _confirmPasswordController,
+        focusNode: _confirmPasswordFocus,
+        obscureText: _obscureConfirmPassword,
+        textInputAction: TextInputAction.done,
+        onFieldSubmitted: (_) => _createAccount(),
+        validator: _validateConfirmPassword,
+        autovalidateMode: AutovalidateMode.onUserInteraction,
+        style: GoogleFonts.dmSans(
+          fontSize: 13.5,
+          fontWeight: FontWeight.w500,
+          color: const Color(0xFF1F2937),
+        ),
+        decoration: _inputDecoration(
+          hint: 'Confirm your password',
+          icon: Icons.shield_outlined,
+        ).copyWith(
+          suffixIcon: IconButton(
+            padding: EdgeInsets.zero,
+            onPressed: () => setState(
+                () => _obscureConfirmPassword = !_obscureConfirmPassword),
+            icon: Icon(
+              _obscureConfirmPassword
+                  ? Icons.visibility_off_outlined
+                  : Icons.visibility_outlined,
+              size: 19,
+              color: const Color(0xFF9CA3AF),
+            ),
+          ),
+          suffixIconConstraints:
+              const BoxConstraints(minWidth: 42, minHeight: 40),
+        ),
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // INPUT DECORATION
+  // ===========================================================================
+
+  InputDecoration _inputDecoration({
+    required String hint,
+    required IconData icon,
+  }) {
+    return InputDecoration(
+      isDense: true,
+      hintText: hint,
+      hintStyle: GoogleFonts.dmSans(
+        fontSize: 13,
+        color: const Color(0xFF9CA3AF),
+        fontWeight: FontWeight.w500,
+      ),
+      prefixIcon: Icon(icon, size: 19, color: const Color(0xFFFF6428)),
+      prefixIconConstraints: const BoxConstraints(minWidth: 44, minHeight: 40),
+      filled: true,
+      fillColor: Colors.white.withValues(alpha: 0.55),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+      border: _inputBorder(),
+      enabledBorder: _inputBorder(),
+      focusedBorder: _focusedBorder(),
+      errorBorder: _errorBorder(),
+      focusedErrorBorder: _errorBorder(),
+      errorStyle: const TextStyle(fontSize: 0, height: 0),
+    );
+  }
+
+  // ===========================================================================
+  // PASSWORD STRENGTH
+  // ===========================================================================
+
+  Widget _buildPasswordStrength() {
+    final password = _passwordController.text;
+    if (password.isEmpty) return const SizedBox(height: 4);
+
+    int strength = 0;
+    if (password.length >= 8) strength++;
+    if (RegExp(r'[A-Z]').hasMatch(password)) strength++;
+    if (RegExp(r'[0-9]').hasMatch(password)) strength++;
+    if (RegExp(r'[!@#$%^&*(),.?":{}|<>]').hasMatch(password)) strength++;
+
+    Color color;
+    String label;
+    switch (strength) {
+      case 1:
+        color = Colors.red;
+        label = 'Weak';
+        break;
+      case 2:
+        color = Colors.orange;
+        label = 'Fair';
+        break;
+      case 3:
+        color = const Color(0xFFFF8C00);
+        label = 'Good';
+        break;
+      case 4:
+        color = Colors.green;
+        label = 'Strong';
+        break;
+      default:
+        color = const Color(0xFFE5E7EB);
+        label = '';
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: List.generate(4, (index) {
+              return Expanded(
+                child: Container(
+                  height: 3,
+                  margin: EdgeInsets.only(right: index < 3 ? 5 : 0),
+                  decoration: BoxDecoration(
+                    color: index < strength ? color : const Color(0xFFE5E7EB),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                ),
+              );
+            }),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            label,
+            style: GoogleFonts.dmSans(
+              fontSize: 9.5,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // TERMS
+  // ===========================================================================
+
+  Widget _buildTerms() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        SizedBox(
+          width: 22,
+          height: 22,
+          child: Checkbox(
+            value: _agreeToTerms,
+            onChanged: (value) =>
+                setState(() => _agreeToTerms = value ?? false),
+            activeColor: const Color(0xFFFF6428),
+            checkColor: Colors.white,
+            side: BorderSide(
+              color: Colors.white.withValues(alpha: 0.9),
+              width: 1.3,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(6),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: RichText(
+            text: TextSpan(
+              style: GoogleFonts.dmSans(
+                fontSize: 11,
+                color: const Color(0xFF6B7280),
+                height: 1.3,
+              ),
+              children: [
+                const TextSpan(text: 'I agree to the '),
+                TextSpan(
+                  text: 'Terms of Service',
+                  style: GoogleFonts.dmSans(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFFFF6428),
+                  ),
+                ),
+                const TextSpan(text: ' and '),
+                TextSpan(
+                  text: 'Privacy Policy',
+                  style: GoogleFonts.dmSans(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFFFF6428),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ===========================================================================
+  // GRADIENT BUTTON
+  // ===========================================================================
+
+  Widget _buildGradientButton({
+    required String text,
+    required IconData icon,
+    required VoidCallback onTap,
+    required bool loading,
+    required Size size,
+  }) {
+    return SizedBox(
+      width: double.infinity,
+      height: size.width < 380 ? 46 : 50,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+            colors: [Color(0xFFFFA51F), Color(0xFFFF3D21)],
+          ),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFFFF6428).withValues(alpha: 0.35),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: loading ? null : onTap,
+            borderRadius: BorderRadius.circular(16),
+            child: Center(
+              child: loading
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.4,
+                        valueColor:
+                            AlwaysStoppedAnimation(Colors.white),
+                      ),
+                    )
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          text,
+                          style: GoogleFonts.dmSans(
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Icon(icon, size: 20, color: Colors.white),
+                      ],
+                    ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // SOCIAL SIGNUP
+  // ===========================================================================
+
+  Widget _buildSocialSignup(Size size) {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Container(
+                height: 1,
+                color: Colors.white.withValues(alpha: 0.6),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Text(
+                'or continue with',
+                style: GoogleFonts.dmSans(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF6B7280),
+                ),
+              ),
+            ),
+            Expanded(
+              child: Container(
+                height: 1,
+                color: Colors.white.withValues(alpha: 0.6),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _buildSocialButton(
+                icon: _googleIcon(),
+                text: 'Google',
+                onTap: () {},
+                size: size,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _buildSocialButton(
+                icon: const Icon(Icons.apple, size: 20, color: Colors.black),
+                text: 'Apple',
+                onTap: () {},
+                size: size,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSocialButton({
+    required Widget icon,
+    required String text,
+    required VoidCallback onTap,
+    required Size size,
+  }) {
+    return SizedBox(
+      height: size.width < 380 ? 42 : 46,
+      child: Material(
+        color: Colors.white.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.85),
+                width: 1,
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                icon,
+                const SizedBox(width: 8),
+                Text(
+                  text,
+                  style: GoogleFonts.dmSans(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF171717),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _googleIcon() {
+    return SvgPicture.asset(
+      'assets/icons/google_g.svg',
+      width: 18,
+      height: 18,
+    );
+  }
+
+  // ===========================================================================
+  // SIGN IN LINK
+  // ===========================================================================
+
+  Widget _buildSignInLink(Size size) {
+    return Center(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          FocusScope.of(context).unfocus();
+          context.go(AppRoutes.loginScreen);
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: RichText(
+            text: TextSpan(
+              style: GoogleFonts.dmSans(
+                fontSize: size.width < 380 ? 11.5 : 12.5,
+                color: const Color(0xFF6B7280),
+                fontWeight: FontWeight.w500,
+              ),
+              children: [
+                const TextSpan(text: 'Already have an account? '),
+                TextSpan(
+                  text: 'Sign In',
+                  style: GoogleFonts.dmSans(
+                    fontSize: size.width < 380 ? 11.5 : 12.5,
+                    fontWeight: FontWeight.w800,
+                    color: const Color(0xFFFF6428),
+                  ),
+                ),
+                const TextSpan(text: ' ›'),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // BORDERS
+  // ===========================================================================
+
+  OutlineInputBorder _inputBorder() {
+    return OutlineInputBorder(
+      borderRadius: BorderRadius.circular(14),
+      borderSide: BorderSide(
+        color: Colors.white.withValues(alpha: 0.75),
+        width: 1.2,
+      ),
+    );
+  }
+
+  OutlineInputBorder _focusedBorder() {
+    return OutlineInputBorder(
+      borderRadius: BorderRadius.circular(14),
+      borderSide: const BorderSide(
+        color: Color(0xFFFF6428),
+        width: 1.5,
+      ),
+    );
+  }
+
+  OutlineInputBorder _errorBorder() {
+    return OutlineInputBorder(
+      borderRadius: BorderRadius.circular(14),
+      borderSide: const BorderSide(
+        color: Colors.redAccent,
+        width: 1.3,
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // SUCCESS DIALOG
+  // ===========================================================================
+
+  void _showSuccessDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: BackdropFilter(
+              filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+              child: Container(
+                padding: const EdgeInsets.all(28),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.85),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.9),
+                    width: 1.5,
+                  ),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 72,
+                      height: 72,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFFFA51F), Color(0xFFFF3D21)],
+                        ),
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color:
+                                const Color(0xFFFF6428).withValues(alpha: 0.4),
+                            blurRadius: 20,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.check_rounded,
+                        color: Colors.white,
+                        size: 40,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      'Account Created!',
+                      style: GoogleFonts.dmSans(
+                        fontSize: 21,
+                        fontWeight: FontWeight.w900,
+                        color: const Color(0xFF111827),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Your account has been created successfully.',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.dmSans(
+                        fontSize: 13,
+                        color: const Color(0xFF6B7280),
+                        height: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: 22),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 46,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFFFFA51F), Color(0xFFFF3D21)],
+                          ),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: ElevatedButton(
+                          onPressed: () {
+                            Navigator.pop(dialogContext);
+                            context.go(AppRoutes.loginScreen);
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.transparent,
+                            shadowColor: Colors.transparent,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          child: Text(
+                            'Start Ordering',
+                            style: GoogleFonts.dmSans(
+                              fontSize: 14.5,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}

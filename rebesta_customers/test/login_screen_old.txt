@@ -1,0 +1,961 @@
+import 'package:flutter/material.dart';
+
+import '../../../theme/app_theme.dart';
+import '../signup_screen/signup_screen.dart';
+
+enum LoginMethod {
+  email,
+  phone,
+}
+
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key});
+
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen>
+    with SingleTickerProviderStateMixin {
+  final _formKey = GlobalKey<FormState>();
+
+  final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _passwordController = TextEditingController();
+
+  bool _obscurePassword = true;
+  bool _isLoading = false;
+
+  LoginMethod _loginMethod = LoginMethod.email;
+
+  late AnimationController _animationController;
+  late Animation<double> _cardAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+
+    _cardAnimation = CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeOutCubic,
+    );
+
+    _animationController.forward();
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _phoneController.dispose();
+    _passwordController.dispose();
+    _animationController.dispose();
+
+    super.dispose();
+  }
+
+  void _changeLoginMethod(LoginMethod method) {
+    if (_loginMethod == method) return;
+
+    FocusScope.of(context).unfocus();
+
+    setState(() {
+      _loginMethod = method;
+    });
+  }
+
+  Future<void> _continueLogin() async {
+    FocusScope.of(context).unfocus();
+
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    /*
+      ============================================================
+      BACKEND INTEGRATION WILL COME NEXT
+      ============================================================
+
+      EMAIL:
+        authService.loginWithEmail(
+          email: _emailController.text.trim(),
+          password: _passwordController.text,
+        );
+
+      PHONE:
+        authService.sendOtp(
+          phone: '+91${_phoneController.text.trim()}',
+        );
+
+      ============================================================
+    */
+
+    await Future.delayed(
+      const Duration(milliseconds: 700),
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+      _isLoading = false;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          _loginMethod == LoginMethod.email
+              ? 'Email login is ready for backend integration.'
+              : 'OTP request is ready for backend integration.',
+        ),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: AppTheme.primary,
+        margin: const EdgeInsets.all(16),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+        ),
+      ),
+    );
+  }
+
+  void _openSignup() {
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        pageBuilder: (_, animation, secondaryAnimation) {
+          return const SignupScreen();
+        },
+        transitionsBuilder: (
+          context,
+          animation,
+          secondaryAnimation,
+          child,
+        ) {
+          return FadeTransition(
+            opacity: animation,
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0.08, 0),
+                end: Offset.zero,
+              ).animate(
+                CurvedAnimation(
+                  parent: animation,
+                  curve: Curves.easeOutCubic,
+                ),
+              ),
+              child: child,
+            ),
+          );
+        },
+        transitionDuration: const Duration(
+          milliseconds: 350,
+        ),
+      ),
+    );
+  }
+
+  void _forgotPassword() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text(
+          'Forgot password flow will be connected next.',
+        ),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: AppTheme.primary,
+        margin: const EdgeInsets.all(16),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    final bottomSafeArea = MediaQuery.paddingOf(context).bottom;
+
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      resizeToAvoidBottomInset: true,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          // ============================================================
+          // EXISTING LOGIN BACKGROUND
+          // ============================================================
+          Positioned.fill(
+            child: Image.asset(
+              'assets/images/login_bg.png',
+              fit: BoxFit.cover,
+              alignment: Alignment.topCenter,
+            ),
+          ),
+
+          // ============================================================
+          // VERY SUBTLE LOWER GRADIENT
+          // ============================================================
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: size.height * 0.48,
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.transparent,
+                      Colors.white.withValues(alpha: 0.03),
+                      Colors.white.withValues(alpha: 0.08),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          // ============================================================
+          // LOGIN CARD
+          // ============================================================
+          SafeArea(
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: AnimatedBuilder(
+                animation: _cardAnimation,
+                builder: (context, child) {
+                  final animationValue = _cardAnimation.value;
+
+                  return Transform.translate(
+                    offset: Offset(
+                      0,
+                      70 * (1 - animationValue),
+                    ),
+                    child: Opacity(
+                      opacity: animationValue,
+                      child: child,
+                    ),
+                  );
+                },
+                child: _buildLoginCard(
+                  context,
+                  bottomSafeArea,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLoginCard(
+    BuildContext context,
+    double bottomSafeArea,
+  ) {
+    final screenHeight = MediaQuery.sizeOf(context).height;
+
+    /*
+      Keep the card compact enough so that the bottom feature
+      section from login_bg.png remains visible.
+    */
+    final maxCardHeight = screenHeight * 0.50;
+
+    return Container(
+  width: double.infinity,
+  constraints: const BoxConstraints(
+    maxWidth: 520,
+  ),
+  margin: EdgeInsets.only(
+    left: 14,
+    right: 14,
+    bottom: bottomSafeArea > 0 ? 52 : 56,
+  ),
+  decoration: BoxDecoration(
+    color: Colors.white.withValues(alpha: 0.96),
+    borderRadius: BorderRadius.circular(30),
+    border: Border.all(
+      color: Colors.white.withValues(alpha: 0.9),
+      width: 1,
+    ),
+    boxShadow: [
+      BoxShadow(
+        color: Colors.black.withValues(alpha: 0.10),
+        blurRadius: 28,
+        offset: const Offset(0, 10),
+      ),
+      BoxShadow(
+        color: AppTheme.primary.withValues(alpha: 0.08),
+        blurRadius: 20,
+        offset: const Offset(0, 5),
+      ),
+    ],
+  ),
+  child: ClipRRect(
+    borderRadius: BorderRadius.circular(30),
+    child: SingleChildScrollView(
+      physics: const ClampingScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(
+        22,
+        7,
+        22,
+        12,
+      ),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildHandle(),
+
+            const SizedBox(height: 10),
+
+            const Text(
+              'Sign in',
+              style: TextStyle(
+                fontSize: 20,
+                height: 1.05,
+                fontWeight: FontWeight.w800,
+                color: AppTheme.headlineText,
+                letterSpacing: -0.6,
+              ),
+            ),
+
+            const SizedBox(height: 4),
+
+            const Text(
+              'Order from top restaurants near you.',
+              style: TextStyle(
+                fontSize: 13,
+                color: AppTheme.mutedText,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+
+            const SizedBox(height: 10),
+
+            _buildLoginSwitcher(),
+
+            const SizedBox(height: 8),
+
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              child: _loginMethod == LoginMethod.email
+                  ? _buildEmailForm()
+                  : _buildPhoneForm(),
+            ),
+
+            if (_loginMethod == LoginMethod.email) ...[
+              const SizedBox(height: 5),
+
+              Align(
+                alignment: Alignment.centerRight,
+                child: GestureDetector(
+                  onTap: _forgotPassword,
+                  child: const Text(
+                    'Forgot password?',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.primary,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+
+            const SizedBox(height: 9),
+
+            _buildContinueButton(),
+
+            const SizedBox(height: 8),
+
+            _buildSocialDivider(),
+
+            const SizedBox(height: 7),
+
+            _buildSocialButtons(),
+
+            const SizedBox(height: 7),
+
+            _buildSignupPrompt(),
+          ],
+        ),
+      ),
+    ),
+  ),
+);
+  }
+
+  Widget _buildHandle() {
+    return Center(
+      child: Container(
+        width: 42,
+        height: 4,
+        decoration: BoxDecoration(
+          color: const Color(0xFFD8D8D8),
+          borderRadius: BorderRadius.circular(10),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLoginSwitcher() {
+    return Container(
+      height: 46,
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF5F6F8),
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(
+          color: const Color(0xFFE4E6EA),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildSwitcherButton(
+              icon: Icons.email_outlined,
+              title: 'Email',
+              selected: _loginMethod == LoginMethod.email,
+              onTap: () {
+                _changeLoginMethod(LoginMethod.email);
+              },
+            ),
+          ),
+          Expanded(
+            child: _buildSwitcherButton(
+              icon: Icons.phone_outlined,
+              title: 'Phone',
+              selected: _loginMethod == LoginMethod.phone,
+              onTap: () {
+                _changeLoginMethod(LoginMethod.phone);
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSwitcherButton({
+    required IconData icon,
+    required String title,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        decoration: BoxDecoration(
+          color: selected ? Colors.white : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: selected
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.06),
+                    blurRadius: 7,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 17,
+              color: selected
+                  ? AppTheme.primary
+                  : const Color(0xFFA7AFBA),
+            ),
+            const SizedBox(width: 7),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight:
+                    selected ? FontWeight.w700 : FontWeight.w500,
+                color: selected
+                    ? AppTheme.headlineText
+                    : const Color(0xFFA7AFBA),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmailForm() {
+    return Column(
+      key: const ValueKey('email'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildFieldLabel('Email address'),
+
+        const SizedBox(height: 6),
+
+        TextFormField(
+          controller: _emailController,
+          autovalidateMode: AutovalidateMode.disabled,
+          keyboardType: TextInputType.emailAddress,
+          textInputAction: TextInputAction.next,
+          decoration: _inputDecoration(
+            icon: Icons.email_outlined,
+            hint: 'Email address',
+          ),
+          validator: (value) {
+            final email = value?.trim() ?? '';
+
+            if (email.isEmpty) {
+              return 'Please enter your email';
+            }
+
+            if (!RegExp(
+              r'^[\w\.-]+@([\w-]+\.)+[\w-]{2,}$',
+            ).hasMatch(email)) {
+              return 'Please enter a valid email';
+            }
+
+            return null;
+          },
+        ),
+
+        const SizedBox(height: 6),
+
+        _buildFieldLabel('Password'),
+
+        const SizedBox(height: 6),
+
+        TextFormField(
+          controller: _passwordController,
+          autovalidateMode: AutovalidateMode.disabled,
+          obscureText: _obscurePassword,
+          textInputAction: TextInputAction.done,
+          onFieldSubmitted: (_) {
+            _continueLogin();
+          },
+          decoration: _inputDecoration(
+            icon: Icons.lock_outline,
+            hint: 'Password',
+            suffixIcon: IconButton(
+              onPressed: () {
+                setState(() {
+                  _obscurePassword = !_obscurePassword;
+                });
+              },
+              icon: Icon(
+                _obscurePassword
+                    ? Icons.visibility_off_outlined
+                    : Icons.visibility_outlined,
+                size: 19,
+                color: const Color(0xFF9DA5AF),
+              ),
+            ),
+          ),
+          validator: (value) {
+            final password = value ?? '';
+
+            if (password.isEmpty) {
+              return 'Please enter your password';
+            }
+
+            if (password.length < 6) {
+              return 'Password must contain at least 6 characters';
+            }
+
+            return null;
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPhoneForm() {
+    return Column(
+      key: const ValueKey('phone'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildFieldLabel('Phone number'),
+
+        const SizedBox(height: 5),
+
+        TextFormField(
+          controller: _phoneController,
+          autovalidateMode: AutovalidateMode.disabled,
+          keyboardType: TextInputType.phone,
+          textInputAction: TextInputAction.done,
+          decoration: _inputDecoration(
+            icon: Icons.phone_outlined,
+            hint: 'Phone number',
+            prefixText: '+91  ',
+          ),
+          validator: (value) {
+            final phone = (value ?? '').replaceAll(
+              RegExp(r'\D'),
+              '',
+            );
+
+            if (phone.isEmpty) {
+              return 'Please enter your phone number';
+            }
+
+            if (phone.length != 10) {
+              return 'Enter a valid 10-digit number';
+            }
+
+            return null;
+          },
+        ),
+
+        const SizedBox(height: 5),
+
+        const Row(
+          children: [
+            Icon(
+              Icons.info_outline,
+              size: 13,
+              color: AppTheme.mutedText,
+            ),
+            SizedBox(width: 5),
+            Text(
+              'We will send a verification code to your phone.',
+              style: TextStyle(
+                fontSize: 10.5,
+                color: AppTheme.mutedText,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFieldLabel(String text) {
+    return Text(
+      text,
+      style: const TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w700,
+        color: AppTheme.headlineText,
+      ),
+    );
+  }
+
+  InputDecoration _inputDecoration({
+    required IconData icon,
+    required String hint,
+    Widget? suffixIcon,
+    String? prefixText,
+  }) {
+    return InputDecoration(
+      filled: true,
+      fillColor: const Color(0xFFF9FAFB),
+      hintText: hint,
+      hintStyle: const TextStyle(
+        fontSize: 12.5,
+        color: Color(0xFFA7AFBA),
+        fontWeight: FontWeight.w500,
+      ),
+      prefixIcon: Icon(
+        icon,
+        size: 19,
+        color: const Color(0xFFA7AFBA),
+      ),
+      prefixText: prefixText,
+      prefixStyle: const TextStyle(
+        fontSize: 13,
+        color: AppTheme.headlineText,
+        fontWeight: FontWeight.w700,
+      ),
+      suffixIcon: suffixIcon,
+      isDense: true,
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: 13,
+        vertical: 11,
+      ),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(
+          color: Color(0xFFE3E6EA),
+        ),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(
+          color: Color(0xFFE3E6EA),
+        ),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(
+          color: AppTheme.primary,
+          width: 1.4,
+        ),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(
+          color: AppTheme.errorColor,
+        ),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(
+          color: AppTheme.errorColor,
+          width: 1.4,
+        ),
+      ),
+      errorStyle: const TextStyle(
+        fontSize: 10,
+        height: 1.1,
+      ),
+    );
+  }
+
+  Widget _buildContinueButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 48,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+            colors: [
+              Color(0xFFFFA21A),
+              Color(0xFFFF4B20),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(15),
+          boxShadow: [
+            BoxShadow(
+              color: AppTheme.primary.withValues(alpha: 0.24),
+              blurRadius: 13,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: ElevatedButton(
+          onPressed: _isLoading ? null : _continueLogin,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.transparent,
+            disabledBackgroundColor: Colors.transparent,
+            foregroundColor: Colors.white,
+            disabledForegroundColor: Colors.white,
+            shadowColor: Colors.transparent,
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(15),
+            ),
+          ),
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 200),
+            child: _isLoading
+                ? const SizedBox(
+                    key: ValueKey('loader'),
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.2,
+                      valueColor:
+                          AlwaysStoppedAnimation<Color>(
+                        Colors.white,
+                      ),
+                    ),
+                  )
+                : Row(
+                    key: const ValueKey('continue'),
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        _loginMethod == LoginMethod.phone
+                            ? 'Send OTP'
+                            : 'Continue',
+                        style: const TextStyle(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      const Icon(
+                        Icons.arrow_forward,
+                        size: 20,
+                      ),
+                    ],
+                  ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSocialDivider() {
+    return Row(
+      children: [
+        Expanded(
+          child: Container(
+            height: 1,
+            color: const Color(0xFFE1E2E5),
+          ),
+        ),
+        const Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: 12,
+          ),
+          child: Text(
+            'or continue with',
+            style: TextStyle(
+              fontSize: 11.5,
+              color: AppTheme.mutedText,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Container(
+            height: 1,
+            color: const Color(0xFFE1E2E5),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSocialButtons() {
+    return Row(
+      children: [
+        Expanded(
+          child: _buildSocialButton(
+            icon: '',
+            label: 'Continue with Apple',
+            onTap: () {
+              _showSocialMessage('Apple');
+            },
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _buildSocialButton(
+            icon: 'G',
+            label: 'Continue with Google',
+            google: true,
+            onTap: () {
+              _showSocialMessage('Google');
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSocialButton({
+    required String icon,
+    required String label,
+    required VoidCallback onTap,
+    bool google = false,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(13),
+        child: Container(
+          height: 40,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(13),
+            border: Border.all(
+              color: const Color(0xFFE7E8EB),
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                icon,
+                style: TextStyle(
+                  fontSize: google ? 19 : 23,
+                  fontWeight: FontWeight.w700,
+                  color: google
+                      ? const Color(0xFF4285F4)
+                      : Colors.black,
+                ),
+              ),
+              const SizedBox(width: 7),
+              Flexible(
+                child: Text(
+                  label,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.headlineText,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showSocialMessage(String provider) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          '$provider sign-in will be connected next.',
+        ),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: AppTheme.primary,
+        margin: const EdgeInsets.all(16),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSignupPrompt() {
+    return Center(
+      child: Wrap(
+        alignment: WrapAlignment.center,
+        children: [
+          const Text(
+            "Don't have an account? ",
+            style: TextStyle(
+              fontSize: 12,
+              color: AppTheme.mutedText,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          GestureDetector(
+            onTap: _openSignup,
+            child: const Text(
+              'Create Account ›',
+              style: TextStyle(
+                fontSize: 12,
+                color: AppTheme.primary,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

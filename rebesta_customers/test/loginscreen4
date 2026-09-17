@@ -1,0 +1,1309 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:go_router/go_router.dart';
+import '../../../routes/app_routes.dart';
+import '../../../theme/app_theme.dart';
+
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key});
+
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+enum LoginMethod {
+  email,
+  phone,
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  LoginMethod _loginMethod = LoginMethod.email;
+
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
+
+  final FocusNode _emailFocus = FocusNode();
+  final FocusNode _passwordFocus = FocusNode();
+  final FocusNode _phoneFocus = FocusNode();
+
+  bool _obscurePassword = true;
+  bool _isLoading = false;
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    _phoneController.dispose();
+
+    _emailFocus.dispose();
+    _passwordFocus.dispose();
+    _phoneFocus.dispose();
+
+    super.dispose();
+  }
+
+  // ============================================================
+  // LOGIN METHOD
+  // ============================================================
+
+  void _changeLoginMethod(LoginMethod method) {
+    if (_loginMethod == method) return;
+    
+    FocusScope.of(context).unfocus();
+
+    setState(() {
+      _loginMethod = method;
+    });
+
+    
+  }
+
+  // ============================================================
+  // CONTINUE
+  // ============================================================
+
+Future<void> _continue() async {
+  FocusScope.of(context).unfocus();
+
+  if (_loginMethod == LoginMethod.email) {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    if (email.isEmpty) {
+      _showError('Please enter your email address');
+      return;
+    }
+
+    if (!_isValidEmail(email)) {
+      _showError('Please enter a valid email address');
+      return;
+    }
+
+    if (password.isEmpty) {
+      _showError('Please enter your password');
+      return;
+    }
+  } else {
+    final phone = _phoneController.text.trim();
+
+    if (phone.isEmpty) {
+      _showError('Please enter your phone number');
+      return;
+    }
+
+    if (phone.length != 10) {
+      _showError('Please enter a valid 10-digit phone number');
+      return;
+    }
+  }
+
+  setState(() {
+    _isLoading = true;
+  });
+
+  // Temporary UI navigation.
+  // Replace this later with your real NestJS login API.
+  await Future.delayed(const Duration(milliseconds: 700));
+
+  if (!mounted) return;
+
+  setState(() {
+    _isLoading = false;
+  });
+
+  // IMPORTANT:
+  // Actually go to Home after successful login.
+  context.go(AppRoutes.homeScreen);
+}
+
+  // ============================================================
+  // EMAIL VALIDATION
+  // ============================================================
+
+  bool _isValidEmail(String email) {
+    return RegExp(
+      r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
+    ).hasMatch(email);
+  }
+
+  // ============================================================
+  // ERROR
+  // ============================================================
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          margin: const EdgeInsets.fromLTRB(
+            20,
+            0,
+            20,
+            20,
+          ),
+          padding: EdgeInsets.zero,
+          content: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(
+              horizontal: 18,
+              vertical: 14,
+            ),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+                colors: [
+                  Color(0xFFFFA51F),
+                  Color(0xFFFF3D21),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFFF6428).withValues(
+                    alpha: 0.25,
+                  ),
+                  blurRadius: 14,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.info_outline_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    message,
+                    style: GoogleFonts.dmSans(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+  }
+
+  // ============================================================
+  // BUILD
+  // ============================================================
+
+@override
+Widget build(BuildContext context) {
+  final Size size = MediaQuery.sizeOf(context);
+  final double keyboardInset =
+      MediaQuery.viewInsetsOf(context).bottom;
+
+  final bool keyboardOpen = keyboardInset > 0;
+
+  return Scaffold(
+    backgroundColor: Colors.transparent,
+    resizeToAvoidBottomInset: false,
+
+    body: GestureDetector(
+      onTap: () {
+        FocusScope.of(context).unfocus();
+      },
+
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // ==========================================================
+          // FULL SCREEN BACKGROUND
+          // ==========================================================
+
+          Positioned.fill(
+            child: Image.asset(
+              'assets/images/login_bg.png',
+              fit: BoxFit.cover,
+              alignment: Alignment.topCenter,
+            ),
+          ),
+
+          // ==========================================================
+          // LOGIN CARD
+          // ==========================================================
+
+          Positioned(
+            left: size.width < 600 ? 16 : 48,
+            right: size.width < 600 ? 16 : 48,
+
+            // IMPORTANT:
+            // Card is ALWAYS anchored from the bottom.
+            // No device-height calculations.
+            bottom: keyboardOpen
+                ? keyboardInset + 60
+                : 120,
+
+            child: AnimatedSize(
+              duration: const Duration(
+                milliseconds: 300,
+              ),
+              curve: Curves.easeOutCubic,
+
+              alignment: Alignment.bottomCenter,
+
+              child: AnimatedSwitcher(
+                duration: const Duration(
+                  milliseconds: 280,
+                ),
+
+                switchInCurve:
+                    Curves.easeOutCubic,
+
+                switchOutCurve:
+                    Curves.easeInCubic,
+
+                child: _buildLoginPanel(
+                  size,
+                  keyboardOpen: keyboardOpen,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}  // ============================================================
+  // PANEL POSITION
+  // ============================================================
+
+  // ============================================================
+  // LOGIN PANEL
+  // ============================================================
+
+Widget _buildLoginPanel(
+  Size size, {
+  required bool keyboardOpen,
+}) {
+  final bool isEmail =
+      _loginMethod == LoginMethod.email;
+
+  return Material(
+    color: Colors.transparent,
+
+    child: Container(
+      width: double.infinity,
+
+      constraints: BoxConstraints(
+        maxHeight: keyboardOpen
+            ? size.height - 24
+            : size.height * 0.57,
+      ),
+
+      padding: EdgeInsets.fromLTRB(
+        size.width < 380 ? 18 : 22,
+        2,
+        size.width < 380 ? 18 : 22,
+        10,
+      ),
+
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(
+          alpha: 0.78,
+        ),
+
+        borderRadius: BorderRadius.circular(32),
+
+        border: Border.all(
+          color: Colors.white.withValues(
+            alpha: 0.82,
+          ),
+          width: 1.1,
+        ),
+
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(
+              alpha: 0.10,
+            ),
+            blurRadius: 30,
+            spreadRadius: 0,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+
+      child: SingleChildScrollView(
+        physics: const ClampingScrollPhysics(),
+
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
+
+          children: [
+
+            // =================================================
+            // HANDLE
+            // =================================================
+
+            Center(
+              child: Container(
+                width: 42,
+                height: 5,
+
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(
+                    alpha: 0.75,
+                  ),
+                  borderRadius:
+                      BorderRadius.circular(20),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 6),
+
+            // =================================================
+            // TITLE
+            // =================================================
+
+            Text(
+              'Sign in',
+              style: GoogleFonts.dmSans(
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                color: const Color(0xFF374151),
+              ),
+            ),
+
+            const SizedBox(height: 2),
+
+            Text(
+              'Order from top restaurants near you.',
+              style: GoogleFonts.dmSans(
+                fontSize: 13,
+                fontWeight: FontWeight.w400,
+                color: const Color(0xFF9CA3AF),
+              ),
+            ),
+
+            const SizedBox(height: 8),
+
+            // =================================================
+            // EMAIL / PHONE
+            // =================================================
+
+            _buildLoginSwitcher(size),
+
+            const SizedBox(height: 10),
+
+            // =================================================
+            // FORM
+            // =================================================
+
+            AnimatedSize(
+              duration: const Duration(
+                milliseconds: 320,
+              ),
+              curve: Curves.easeInOutCubic,
+
+              alignment: Alignment.topCenter,
+
+              child: AnimatedSwitcher(
+                duration: const Duration(
+                  milliseconds: 260,
+                ),
+
+                reverseDuration: const Duration(
+                  milliseconds: 220,
+                ),
+
+                switchInCurve:
+                    Curves.easeOutCubic,
+
+                switchOutCurve:
+                    Curves.easeInCubic,
+
+                transitionBuilder:
+                    (child, animation) {
+
+                  final slideAnimation =
+                      Tween<Offset>(
+                    begin: const Offset(
+                      0.03,
+                      0,
+                    ),
+                    end: Offset.zero,
+                  ).animate(
+                    CurvedAnimation(
+                      parent: animation,
+                      curve: Curves.easeOutCubic,
+                    ),
+                  );
+
+                  return FadeTransition(
+                    opacity: animation,
+
+                    child: SlideTransition(
+                      position: slideAnimation,
+                      child: child,
+                    ),
+                  );
+                },
+
+                child: isEmail
+                    ? _buildEmailForm(size)
+                    : _buildPhoneForm(size),
+              ),
+            ),
+
+            const SizedBox(height: 8),
+
+            // =================================================
+            // SOCIAL LOGIN
+            // =================================================
+
+            _buildSocialLogin(size),
+
+            const SizedBox(height: 8),
+
+            // =================================================
+            // CREATE ACCOUNT
+            // =================================================
+
+            _buildCreateAccount(size),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+  // ============================================================
+  // LOGIN SWITCHER
+  // ============================================================
+
+Widget _buildLoginSwitcher(Size size) {
+  final bool isEmail =
+      _loginMethod == LoginMethod.email;
+
+  return Container(
+    height: size.width < 380 ? 42 : 46,
+
+    padding: const EdgeInsets.all(2),
+
+    decoration: BoxDecoration(
+      color: Colors.white.withValues(
+        alpha: 0.48,
+      ),
+
+      borderRadius:
+          BorderRadius.circular(28),
+
+      border: Border.all(
+        color: Colors.white.withValues(
+          alpha: 0.70,
+        ),
+      ),
+    ),
+
+    child: Stack(
+      children: [
+
+        // ===============================================
+        // SLIDING ORANGE CAPSULE
+        // ===============================================
+
+        AnimatedAlign(
+          duration: const Duration(
+            milliseconds: 300,
+          ),
+
+          curve: Curves.easeInOutCubic,
+
+          alignment: isEmail
+              ? Alignment.centerLeft
+              : Alignment.centerRight,
+
+          child: FractionallySizedBox(
+            widthFactor: 0.5,
+
+            child: Container(
+              decoration: BoxDecoration(
+                gradient:
+                    const LinearGradient(
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                  colors: [
+                    Color(0xFFFFA51F),
+                    Color(0xFFFF3D21),
+                  ],
+                ),
+
+                borderRadius:
+                    BorderRadius.circular(25),
+
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(
+                      0xFFFF6428,
+                    ).withValues(
+                      alpha: 0.20,
+                    ),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+
+        // ===============================================
+        // BUTTONS
+        // ===============================================
+
+        Row(
+          children: [
+
+            Expanded(
+              child: _buildSwitchOption(
+                selected: isEmail,
+                icon: Icons.mail_outline_rounded,
+                label: 'Email',
+
+                onTap: () {
+                  _changeLoginMethod(
+                    LoginMethod.email,
+                  );
+                },
+
+                size: size,
+              ),
+            ),
+
+            Expanded(
+              child: _buildSwitchOption(
+                selected: !isEmail,
+                icon: Icons.phone_outlined,
+                label: 'Phone',
+
+                onTap: () {
+                  _changeLoginMethod(
+                    LoginMethod.phone,
+                  );
+                },
+
+                size: size,
+              ),
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
+}
+Widget _switchButton({
+  required String label,
+  required IconData icon,
+  required bool selected,
+  required VoidCallback onTap,
+}) {
+  return Material(
+    color: Colors.transparent,
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(25),
+      child: SizedBox(
+        height: double.infinity,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            AnimatedDefaultTextStyle(
+              duration: const Duration(milliseconds: 220),
+              style: GoogleFonts.dmSans(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: selected
+                    ? Colors.white
+                    : const Color(0xFF9CA3AF),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    icon,
+                    size: 18,
+                    color: selected
+                        ? Colors.white
+                        : const Color(0xFF9CA3AF),
+                  ),
+                  const SizedBox(width: 7),
+                  Text(label),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+Widget _buildSwitchOption({
+  required bool selected,
+  required IconData icon,
+  required String label,
+  required VoidCallback onTap,
+  required Size size,
+}) {
+  return GestureDetector(
+    behavior: HitTestBehavior.opaque,
+    onTap: onTap,
+
+    child: SizedBox(
+      height: double.infinity,
+
+      child: Row(
+        mainAxisAlignment:
+            MainAxisAlignment.center,
+
+        children: [
+
+          AnimatedDefaultTextStyle(
+            duration: const Duration(
+              milliseconds: 220,
+            ),
+
+            style: GoogleFonts.dmSans(
+              fontSize:
+                  size.width < 380 ? 12 : 13,
+
+              fontWeight:
+                  FontWeight.w600,
+
+              color: selected
+                  ? Colors.white
+                  : const Color(
+                      0xFF9CA3AF,
+                    ),
+            ),
+
+            child: Row(
+              children: [
+
+                AnimatedContainer(
+                  duration: const Duration(
+                    milliseconds: 220,
+                  ),
+
+                  child: Icon(
+                    icon,
+                    size:
+                        size.width < 380
+                            ? 16
+                            : 17,
+
+                    color: selected
+                        ? Colors.white
+                        : const Color(
+                            0xFF9CA3AF,
+                          ),
+                  ),
+                ),
+
+                const SizedBox(width: 6),
+
+                Text(label),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+  // ============================================================
+  // EMAIL FORM
+  // ============================================================
+
+  Widget _buildEmailForm(Size size) {
+    return Column(
+      key: const ValueKey('email-form'),
+      children: [
+        _buildInputField(
+          controller: _emailController,
+          focusNode: _emailFocus,
+          hint: 'Email address',
+          icon: Icons.mail_outline_rounded,
+          keyboardType:
+              TextInputType.emailAddress,
+          textInputAction:
+              TextInputAction.next,
+          onSubmitted: (_) {
+            _passwordFocus.requestFocus();
+          },
+          size: size,
+        ),
+
+        const SizedBox(height: 12),
+
+        _buildPasswordField(size),
+
+        const SizedBox(height: 7),
+
+        Align(
+          alignment: Alignment.centerRight,
+          child: GestureDetector(
+            onTap: () {
+              // TODO: Forgot password flow.
+            },
+            child: Text(
+              'Forgot password?',
+              style: GoogleFonts.dmSans(
+                fontSize:
+                    size.width < 380
+                        ? 11
+                        : 12,
+                fontWeight:
+                    FontWeight.w500,
+                color: AppTheme.primary,
+              ),
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 11),
+
+        _buildPrimaryButton(
+          text: 'Continue',
+          icon: Icons.arrow_forward_rounded,
+          onTap: _continue,
+          loading: _isLoading,
+          size: size,
+        ),
+      ],
+    );
+  }
+
+  // ============================================================
+  // PHONE FORM
+  // ============================================================
+
+  Widget _buildPhoneForm(Size size) {
+    return Column(
+      key: const ValueKey('phone-form'),
+      children: [
+        _buildInputField(
+          controller: _phoneController,
+          focusNode: _phoneFocus,
+          hint: 'Phone number',
+          icon: Icons.phone_outlined,
+          keyboardType:
+              TextInputType.phone,
+          textInputAction:
+              TextInputAction.done,
+          maxLength: 10,
+          onSubmitted: (_) {
+            _continue();
+          },
+          size: size,
+        ),
+
+        const SizedBox(height: 7),
+
+        Row(
+          children: [
+            const Icon(
+              Icons.info_outline_rounded,
+              size: 15,
+              color: Color(0xFF9CA3AF),
+            ),
+            const SizedBox(width: 5),
+            Expanded(
+              child: Text(
+                'We will send a verification code to your phone.',
+                style: GoogleFonts.dmSans(
+                  fontSize: 11,
+                  color: const Color(
+                    0xFF9CA3AF,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 11),
+
+        _buildPrimaryButton(
+          text: 'Send OTP',
+          icon: Icons.arrow_forward_rounded,
+          onTap: _continue,
+          loading: _isLoading,
+          size: size,
+        ),
+      ],
+    );
+  }
+
+  // ============================================================
+  // INPUT FIELD
+  // ============================================================
+
+  Widget _buildInputField({
+    required TextEditingController controller,
+    required FocusNode focusNode,
+    required String hint,
+    required IconData icon,
+    required TextInputType keyboardType,
+    required TextInputAction textInputAction,
+    required Size size,
+    required ValueChanged<String> onSubmitted,
+    int? maxLength,
+  }) {
+    return SizedBox(
+      height: size.width < 380 ? 40 : 46,
+      child: TextField(
+        controller: controller,
+        focusNode: focusNode,
+        keyboardType: keyboardType,
+        textInputAction: textInputAction,
+        maxLength: maxLength,
+        onSubmitted: onSubmitted,
+        style: GoogleFonts.dmSans(
+          fontSize: 14,
+          fontWeight: FontWeight.w500,
+          color: const Color(0xFF374151),
+        ),
+        decoration: InputDecoration(
+          counterText: '',
+          hintText: hint,
+          hintStyle: GoogleFonts.dmSans(
+            fontSize: 14,
+            color: const Color(0xFFB0B7C3),
+          ),
+          prefixIcon: Icon(
+            icon,
+            size: 20,
+            color: const Color(0xFFAAB2BE),
+          ),
+          filled: true,
+          fillColor: Colors.white.withValues(alpha: 0.48),
+          contentPadding:
+              const EdgeInsets.symmetric(
+            horizontal: 14,
+          ),
+          border: OutlineInputBorder(
+  borderRadius: BorderRadius.circular(16),
+  borderSide: BorderSide(
+    color: Colors.white.withValues(alpha: 0.85),
+  ),
+),
+
+enabledBorder: OutlineInputBorder(
+  borderRadius: BorderRadius.circular(16),
+  borderSide: BorderSide(
+    color: Colors.white.withValues(alpha: 0.85),
+  ),
+),
+
+focusedBorder: OutlineInputBorder(
+  borderRadius: BorderRadius.circular(16),
+  borderSide: const BorderSide(
+    color: AppTheme.primary,
+    width: 1.4,
+  ),
+),
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // PASSWORD
+  // ============================================================
+
+  Widget _buildPasswordField(Size size) {
+    return SizedBox(
+      height: size.width < 380 ? 40 : 46,
+      child: TextField(
+        controller: _passwordController,
+        focusNode: _passwordFocus,
+        obscureText: _obscurePassword,
+        textInputAction:
+            TextInputAction.done,
+        onSubmitted: (_) {
+          _continue();
+        },
+        style: GoogleFonts.dmSans(
+          fontSize: 14,
+          fontWeight: FontWeight.w500,
+          color: const Color(0xFF374151),
+        ),
+        decoration: InputDecoration(
+          hintText: 'Password',
+          hintStyle: GoogleFonts.dmSans(
+            fontSize: 14,
+            color: const Color(0xFFB0B7C3),
+          ),
+          prefixIcon: const Icon(
+            Icons.lock_outline_rounded,
+            size: 20,
+            color: Color(0xFFAAB2BE),
+          ),
+          suffixIcon: IconButton(
+            onPressed: () {
+              setState(() {
+                _obscurePassword =
+                    !_obscurePassword;
+              });
+            },
+            splashRadius: 20,
+            icon: Icon(
+              _obscurePassword
+                  ? Icons
+                      .visibility_off_outlined
+                  : Icons
+                      .visibility_outlined,
+              size: 20,
+              color: const Color(
+                0xFFAAB2BE,
+              ),
+            ),
+          ),
+          filled: true,
+          fillColor: Colors.white.withValues(alpha:0.48),
+          contentPadding:
+              const EdgeInsets.symmetric(
+            horizontal: 14,
+          ),
+          border: OutlineInputBorder(
+  borderRadius: BorderRadius.circular(16),
+  borderSide: BorderSide(
+    color: Colors.white.withValues(alpha: 0.85),
+  ),
+),
+
+enabledBorder: OutlineInputBorder(
+  borderRadius: BorderRadius.circular(16),
+  borderSide: BorderSide(
+    color: Colors.white.withValues(alpha: 0.85),
+  ),
+),
+
+focusedBorder: OutlineInputBorder(
+  borderRadius: BorderRadius.circular(16),
+  borderSide: const BorderSide(
+    color: AppTheme.primary,
+    width: 1.4,
+  ),
+),
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // PRIMARY BUTTON
+  // ============================================================
+
+  Widget _buildPrimaryButton({
+    required String text,
+    required IconData icon,
+    required VoidCallback onTap,
+    required bool loading,
+    required Size size,
+  }) {
+    return SizedBox(
+      width: double.infinity,
+      height: size.width < 380 ? 40 : 46,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+            colors: [
+              Color(0xFFFFA51F),
+              Color(0xFFFF3D21),
+            ],
+          ),
+          borderRadius:
+              BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(
+                0xFFFF6428,
+              ).withValues(alpha: 0.22),
+              blurRadius: 14,
+              offset: const Offset(0, 7),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: loading ? null : onTap,
+            borderRadius:
+                BorderRadius.circular(16),
+            child: Center(
+              child: loading
+                  ? const SizedBox(
+                      width: 21,
+                      height: 21,
+                      child:
+                          CircularProgressIndicator(
+                        strokeWidth: 2.2,
+                        valueColor:
+                            AlwaysStoppedAnimation<
+                                Color>(
+                          Colors.white,
+                        ),
+                      ),
+                    )
+                  : Row(
+                      mainAxisAlignment:
+                          MainAxisAlignment
+                              .center,
+                      children: [
+                        Text(
+                          text,
+                          style:
+                              GoogleFonts.dmSans(
+                            fontSize: 14,
+                            fontWeight:
+                                FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(
+                          width: 6,
+                        ),
+                        Icon(
+                          icon,
+                          size: 18,
+                          color: Colors.white,
+                        ),
+                      ],
+                    ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // SOCIAL LOGIN
+  // ============================================================
+
+  Widget _buildSocialLogin(Size size) {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Container(
+                height: 1,
+                color: const Color(
+                  0xFFE4E6EA,
+                ),
+              ),
+            ),
+            Padding(
+              padding:
+                  const EdgeInsets.symmetric(
+                horizontal: 12,
+              ),
+              child: Text(
+                'or continue with',
+                style:
+                    GoogleFonts.dmSans(
+                  fontSize: 11,
+                  color: const Color(
+                    0xFF9CA3AF,
+                  ),
+                ),
+              ),
+            ),
+            Expanded(
+              child: Container(
+                height: 1,
+                color: const Color(
+                  0xFFE4E6EA,
+                ),
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 10),
+
+        Row(
+          children: [
+            Expanded(
+              child: _buildSocialButton(
+                icon: Transform.translate(
+                  offset: const Offset(0, -3),
+                  child: const Icon(
+                    Icons.apple,
+                    size: 25,
+                    color: Colors.black,
+                ),
+                ),
+                text: 'Continue with Apple',
+                onTap: () {
+                  // TODO: Apple Sign In
+                },
+                size: size,
+              ),
+            ),
+          
+            const SizedBox(width: 10),
+            Expanded(
+              child: _buildSocialButton(
+                icon: _googleIcon(),
+                text: 'Continue with Google',
+                onTap: () {
+                  // TODO: Google Sign In
+                },
+                size: size,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+ Widget _buildSocialButton({
+  required Widget icon,
+  required String text,
+  required VoidCallback onTap,
+  required Size size,
+}) {
+  return SizedBox(
+    height: size.width < 380 ? 40 : 46,
+    child: Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: const Color(0xFFE2E5E9),
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.max,
+            children: [
+              SizedBox(
+                width: 20,
+                height: 20,
+                child: Center(
+                  child: icon,
+                ),
+              ),
+
+              // VERY SMALL GAP
+              const SizedBox(width: 3),
+
+              Flexible(
+                child: Text(
+                  text,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.left,
+                  style: GoogleFonts.dmSans(
+                    fontSize: size.width < 380 ? 8.5 : 9.5,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF171717),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+  // ============================================================
+  // GOOGLE ICON
+  // ============================================================
+
+  Widget _googleIcon() {
+    return SvgPicture.asset(
+      'assets/icons/google_g.svg',
+      width: 20,
+      height: 20,
+    );
+  }
+
+  // ============================================================
+  // CREATE ACCOUNT
+  // ============================================================
+
+  Widget _buildCreateAccount(Size size) {
+    return Center(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          // IMPORTANT:
+          // This MUST match the route registered
+          // in app_routes.dart.
+          context.push(
+            AppRoutes.signupScreen,
+          );
+        },
+        child: RichText(
+          text: TextSpan(
+            style: GoogleFonts.dmSans(
+              fontSize:
+                  size.width < 380
+                      ? 11
+                      : 12,
+              color: const Color(
+                0xFF9CA3AF,
+              ),
+            ),
+            children: [
+              const TextSpan(
+                text:
+                    "Don't have an account? ",
+              ),
+              TextSpan(
+                text: 'Create Account',
+                style:
+                    GoogleFonts.dmSans(
+                  fontSize:
+                      size.width < 380
+                          ? 11
+                          : 12,
+                  fontWeight:
+                      FontWeight.w600,
+                  color:
+                      AppTheme.primary,
+                ),
+              ),
+              const TextSpan(
+                text: ' ›',
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

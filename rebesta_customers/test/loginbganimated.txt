@@ -1,0 +1,940 @@
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import '../../../services/auth_service.dart';
+import 'otp_screen.dart';
+import 'package:flutter/services.dart';
+
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key});
+
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen>
+      with SingleTickerProviderStateMixin {
+  // ============================================================
+  // CONTROLLER
+  // ============================================================
+
+  final TextEditingController phoneController =
+      TextEditingController();
+
+  // ============================================================
+  // STATE
+  // ============================================================
+
+  bool isValid = false;
+  bool isLoading = false;
+  
+  late AnimationController _burgerController;
+late Animation<double> _burgerScale;
+late Animation<double> _burgerRotation;
+late Animation<double> _burgerOpacity;
+late Animation<Offset> _burgerSlide;
+
+
+  // ============================================================
+  // COLORS — FIGMA
+  // ============================================================
+
+  static const Color cream = Color(0xFFFCF9F5);
+  static const Color ink = Color(0xFF2A1D1A);
+  static const Color muted = Color(0xFF70625F);
+  static const Color line = Color(0xFFEFEAE2);
+  static const Color orange = Color(0xFFff6c0e);
+
+  // ============================================================
+  // FONT HELPERS
+  // ============================================================
+
+  TextStyle get headingFont => GoogleFonts.bricolageGrotesque();
+
+  TextStyle get bodyFont => GoogleFonts.sora();
+
+  // ============================================================
+  // INIT
+  // ============================================================
+
+ @override
+void initState() {
+  super.initState();
+
+  phoneController.addListener(_phoneChanged);
+
+  _burgerController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1100),
+  );
+
+  _burgerScale = TweenSequence<double>([
+    TweenSequenceItem(
+      tween: Tween(
+        begin: 0.72,
+        end: 1.08,
+      ).chain(
+        CurveTween(
+          curve: Curves.easeOutCubic,
+        ),
+      ),
+      weight: 70,
+    ),
+    TweenSequenceItem(
+      tween: Tween(
+        begin: 1.08,
+        end: 0.98,
+      ).chain(
+        CurveTween(
+          curve: Curves.easeOut,
+        ),
+      ),
+      weight: 15,
+    ),
+    TweenSequenceItem(
+      tween: Tween(
+        begin: 0.98,
+        end: 1.0,
+      ).chain(
+        CurveTween(
+          curve: Curves.easeOut,
+        ),
+      ),
+      weight: 15,
+    ),
+  ]).animate(_burgerController);
+
+  _burgerRotation = Tween<double>(
+    begin: -0.045,
+    end: 0.0,
+  ).animate(
+    CurvedAnimation(
+      parent: _burgerController,
+      curve: Curves.easeOutBack,
+    ),
+  );
+
+  _burgerOpacity = Tween<double>(
+    begin: 0.0,
+    end: 1.0,
+  ).animate(
+    CurvedAnimation(
+      parent: _burgerController,
+      curve: const Interval(
+        0.0,
+        0.45,
+        curve: Curves.easeOut,
+      ),
+    ),
+  );
+
+  _burgerSlide = Tween<Offset>(
+    begin: const Offset(0, 0.18),
+    end: Offset.zero,
+  ).animate(
+    CurvedAnimation(
+      parent: _burgerController,
+      curve: Curves.easeOutBack,
+    ),
+  );
+
+  // Start the burger entrance animation.
+  _burgerController.forward();
+}
+  // ============================================================
+  // PHONE VALIDATION
+  // ============================================================
+
+  void _phoneChanged() {
+    final valid =
+        phoneController.text.trim().length == 10;
+
+    if (valid != isValid) {
+      setState(() {
+        isValid = valid;
+      });
+    }
+  }
+
+  // ============================================================
+  // DISPOSE
+  // ============================================================
+
+  @override
+  void dispose() {
+    phoneController.removeListener(_phoneChanged);
+    phoneController.dispose();
+    _burgerController.dispose();
+    super.dispose();
+  }
+
+  // ============================================================
+  // SEND OTP
+  // ============================================================
+
+  Future<void> _continue() async {
+    if (!isValid || isLoading) {
+      return;
+    }
+
+    FocusScope.of(context).unfocus();
+
+    setState(() {
+      isLoading = true;
+    });
+
+    try {
+      final authService = AuthService();
+
+      final sessionId = await authService.sendOtp(
+        phone: phoneController.text.trim(),
+      );
+
+      if (!mounted) return;
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => OtpScreen(
+            phone: phoneController.text.trim(),
+            sessionId: sessionId,
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              e.toString().replaceFirst(
+                'Exception: ',
+                '',
+              ),
+              style: bodyFont.copyWith(
+                fontSize: 13,
+                color: Colors.white,
+              ),
+            ),
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.all(16),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+          ),
+        );
+    } finally {
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
+    }
+  }
+
+  // ============================================================
+  // BUILD
+  // ============================================================
+
+  @override
+Widget build(BuildContext context) {
+  final keyboardOpen =
+      MediaQuery.of(context).viewInsets.bottom > 0;
+
+  SystemChrome.setSystemUIOverlayStyle(
+  const SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: Brightness.light,
+    statusBarBrightness: Brightness.dark,
+
+    systemNavigationBarColor: cream,
+    systemNavigationBarIconBrightness: Brightness.dark,
+  ),
+);
+  return Scaffold(
+    backgroundColor: cream,
+    resizeToAvoidBottomInset: true,
+
+    body: SafeArea(
+      top: false,
+      bottom: false,
+      left: false,
+      right: false,
+
+      child: Column(
+        children: [
+          // ======================================================
+          // HERO
+          // ======================================================
+
+          _buildHero(
+            keyboardOpen: keyboardOpen,
+          ),
+
+          // ======================================================
+          // HOME INDICATOR
+          // ======================================================
+
+          const SizedBox(
+            height: 24,
+            child: Center(
+              child: SizedBox(
+                width: 134,
+                height: 5,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Color(0x262A1D1A),
+                    borderRadius: BorderRadius.all(
+                      Radius.circular(3),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          // ======================================================
+          // CONTENT
+          // ======================================================
+
+          Expanded(
+            child: SingleChildScrollView(
+              keyboardDismissBehavior:
+                  ScrollViewKeyboardDismissBehavior.onDrag,
+
+              padding: const EdgeInsets.fromLTRB(
+                32,
+                12,
+                32,
+                40,
+              ),
+
+              child: Column(
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+
+                children: [
+                  Text(
+                    'Verify your number',
+                    style:
+                        GoogleFonts.bricolageGrotesque(
+                      fontSize: 32,
+                      height: 1.1,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.8,
+                      color: ink,
+                    ),
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  Text(
+                    "Enter your phone number to receive a "
+                    "6-digit OTP. We'll never share it.",
+                    style: GoogleFonts.sora(
+                      fontSize: 12,
+                      height: 1.4,
+                      fontWeight: FontWeight.w400,
+                      color: muted,
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  Text(
+                    'PHONE NUMBER',
+                    style: GoogleFonts.sora(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.2,
+                      color: ink,
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  _buildPhoneField(),
+
+                  const SizedBox(height: 12),
+
+                  Text(
+                    "We'll send a 6-digit OTP to this number. "
+                    "Standard SMS rates may apply.",
+                    style: GoogleFonts.sora(
+                      fontSize: 12,
+                      height: 1.4,
+                      fontWeight: FontWeight.w400,
+                      color: muted,
+                    ),
+                  ),
+
+                  SizedBox(
+                    height: keyboardOpen ? 30 : 180,
+                  ),
+
+                  _buildContinueButton(),
+
+                  const SizedBox(height: 20),
+
+                  _buildLegalConsent(),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+  // ============================================================
+  // STATUS BAR
+  // ============================================================
+
+ 
+  // ============================================================
+  // HERO
+  // ============================================================
+
+ /*Widget _buildHero({
+  required bool keyboardOpen,
+}) {
+  return SizedBox(
+    width: double.infinity,
+
+    // Keep the image in a fixed visual ratio.
+     //height: keyboardOpen
+     //? 220 + MediaQuery.of(context).padding.top
+     //: 250 + MediaQuery.of(context).padding.top,
+     height: (keyboardOpen ? 220 : 250) + statusBarHeight,
+
+    child: ClipRRect(
+
+     // borderRadius: BorderRadius.circular(40),
+      borderRadius: const BorderRadius.only(
+        bottomLeft: Radius.circular(40),
+        bottomRight: Radius.circular(40),
+      ),
+
+      child: Stack(
+        fit: StackFit.expand,
+
+        children: [
+          // ======================================================
+          // FOOD IMAGE
+          // ======================================================
+
+          Image.asset(
+            'assets/images/login_bg.jpg',
+
+            width: double.infinity,
+            height: double.infinity,
+
+            fit: BoxFit.cover,
+
+            alignment: Alignment.center,
+
+            errorBuilder: (
+              context,
+              error,
+              stackTrace,
+            ) {
+              return Container(
+                color: orange,
+              );
+            },
+          ),
+
+          // ======================================================
+          // REBESTA BRAND PILL
+          // ======================================================
+
+          Positioned(
+            top: 20,
+            left: 28,
+
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 18,
+                vertical: 6,
+              ),
+
+              decoration: BoxDecoration(
+                color: Colors.white,
+
+                borderRadius:
+                    BorderRadius.circular(20),
+
+                border: Border.all(
+                  color: line,
+                ),
+
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x18000000),
+                    blurRadius: 8,
+                    offset: Offset(0, 4),
+                  ),
+                ],
+              ),
+
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+
+                children: [
+                  SvgPicture.asset(
+                    'assets/images/pizza.svg',
+                    width: 16.2,
+                    height: 16.2,
+                  ),
+
+                  const SizedBox(width: 8),
+
+                  Text(
+                    'reBesta',
+
+                    style:
+                        GoogleFonts.bricolageGrotesque(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      color: ink,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+*/
+
+Widget _buildHero({
+  required bool keyboardOpen,
+}) {
+  final double statusBarHeight =
+      MediaQuery.of(context).padding.top;
+
+  final double heroHeight =
+      (keyboardOpen ? 220.0 : 250.0) + statusBarHeight;
+
+  return SizedBox(
+    width: double.infinity,
+
+    // Extra space allows only the foreground
+    // burger/cheese to slightly overflow.
+    height: heroHeight + 25,
+
+    child: Stack(
+      clipBehavior: Clip.none,
+      children: [
+
+        // ======================================================
+        // 1. ORIGINAL LOGIN BACKGROUND
+        // ======================================================
+
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+
+          child: SizedBox(
+            height: heroHeight,
+
+            child: ClipRRect(
+              borderRadius: const BorderRadius.only(
+                bottomLeft: Radius.circular(40),
+                bottomRight: Radius.circular(40),
+              ),
+
+              child: Image.asset(
+                'assets/images/login_bg.png',
+
+                width: double.infinity,
+                height: heroHeight,
+
+                fit: BoxFit.cover,
+                alignment: Alignment.center,
+
+                errorBuilder: (
+                  context,
+                  error,
+                  stackTrace,
+                ) {
+                  return Container(
+                    color: orange,
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+
+        // ======================================================
+        // 2. REBESTA BRAND PILL
+        // ======================================================
+
+        Positioned(
+          top: statusBarHeight + 0,
+          left: 28,
+
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 8,
+              vertical: 4,
+            ),
+
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+
+              border: Border.all(
+                color: line,
+              ),
+
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x18000000),
+                  blurRadius: 8,
+                  offset: Offset(0, 4),
+                ),
+              ],
+            ),
+
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+
+              children: [
+                SvgPicture.asset(
+                  'assets/images/pizza.svg',
+                  width: 16.2,
+                  height: 16.2,
+                ),
+
+                const SizedBox(width: 8),
+
+                Text(
+                  'reBesta',
+                  style:
+                      GoogleFonts.bricolageGrotesque(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: ink,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        // ======================================================
+        // 3. BURGER + CHEESE FOREGROUND
+        // ======================================================
+
+        
+          //left: 35,
+          //right: 26,
+
+          // Small overflow only
+          //bottom: -18,
+
+          Positioned(
+  left: 35,
+  right: 26,
+  bottom: -18,
+
+  child: AnimatedBuilder(
+    animation: _burgerController,
+
+    builder: (context, child) {
+      return Opacity(
+        opacity: _burgerOpacity.value,
+
+        child: FractionalTranslation(
+          translation: _burgerSlide.value,
+
+          child: Transform.rotate(
+            angle: _burgerRotation.value,
+
+            child: Transform.scale(
+              scale: _burgerScale.value,
+
+              alignment: Alignment.bottomCenter,
+
+              child: child,
+            ),
+          ),
+        ),
+      );
+    },
+
+    child: IgnorePointer(
+      child: Image.asset(
+        'assets/images/burger_foreground.png',
+
+        width: double.infinity,
+        height: 285,
+
+        fit: BoxFit.contain,
+
+        alignment: Alignment.bottomCenter,
+      ),
+    ),
+  ),
+),
+      ],
+    ),
+  );
+}
+  // ============================================================
+  // PHONE FIELD
+  // ============================================================
+
+Widget _buildPhoneField() {
+  return Container(
+    width: double.infinity,
+    height: 52,
+    padding: const EdgeInsets.symmetric(horizontal: 20),
+
+    decoration: BoxDecoration(
+      color: Colors.white,
+      border: Border.all(
+        color: orange,
+        width: 1.8,
+      ),
+      borderRadius: BorderRadius.circular(26),
+    ),
+
+    child: Row(
+      children: [
+        // +91
+        Text(
+          '+91',
+          style: GoogleFonts.sora(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: ink,
+          ),
+        ),
+
+        const SizedBox(width: 12),
+
+        // Divider
+        Container(
+          width: 1,
+          height: 24,
+          color: line,
+        ),
+
+        const SizedBox(width: 12),
+
+        // Phone number — NO INNER BOX
+        Expanded(
+          child: TextField(
+            controller: phoneController,
+            keyboardType: TextInputType.phone,
+            textInputAction: TextInputAction.done,
+            maxLength: 10,
+
+            onSubmitted: (_) {
+              if (isValid) {
+                _continue();
+              }
+            },
+
+            style: GoogleFonts.sora(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: ink,
+            ),
+
+            decoration: const InputDecoration(
+              counterText: '',
+
+              // NO INNER BORDER
+              border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+              disabledBorder: InputBorder.none,
+              errorBorder: InputBorder.none,
+              focusedErrorBorder: InputBorder.none,
+
+              // NO GRAY FILL
+              filled: false,
+
+              hintText: '98765 43210',
+              contentPadding: EdgeInsets.zero,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+  // ============================================================
+  // SEND OTP BUTTON
+  // ============================================================
+
+  Widget _buildContinueButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 54,
+
+      child: ElevatedButton(
+        onPressed:
+            isValid && !isLoading
+                ? _continue
+                : null,
+
+        style:
+            ElevatedButton.styleFrom(
+          elevation: 0,
+
+          backgroundColor:
+              orange,
+
+          foregroundColor:
+              Colors.white,
+
+          disabledBackgroundColor:
+              const Color(0xFFE5E1DC),
+
+          disabledForegroundColor:
+              const Color(0xFF9B918C),
+
+          shape:
+              const StadiumBorder(),
+
+          padding:
+              EdgeInsets.zero,
+
+          textStyle:
+              GoogleFonts.sora(
+            fontSize: 16,
+            fontWeight:
+                FontWeight.w700,
+          ),
+        ),
+
+        child: isLoading
+            ? const SizedBox(
+                width: 22,
+                height: 22,
+
+                child:
+                    CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  color:
+                      Colors.white,
+                ),
+              )
+
+            : Row(
+                mainAxisAlignment:
+                    MainAxisAlignment.center,
+
+                children: [
+                  Text(
+                    'Send OTP',
+
+                    style:
+                        GoogleFonts.sora(
+                      fontSize: 16,
+                      fontWeight:
+                          FontWeight.w700,
+                      color: isValid
+                          ? Colors.white
+                          : const Color(
+                              0xFF9B918C,
+                            ),
+                    ),
+                  ),
+
+                  const SizedBox(
+                    width: 8,
+                  ),
+
+                  Icon(
+                    Icons
+                        .arrow_forward_rounded,
+
+                    size: 19,
+
+                    color: isValid
+                        ? Colors.white
+                        : const Color(
+                            0xFF9B918C,
+                          ),
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // LEGAL CONSENT
+  // ============================================================
+
+  Widget _buildLegalConsent() {
+    return Center(
+      child: Text.rich(
+        TextSpan(
+          style: GoogleFonts.sora(
+            fontSize: 12,
+            height: 1.4,
+            fontWeight:
+                FontWeight.w400,
+            color: muted,
+          ),
+
+          children: [
+            const TextSpan(
+              text:
+                  'By continuing, you agree to ',
+            ),
+
+            TextSpan(
+              text: 'Terms',
+              style: GoogleFonts.sora(
+                fontSize: 12,
+                fontWeight:
+                    FontWeight.w700,
+                color: orange,
+                decoration:
+                    TextDecoration.underline,
+              ),
+            ),
+
+            const TextSpan(
+              text: ' and ',
+            ),
+
+            TextSpan(
+              text: 'Policy',
+              style: GoogleFonts.sora(
+                fontSize: 12,
+                fontWeight:
+                    FontWeight.w700,
+                color: orange,
+                decoration:
+                    TextDecoration.underline,
+              ),
+            ),
+
+            const TextSpan(
+              text: '.',
+            ),
+          ],
+        ),
+
+        textAlign:
+            TextAlign.center,
+      ),
+    );
+  }
+}
