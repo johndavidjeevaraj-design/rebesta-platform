@@ -38,36 +38,65 @@ jobs:
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
 
+      # --------------------------------------------------------------
+      # Verify Jest is actually loading the bootstrap file.
+      # This is intentionally done before the test command.
+      # --------------------------------------------------------------
       - name: Verify Jest setup
         run: |
           echo "=== Jest setup file ==="
-          test -f src/jest.setup.ts
-          echo "src/jest.setup.ts exists."
+
+          test -f jest.setup.js
+
+          echo "jest.setup.js exists."
 
           echo ""
           echo "=== Jest setup file size ==="
-          wc -l src/jest.setup.ts
+
+          wc -l jest.setup.js
 
           echo ""
           echo "=== Jest configuration ==="
-          npx jest --showConfig > jest-config-ci.json
-          grep -A 4 '"setupFiles"' jest-config-ci.json
-          grep '"rootDir"' jest-config-ci.json | head -n 1
 
-          echo ""
-          echo "=== Expected Jest setup path ==="
-          grep -F '"'"$(pwd)"'/src/jest.setup.ts"' jest-config-ci.json \
-            && echo "Jest setup path is correct." \
-            || {
-              echo "::error::Jest is NOT resolving src/jest.setup.ts"
-              exit 1
-            }
+          npx jest --showConfig > jest-config-ci.json
+
+          node - <<'NODE'
+          const fs = require('fs');
+          const path = require('path');
+
+          const config = JSON.parse(
+            fs.readFileSync('jest-config-ci.json', 'utf8')
+          );
+
+          console.log('rootDir:', config.rootDir);
+          console.log('setupFiles:', config.setupFiles);
+
+          if (!Array.isArray(config.setupFiles) || config.setupFiles.length === 0) {
+            console.error('::error::Jest has no setupFiles configured.');
+            process.exit(1);
+          }
+
+          const expected = path.resolve('jest.setup.js');
+          const actual = path.resolve(config.setupFiles[0]);
+
+          console.log('');
+          console.log('Expected setup file:', expected);
+          console.log('Actual setup file:', actual);
+
+          if (actual !== expected) {
+            console.error('::error::Jest is NOT resolving jest.setup.js');
+            process.exit(1);
+          }
+
+          console.log('');
+          console.log('Jest setup path is correct.');
+          NODE
 
       - name: Build
         run: npm run build
 
       # Never use real Supabase credentials in CI.
-      # jest.setup.ts mocks @supabase/supabase-js before application imports.
+      # These values are only fallbacks. jest.setup.js also sets them.
       - name: Test
         env:
           SUPABASE_URL: http://supabase.test
@@ -126,7 +155,7 @@ jobs:
         run: flutter test
 
   # ------------------------------------------------------------------
-  # Guard: a service-account key must never be committed again
+  # Guard: credential files must never be committed
   # ------------------------------------------------------------------
   secrets:
     name: No credentials committed
