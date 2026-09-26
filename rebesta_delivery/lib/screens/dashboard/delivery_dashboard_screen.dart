@@ -5,6 +5,7 @@ import '../../core/constants/api_constants.dart';
 import '../../core/network/delivery_api_client.dart';
 import '../orders/available_orders_screen.dart';
 import '../../services/delivery_location_service.dart';
+import '../../core/services/delivery_socket_service.dart';
 import '../active_delivery/active_delivery_screen.dart';
 
 class DeliveryDashboardScreen extends StatefulWidget {
@@ -30,6 +31,9 @@ class _DeliveryDashboardScreenState
   final DeliveryLocationService _locationService =
     DeliveryLocationService.instance;
 
+  final DeliverySocketService _socketService =
+    DeliverySocketService.instance;
+
   @override
   void initState() {
     super.initState();
@@ -44,6 +48,7 @@ class _DeliveryDashboardScreenState
     _socketService.addOnNewOrderListener(
       _onNewOrder,
     );
+    
   }
 
   // ============================================================
@@ -304,9 +309,33 @@ Future<void> _toggleOnline(
 
 @override
 void dispose() {
+  _socketService.removeOnNewOrderListener(
+    _onNewOrder,
+  );
+
   _locationService.stopTracking();
   super.dispose();
 }
+
+  // ============================================================
+  // NEW ORDER (REALTIME)
+  // ============================================================
+
+  void _onNewOrder(
+    Map<String, dynamic> order,
+  ) {
+    debugPrint(
+      '🔔 NEW ORDER RECEIVED: ${order['id']}',
+    );
+
+    if (!mounted) return;
+
+    _showMessage(
+      '🔔 New order available for pickup!',
+    );
+
+    _loadDashboard();
+  }
   // ============================================================
   // MESSAGE
   // ============================================================
@@ -1306,17 +1335,6 @@ String _shortOrderId(String id) {
 
           Text(
             title,
-            style: const TextStyle(
-              color:
-                  Color(0xFF756864),
-              fontSize: 13,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}title,
             style: const TextStyle(
               color:
                   Color(0xFF756864),
