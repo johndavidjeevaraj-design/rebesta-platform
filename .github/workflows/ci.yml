@@ -42,7 +42,7 @@ jobs:
       # Verify Jest is actually loading the bootstrap file.
       # This is intentionally done before the test command.
       # --------------------------------------------------------------
-      - name: Verify Jest setup
+           - name: Verify Jest setup
         run: |
           echo "=== Jest setup file ==="
 
@@ -64,20 +64,24 @@ jobs:
           const fs = require('fs');
           const path = require('path');
 
-          const config = JSON.parse(
+          const raw = JSON.parse(
             fs.readFileSync('jest-config-ci.json', 'utf8')
           );
 
-          console.log('rootDir:', config.rootDir);
-          console.log('setupFiles:', config.setupFiles);
+          // Jest's --showConfig wraps the project config(s) in a
+          // top-level `configs` array. Handle both shapes defensively.
+          const project = Array.isArray(raw.configs) ? raw.configs[0] : raw;
 
-          if (!Array.isArray(config.setupFiles) || config.setupFiles.length === 0) {
+          console.log('rootDir:', project.rootDir);
+          console.log('setupFiles:', project.setupFiles);
+
+          if (!Array.isArray(project.setupFiles) || project.setupFiles.length === 0) {
             console.error('::error::Jest has no setupFiles configured.');
             process.exit(1);
           }
 
           const expected = path.resolve('jest.setup.js');
-          const actual = path.resolve(config.setupFiles[0]);
+          const actual = path.resolve(project.setupFiles[0]);
 
           console.log('');
           console.log('Expected setup file:', expected);
@@ -91,7 +95,6 @@ jobs:
           console.log('');
           console.log('Jest setup path is correct.');
           NODE
-
       - name: Build
         run: npm run build
 
