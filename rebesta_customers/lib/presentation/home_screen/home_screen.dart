@@ -7,6 +7,8 @@ import '../../models/restaurant.dart';
 import './widgets/home_main_filters_widget.dart';
 import '../../routes/app_routes.dart';
 import '../../services/address_service.dart';
+import '../../services/cart_service.dart';
+import '../../services/order_service.dart';
 import '../../services/profile_service.dart';
 import '../../services/restaurant_service.dart';
 import './widgets/home_cravings_widget.dart';
@@ -48,6 +50,17 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Address> addresses = [];
 
   List<Restaurant> restaurants = [];
+
+  // ============================================================
+  // SEARCH + RECENT DELIVERED ORDERS
+  // ============================================================
+
+  final TextEditingController _searchController =
+      TextEditingController();
+
+  String _searchQuery = '';
+
+  List<Map<String, dynamic>> _recentOrders = [];
   List<MenuItemModel> _allMenuItems = [];
 
   List<String> get cravingCategories {
@@ -164,6 +177,24 @@ bool loadingMenuCategories = false;
   Iterable<Restaurant> result = restaurants;
 
   // ============================================================
+  // SEARCH - match restaurant name or cuisine
+  // ============================================================
+
+  if (_searchQuery.isNotEmpty) {
+    final query = _searchQuery.toLowerCase();
+
+    result = result.where((restaurant) {
+      final name = restaurant.name.toLowerCase();
+
+      final cuisine =
+          restaurant.cuisine?.toLowerCase() ?? '';
+
+      return name.contains(query) ||
+          cuisine.contains(query);
+    });
+  }
+
+  // ============================================================
   // VEG MODE
   // ============================================================
 
@@ -266,7 +297,117 @@ if (_selectedCategoryIndex >= 0) {
     loadProfile();
     loadAddresses();
     loadRestaurants();
+    _loadRecentOrders();
     
+  }
+
+  // ============================================================
+  // RECENT ORDERS for the real "Order Again" strip
+  // ============================================================
+
+  Future<void> _loadRecentOrders() async {
+    try {
+      final response = await OrderService().getMyOrders();
+
+      final rawOrders = response['orders'];
+
+      if (rawOrders is! List) return;
+
+      final delivered = rawOrders
+          .where(
+            (order) =>
+                order is Map &&
+                order['order_status']?.toString() ==
+                    'delivered',
+          )
+          .cast<Map<String, dynamic>>()
+          .take(3)
+          .toList();
+
+      if (!mounted) return;
+
+      setState(() {
+        _recentOrders = delivered;
+      });
+    } catch (e) {
+      debugPrint('RECENT ORDERS ERROR: $e');
+    }
+  }
+
+  // ============================================================
+  // REORDER - re-add every item, land in checkout
+  // ============================================================
+
+  Future<void> _reorder(Map<String, dynamic> order) async {
+    final restaurantPartnerId =
+        order['restaurant_partner_id']?.toString() ?? '';
+
+    if (restaurantPartnerId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cannot reorder this order'),
+        ),
+      );
+
+      return;
+    }
+
+    // Block input while the items are re-added
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const PopScope(
+        canPop: false,
+        child: Center(
+          child: Card(
+            child: Padding(
+              padding: EdgeInsets.all(24),
+              child: CircularProgressIndicator(
+                color: AppTheme.primary,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    try {
+      final added =
+          await CartService().reorderFromOrder(order);
+
+      if (!mounted) return;
+
+      Navigator.of(context, rootNavigator: true).pop();
+
+      if (added == 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Items from this order are no longer available',
+            ),
+          ),
+        );
+
+        return;
+      }
+
+      context.push(
+        AppRoutes.checkoutScreen,
+        extra: restaurantPartnerId,
+      );
+    } catch (e) {
+      debugPrint('REORDER ERROR: $e');
+
+      if (!mounted) return;
+
+      Navigator.of(context, rootNavigator: true).pop();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Reorder failed - please try again'),
+        ),
+      );
+    }
   }
 
 Future<void> loadProfile() async {
@@ -480,14 +621,77 @@ SliverToBoxAdapter(
 
 
 
+  // =====================================================
+  // SEARCH BAR
+  // =====================================================
+
   SliverToBoxAdapter(
-              child: OrderAgainWidget(
-                onOrderTap: () {
-                  context.push(
-                    AppRoutes.orderTrackingScreen,
-                  );
+    child: Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 2,
+        ),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: AppTheme.cardShadow,
+        ),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.search,
+              color: AppTheme.mutedText,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: TextField(
+                controller: _searchController,
+                onChanged: (value) {
+                  setState(() {
+                    _searchQuery = value.trim();
+                  });
                 },
+                decoration: const InputDecoration(
+                  hintText: 'Search restaurants or cuisines',
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  isDense: true,
+                ),
               ),
+            ),
+            if (_searchQuery.isNotEmpty)
+              GestureDetector(
+                onTap: () {
+                  _searchController.clear();
+
+                  setState(() {
+                    _searchQuery = '';
+                  });
+                },
+                child: const Icon(
+                  Icons.close,
+                  color: AppTheme.mutedText,
+                  size: 20,
+                ),
+              ),
+          ],
+        ),
+      ),
+    ),
+  ),
+
+  // =====================================================
+  // ORDER AGAIN - real recent delivered orders
+  // =====================================================
+
+  SliverToBoxAdapter(
+    child: OrderAgainWidget(
+      orders: _recentOrders,
+      onReorder: _reorder,
+    ),
             ),
 
 
@@ -779,26 +983,33 @@ if (selectedAddress is Address) {
 
           const SizedBox(width: 8),
 
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              borderRadius:
-                  BorderRadius.circular(12),
-              boxShadow:
-                  AppTheme.cardShadow,
-            ),
-            child: ClipRRect(
-              borderRadius:
-                  BorderRadius.circular(12),
-              child: const CustomImageWidget(
-                imageUrl:
-                    "https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=200",
-                width: 40,
-                height: 40,
-                fit: BoxFit.cover,
-                semanticLabel:
-                    "Profile Image",
+          GestureDetector(
+            onTap: () {
+              context.push(
+                AppRoutes.profileScreen,
+              );
+            },
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                borderRadius:
+                    BorderRadius.circular(12),
+                boxShadow:
+                    AppTheme.cardShadow,
+              ),
+              child: ClipRRect(
+                borderRadius:
+                    BorderRadius.circular(12),
+                child: const CustomImageWidget(
+                  imageUrl:
+                      "https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=200",
+                  width: 40,
+                  height: 40,
+                  fit: BoxFit.cover,
+                  semanticLabel:
+                      "Profile Image",
+                ),
               ),
             ),
           ),

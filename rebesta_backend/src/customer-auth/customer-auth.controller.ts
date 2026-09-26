@@ -4,7 +4,7 @@ import {
   Body,
   Get,
   Request
-} from '@nestjs/common';
+, Patch} from '@nestjs/common';
 
 import { CustomerAuthService } from './customer-auth.service';
 import { CustomerJwtGuard } from './customer-jwt.guard';
@@ -81,6 +81,22 @@ getMe(@Request() req) {
 @Get('profile')
 profile(@Req() req) {
   return this.customerAuthService.profile(req.user.customerId);
+}
+
+// ===============================
+// UPDATE CUSTOMER PROFILE
+// ===============================
+
+@UseGuards(CustomerJwtGuard)
+@Patch('profile')
+updateProfile(
+  @Req() req,
+  @Body('name') name: string,
+) {
+  return this.customerAuthService.updateProfile(
+    req.user.customerId,
+    name,
+  );
 }
 
 @Post('send-otp')

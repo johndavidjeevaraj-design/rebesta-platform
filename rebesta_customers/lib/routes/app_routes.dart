@@ -15,6 +15,7 @@ import '../presentation/address/add_address_screen/add_address_screen.dart';
 
 import '../presentation/splash_screen/splash_screen.dart';
 import '../presentation/home_screen/home_screen.dart';
+import '../presentation/profile_screen/profile_screen.dart';
 import '../presentation/restaurant_menu_screen/restaurant_menu_screen.dart';
 import '../presentation/order_tracking_screen/order_tracking_screen.dart';
 
@@ -81,6 +82,9 @@ static const String paymentCancelledScreen =
 
   static const String addAddressScreen =
       '/add-address';
+
+  static const String profileScreen =
+      '/profile';
 }
 
 // ============================================================================
@@ -110,6 +114,17 @@ final GoRouter appRouter = GoRouter(
       path: AppRoutes.splashScreen,
       builder: (context, state) {
         return const SplashScreen();
+      },
+    ),
+
+    // ==========================================================
+    // PROFILE
+    // ==========================================================
+
+    GoRoute(
+      path: AppRoutes.profileScreen,
+      builder: (context, state) {
+        return const ProfileScreen();
       },
     ),
 

@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/constants/api_constants.dart';
@@ -168,4 +169,52 @@ print('================================');
     response.data,
   );
 }
+
+  // ============================================================
+  // REORDER - re-add every item from a past order
+  //
+  // The backend keeps one cart per customer+restaurant, so
+  // re-adding items can never corrupt another restaurant's
+  // open cart. Items that no longer exist are skipped.
+  // ============================================================
+
+  Future<int> reorderFromOrder(
+    Map<String, dynamic> order,
+  ) async {
+    final items = order['order_items'];
+
+    if (items is! List || items.isEmpty) {
+      return 0;
+    }
+
+    var added = 0;
+
+    for (final item in items) {
+      if (item is! Map) continue;
+
+      final menuItemId =
+          item['menu_item_id']?.toString() ?? '';
+
+      if (menuItemId.isEmpty) continue;
+
+      final quantity = item['quantity'] is num
+          ? (item['quantity'] as num).toInt()
+          : 1;
+
+      try {
+        await addItem(
+          menuItemId: menuItemId,
+          quantity: quantity,
+        );
+
+        added++;
+      } catch (e) {
+        debugPrint(
+          'REORDER: skipped item $menuItemId - $e',
+        );
+      }
+    }
+
+    return added;
+  }
 }

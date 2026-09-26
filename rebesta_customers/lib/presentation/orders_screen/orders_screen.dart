@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../services/cart_service.dart';
 import '../../services/order_service.dart';
 import '../../theme/app_theme.dart';
 import '../../routes/app_routes.dart';
@@ -13,6 +14,81 @@ class OrdersScreen extends StatefulWidget {
 }
 
 class _OrdersScreenState extends State<OrdersScreen> {
+  // ============================================================
+  // REORDER - re-add every item, land in checkout
+  // ============================================================
+
+  Future<void> _reorder(Map<String, dynamic> order) async {
+    final restaurantPartnerId =
+        order['restaurant_partner_id']?.toString() ?? '';
+
+    if (restaurantPartnerId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cannot reorder this order'),
+        ),
+      );
+
+      return;
+    }
+
+    // Block input while the items are re-added
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const PopScope(
+        canPop: false,
+        child: Center(
+          child: Card(
+            child: Padding(
+              padding: EdgeInsets.all(24),
+              child: CircularProgressIndicator(
+                color: AppTheme.primary,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    try {
+      final added =
+          await CartService().reorderFromOrder(order);
+
+      if (!mounted) return;
+
+      Navigator.of(context, rootNavigator: true).pop();
+
+      if (added == 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Items from this order are no longer available',
+            ),
+          ),
+        );
+
+        return;
+      }
+
+      context.push(
+        AppRoutes.checkoutScreen,
+        extra: restaurantPartnerId,
+      );
+    } catch (e) {
+      debugPrint('REORDER ERROR: $e');
+
+      if (!mounted) return;
+
+      Navigator.of(context, rootNavigator: true).pop();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Reorder failed - please try again'),
+        ),
+      );
+    }
+  }
   final OrderService _orderService = OrderService();
 
   bool _loading = true;
@@ -554,26 +630,52 @@ class _OrdersScreenState extends State<OrdersScreen> {
 
                 const Spacer(),
 
-                Text(
-                  'Track order',
-                  style: TextStyle(
-                    color:
-                        AppTheme.primary,
-                    fontSize: 13,
-                    fontWeight:
-                        FontWeight.w700,
+                // Delivered -> reorder, otherwise -> track
+
+                if (order['order_status']?.toString() ==
+                    'delivered')
+                  GestureDetector(
+                    onTap: () => _reorder(order),
+                    child: Container(
+                      padding:
+                          const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppTheme.primary,
+                        borderRadius:
+                            BorderRadius.circular(20),
+                      ),
+                      child: const Text(
+                        'Reorder',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight:
+                              FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  )
+                else ...[
+                  Text(
+                    'Track order',
+                    style: TextStyle(
+                      color: AppTheme.primary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
-                ),
 
-                const SizedBox(width: 6),
+                  const SizedBox(width: 6),
 
-                Icon(
-                  Icons
-                      .arrow_forward_ios_rounded,
-                  size: 13,
-                  color:
-                      AppTheme.primary,
-                ),
+                  Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    size: 13,
+                    color: AppTheme.primary,
+                  ),
+                ],
               ],
             ),
           ],
