@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/network/delivery_api_client.dart';
+import '../../services/maps_launcher_service.dart';
 
 class ActiveDeliveryScreen extends StatefulWidget {
   final Map<String, dynamic> order;
@@ -130,6 +131,125 @@ class _ActiveDeliveryScreenState
     }
 
     return parts.join(', ');
+  }
+
+  // ============================================================
+  // RESTAURANT + CONTACT (navigation leg data)
+  // ============================================================
+
+  String get _restaurantName {
+    final partner = _order['restaurant_partners'];
+
+    if (partner is Map) {
+      return partner['restaurant_name']?.toString() ??
+          'Restaurant';
+    }
+
+    return 'Restaurant';
+  }
+
+  String get _restaurantAddress {
+    final partner = _order['restaurant_partners'];
+
+    if (partner is! Map) {
+      return '';
+    }
+
+    final parts = <String>[];
+
+    for (final key in ['address', 'city', 'pincode']) {
+      final value = partner[key]?.toString();
+
+      if (value != null && value.isNotEmpty) {
+        parts.add(value);
+      }
+    }
+
+    return parts.join(', ');
+  }
+
+  String? get _customerPhone {
+    final customer = _order['customers'];
+
+    if (customer is Map) {
+      final mobile = customer['mobile']?.toString();
+
+      if (mobile != null && mobile.isNotEmpty) {
+        return mobile;
+      }
+    }
+
+    return null;
+  }
+
+  // ============================================================
+  // NAVIGATE (Google Maps deep-link) + CALL (dialer)
+  // ============================================================
+
+  Future<void> _navigateToRestaurant() async {
+    await MapsLauncher.launchNavigation(
+      query: _restaurantAddress.isEmpty
+          ? _restaurantName
+          : '$_restaurantName, $_restaurantAddress',
+    );
+  }
+
+  Future<void> _navigateToCustomer() async {
+    final address = _order['addresses'];
+
+    double? latitude;
+    double? longitude;
+
+    if (address is Map) {
+      latitude =
+          double.tryParse(address['latitude']?.toString() ?? '');
+      longitude =
+          double.tryParse(address['longitude']?.toString() ?? '');
+    }
+
+    await MapsLauncher.launchNavigation(
+      latitude: latitude,
+      longitude: longitude,
+      query: _address,
+    );
+  }
+
+  Future<void> _callCustomer() async {
+    await MapsLauncher.launchCall(_customerPhone);
+  }
+
+  // ============================================================
+  // QUICK ACTION BUTTON
+  // ============================================================
+
+  Widget _quickActionButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return OutlinedButton.icon(
+      onPressed: onTap,
+      icon: Icon(
+        icon,
+        size: 18,
+        color: const Color(0xFFFF6B35),
+      ),
+      label: Text(
+        label,
+        style: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w700,
+          color: Color(0xFFFF6B35),
+        ),
+      ),
+      style: OutlinedButton.styleFrom(
+        side: const BorderSide(color: Color(0xFFFF6B35)),
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+    );
   }
 
   // ============================================================
@@ -1307,6 +1427,64 @@ Future<void> _cancelDelivery() async {
                         height: 24,
                       ),
 
+                      // =================================================
+                      // PICKUP LEG (until the order is picked up)
+                      // =================================================
+
+                      if (_status == 'accepted_for_delivery' ||
+                          _status == 'arrived_at_restaurant') ...[
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFF3EB),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.storefront_outlined,
+                                color: Color(0xFFFF6B35),
+                                size: 20,
+                              ),
+
+                              const SizedBox(
+                                width: 10,
+                              ),
+
+                              Expanded(
+                                child: Text(
+                                  'Pickup: $_restaurantName',
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF2A1D1A),
+                                  ),
+                                ),
+                              ),
+
+                              TextButton.icon(
+                                onPressed: _navigateToRestaurant,
+                                icon: const Icon(
+                                  Icons.navigation_outlined,
+                                  size: 16,
+                                ),
+                                label: const Text('Go'),
+                                style: TextButton.styleFrom(
+                                  foregroundColor:
+                                      const Color(0xFFFF6B35),
+                                  visualDensity:
+                                      VisualDensity.compact,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(
+                          height: 16,
+                        ),
+                      ],
+
                       const Text(
                         'Deliver to',
                         style:
@@ -1359,6 +1537,38 @@ Future<void> _cancelDelivery() async {
                                   0xFF2A1D1A,
                                 ),
                               ),
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(
+                        height: 16,
+                      ),
+
+                      // =================================================
+                      // NAVIGATE + CALL (quick actions)
+                      // =================================================
+
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _quickActionButton(
+                              icon: Icons.navigation_outlined,
+                              label: 'Navigate',
+                              onTap: _navigateToCustomer,
+                            ),
+                          ),
+
+                          const SizedBox(
+                            width: 12,
+                          ),
+
+                          Expanded(
+                            child: _quickActionButton(
+                              icon: Icons.call_outlined,
+                              label: 'Call',
+                              onTap: _callCustomer,
                             ),
                           ),
                         ],

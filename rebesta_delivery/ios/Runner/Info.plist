@@ -66,5 +66,11 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>google.navigation</string>
+		<string>tel</string>
+		<string>https</string>
+	</array>
 </dict>
 </plist>

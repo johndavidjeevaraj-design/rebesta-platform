@@ -1265,7 +1265,8 @@ export class DeliveryService {
           otp_verified,
 
           customers(
-            name
+            name,
+            mobile
           ),
 
           addresses(
@@ -1280,7 +1281,10 @@ export class DeliveryService {
           ),
 
           restaurant_partners(
-            restaurant_name
+            restaurant_name,
+            address,
+            city,
+            pincode
           )
         `)
         .eq(
