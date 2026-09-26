@@ -49,6 +49,9 @@ dependencies:
   # (Google Maps deep-links and the phone dialer).
   url_launcher: ^6.3.1
 
+  # KYC document uploads (camera / gallery).
+  image_picker: ^1.2.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

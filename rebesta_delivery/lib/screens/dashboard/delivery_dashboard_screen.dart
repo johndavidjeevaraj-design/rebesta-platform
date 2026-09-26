@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:vibration/vibration.dart';
 import '../history/delivery_history_screen.dart';
 import '../wallet/delivery_wallet_screen.dart';
+import '../kyc/delivery_kyc_screen.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/network/delivery_api_client.dart';
 import '../orders/available_orders_screen.dart';
@@ -1000,6 +1001,76 @@ const SizedBox(height: 12),
 
                       foregroundColor:
                           Colors.white,
+
+                      elevation: 0,
+
+                      shape:
+                          RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius.circular(
+                          16,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(
+                  height: 12,
+                ),
+
+                // =================================================
+                // KYC VERIFICATION
+                // =================================================
+
+                SizedBox(
+                  width:
+                      double.infinity,
+
+                  height: 54,
+
+                  child:
+                      OutlinedButton.icon(
+                    onPressed: () async {
+                      await Navigator.push(
+                        context,
+
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              const DeliveryKycScreen(),
+                        ),
+                      );
+
+                      if (!mounted) return;
+
+                      await _loadDashboard();
+                    },
+
+                    icon: const Icon(
+                      Icons
+                          .verified_user_outlined,
+                    ),
+
+                    label: const Text(
+                      'KYC Verification',
+
+                      style: TextStyle(
+                        fontWeight:
+                            FontWeight.w800,
+                      ),
+                    ),
+
+                    style:
+                        OutlinedButton.styleFrom(
+                      foregroundColor:
+                          const Color(
+                        0xFFFF6B35,
+                      ),
+
+                      side: const BorderSide(
+                        color:
+                            Color(0xFFFF6B35),
+                      ),
 
                       elevation: 0,
 

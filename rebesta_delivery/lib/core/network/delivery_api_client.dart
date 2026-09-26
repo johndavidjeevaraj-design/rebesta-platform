@@ -29,4 +29,22 @@ class DeliveryApiClient {
       },
     );
   }
+
+  // ============================================================
+  // For multipart uploads (file upload). Dio sets the
+  // multipart content type + boundary itself - forcing
+  // application/json here would break the upload.
+  // ============================================================
+
+  static Future<Options> authOptionsUpload() async {
+    final token =
+        await DeliveryAuthStorage.getToken();
+
+    return Options(
+      headers: {
+        if (token != null && token.isNotEmpty)
+          'Authorization': 'Bearer $token',
+      },
+    );
+  }
 }

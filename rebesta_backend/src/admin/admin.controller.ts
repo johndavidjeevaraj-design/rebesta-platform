@@ -1,6 +1,6 @@
 import { Controller, Get } from '@nestjs/common';
 import { AdminService } from './admin.service';
-import { Param, Patch } from '@nestjs/common';
+import { Body, Param, Patch } from '@nestjs/common';
 
 @Controller('admin')
 export class AdminController {
@@ -116,6 +116,30 @@ rejectDeliveryPartner(
   @Param('id') id: string,
 ) {
   return this.adminService.rejectDeliveryPartner(id);
+}
+
+// ==========================
+// Delivery KYC Review
+// ==========================
+
+@Get('delivery-kyc')
+getDeliveryKycSubmissions() {
+  return this.adminService.getDeliveryKycSubmissions();
+}
+
+@Patch('delivery-kyc/:id/approve')
+approveDeliveryKyc(
+  @Param('id') id: string,
+) {
+  return this.adminService.approveDeliveryKyc(id);
+}
+
+@Patch('delivery-kyc/:id/reject')
+rejectDeliveryKyc(
+  @Param('id') id: string,
+  @Body('reason') reason: string,
+) {
+  return this.adminService.rejectDeliveryKyc(id, reason);
 }
 
 // ==========================

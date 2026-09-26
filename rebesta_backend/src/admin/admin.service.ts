@@ -1,8 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { supabase } from '../supabase';
+import { StorageService } from '../storage/storage.service';
 
 @Injectable()
 export class AdminService {
+
+  constructor(
+    private readonly storageService: StorageService,
+  ) {}
 
   // ==========================
   // Dashboard
@@ -519,6 +524,117 @@ async rejectDeliveryPartner(id: string) {
 
   };
 
+}
+
+// ============================================================
+// DELIVERY KYC REVIEW
+// ============================================================
+
+async getDeliveryKycSubmissions() {
+
+  const { data: partners, error } = await supabase
+    .from('delivery_partners')
+    .select(`
+      id,
+      name,
+      mobile,
+      email,
+      vehicle_type,
+      vehicle_number,
+      kyc_status,
+      kyc_rejection_reason,
+      created_at
+    `)
+    .eq('kyc_status', 'submitted')
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const submissions: any[] = [];
+
+  for (const partner of partners ?? []) {
+    const { data: documents } = await supabase
+      .from('delivery_kyc_documents')
+      .select(`
+        document_type,
+        storage_path,
+        created_at
+      `)
+      .eq('delivery_partner_id', partner.id);
+
+    const docs: any[] = [];
+
+    for (const doc of documents ?? []) {
+      const url = await this.storageService
+        .getSignedDocumentUrl(doc.storage_path)
+        .catch(() => null);
+
+      docs.push({
+        type: doc.document_type,
+        uploadedAt: doc.created_at,
+        url,
+      });
+    }
+
+    submissions.push({
+      ...partner,
+      documents: docs,
+    });
+  }
+
+  return {
+    success: true,
+    submissions,
+  };
+}
+
+async approveDeliveryKyc(id: string) {
+
+  const { data, error } = await supabase
+    .from('delivery_partners')
+    .update({
+      kyc_status: 'verified',
+      kyc_rejection_reason: null,
+    })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return {
+    success: true,
+    message: 'KYC verified',
+    partner: data,
+  };
+}
+
+async rejectDeliveryKyc(id: string, reason: string) {
+
+  const { data, error } = await supabase
+    .from('delivery_partners')
+    .update({
+      kyc_status: 'rejected',
+      kyc_rejection_reason:
+        reason || 'Documents were not clear enough',
+    })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return {
+    success: true,
+    message: 'KYC rejected',
+    partner: data,
+  };
 }
 async blockDeliveryPartner(id: string) {
 
