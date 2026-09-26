@@ -1,3 +1,5 @@
+import 'package:geocoding/geocoding.dart';
+
 //lib/models/address.dart 
 
 class Address {
@@ -136,8 +138,6 @@ class Restaurant {
 }
 
 //lib/services/geocoding_service.dart
-import 'package:geocoding/geocoding.dart';
-
 class GeocodingService {
   Future<String> getAddress(
     double latitude,
