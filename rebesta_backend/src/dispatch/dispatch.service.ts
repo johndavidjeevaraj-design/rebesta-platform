@@ -25,7 +25,7 @@ import { SocketGateway } from '../socket/socket.gateway';
 //      and never busy with an active delivery.
 //
 //   2. Send a personal "order-offer" to that rider only,
-//      valid for OFFER_TTL_MS seconds.
+//      valid for OFFER_TTL_SECONDS (45s by default).
 //
 //   3. If they decline or the offer expires, the next best
 //      rider is offered automatically.
@@ -40,7 +40,27 @@ import { SocketGateway } from '../socket/socket.gateway';
 // falls back to broadcasting, so the platform keeps working.
 // ============================================================
 
-const OFFER_TTL_MS = 20_000;
+// How long a rider gets to respond to a personal offer.
+// Swiggy/Zomato-style: riders are often DRIVING when the offer
+// arrives, so the window must be generous enough to safely stop
+// and accept. 45 seconds by default; override with the
+// DISPATCH_OFFER_TTL_SECONDS environment variable (10..300s).
+
+function resolveOfferTtlSeconds(): number {
+  const parsed = Number(
+    process.env.DISPATCH_OFFER_TTL_SECONDS,
+  );
+
+  if (Number.isFinite(parsed) && parsed >= 10 && parsed <= 300) {
+    return parsed;
+  }
+
+  return 45;
+}
+
+const OFFER_TTL_SECONDS = resolveOfferTtlSeconds();
+
+const OFFER_TTL_MS = OFFER_TTL_SECONDS * 1000;
 
 const SWEEP_INTERVAL_MS = 10_000;
 
@@ -305,7 +325,7 @@ export class DispatchService implements OnModuleInit, OnModuleDestroy {
           ...order,
           offer_id: offer.id,
           expires_at: expiresAt,
-          ttl_seconds: Math.round(OFFER_TTL_MS / 1000),
+          ttl_seconds: OFFER_TTL_SECONDS,
         },
       );
 

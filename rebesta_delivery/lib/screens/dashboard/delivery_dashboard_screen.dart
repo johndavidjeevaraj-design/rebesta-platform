@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:vibration/vibration.dart';
 import '../history/delivery_history_screen.dart';
 import '../wallet/delivery_wallet_screen.dart';
 import '../../core/constants/api_constants.dart';
@@ -1569,7 +1571,7 @@ class _DeliveryOfferDialogState
 
     final ttl = widget.order['ttl_seconds'];
 
-    _secondsLeft = ttl is num ? ttl.toInt() : 20;
+    _secondsLeft = ttl is num ? ttl.toInt() : 45;
 
     _timer = Timer.periodic(
       const Duration(seconds: 1),
@@ -1581,6 +1583,7 @@ class _DeliveryOfferDialogState
 
         if (_secondsLeft <= 1) {
           timer.cancel();
+          _stopAlerting();
 
           setState(() {
             _secondsLeft = 0;
@@ -1600,11 +1603,57 @@ class _DeliveryOfferDialogState
     DeliverySocketService.instance.addOnOfferExpiredListener(
       _onOfferExpiredEvent,
     );
+
+    // Ring like an incoming call so a rider who is driving
+    // notices the offer (vibration + system alert sound).
+
+    _startAlerting();
+  }
+
+  // ============================================================
+  // ALERT (vibration + sound) while the offer is live
+  // ============================================================
+
+  bool _alerting = false;
+
+  Future<void> _startAlerting() async {
+    try {
+      final hasVibrator = await Vibration.hasVibrator();
+
+      if (hasVibrator == true) {
+        // Wait 0ms, buzz 700ms, pause 500ms, buzz 700ms...
+        // then keep looping the pause+buzz part until
+        // cancelled - like an incoming call.
+
+        Vibration.vibrate(
+          pattern: [0, 700, 500, 700],
+          repeat: 2,
+        );
+
+        _alerting = true;
+      }
+    } catch (e) {
+      debugPrint('Vibration not available: $e');
+    }
+
+    // System notification sound on top of the vibration.
+
+    SystemSound.play(SystemSoundType.alert);
+  }
+
+  void _stopAlerting() {
+    if (_alerting) {
+      Vibration.cancel();
+
+      _alerting = false;
+    }
   }
 
   @override
   void dispose() {
     _timer?.cancel();
+
+    _stopAlerting();
 
     DeliverySocketService.instance
         .removeOnOfferExpiredListener(

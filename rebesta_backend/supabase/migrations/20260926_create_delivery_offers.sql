@@ -10,7 +10,8 @@
 --
 -- Flow:
 --   1. Order becomes ready -> best available rider gets a
---      PERSONAL offer (pending, expires in ~20 seconds).
+--      PERSONAL offer (pending, expires in ~45 seconds,
+--      configurable via DISPATCH_OFFER_TTL_SECONDS).
 --   2. Rider accepts -> offer marked accepted, order assigned.
 --   3. Rider declines -> offer marked declined, next rider
 --      is offered immediately.
