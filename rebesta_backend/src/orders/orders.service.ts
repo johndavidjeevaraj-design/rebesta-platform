@@ -561,6 +561,7 @@ try {
       picked_up_at,
       out_for_delivery_at,
       delivered_at,
+      delivery_otp,
 
       restaurant_partners(
         id,
@@ -768,6 +769,11 @@ try {
         order.out_for_delivery_at,
 
       deliveredAt: order.delivered_at,
+
+      // The customer shows this code to the rider at the door;
+      // the rider submits it to verify the delivery.
+
+      delivery_otp: order.delivery_otp,
     },
   };
 }
