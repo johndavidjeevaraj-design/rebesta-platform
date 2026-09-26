@@ -78,7 +78,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
 Map<String, Set<String>> restaurantMenuCategories = {};
 
-bool loadingMenuCategories = false;
+Map<String, bool> restaurantHasVeg = {};
 
 
   bool _categoryMatches(
@@ -189,13 +189,16 @@ bool loadingMenuCategories = false;
   }
 
   // ============================================================
-  // VEG MODE
+  // VEG MODE - restaurants serving at least one veg dish
+  // (computed from live menu data)
   // ============================================================
 
-  // Keep this disabled for now because Restaurant itself does not
-  // contain vegetarian-menu information.
-  //
-  // We will connect this to menu_items.is_veg properly later.
+  if (_vegOnly) {
+    result = result.where(
+      (restaurant) =>
+          restaurantHasVeg[restaurant.id] ?? false,
+    );
+  }
 
   // ============================================================
   // CATEGORY
@@ -486,49 +489,6 @@ Future<void> loadProfile() async {
     }
   }
 
-  Future<void> loadRestaurantMenuCategories() async {
-  if (restaurants.isEmpty) return;
-
-  setState(() {
-    loadingMenuCategories = true;
-  });
-
-  final Map<String, Set<String>> result = {};
-
-  for (final restaurant in restaurants) {
-    try {
-      final menu =
-          await _restaurantService.getRestaurantMenu(
-        restaurant.id,
-      );
-
-      final categories = menu
-          .map(
-            (item) => item.category.trim().toLowerCase(),
-          )
-          .where(
-            (category) => category.isNotEmpty,
-          )
-          .toSet();
-
-      result[restaurant.id] = categories;
-    } catch (e) {
-      debugPrint(
-        'MENU CATEGORY ERROR ${restaurant.id}: $e',
-      );
-
-      result[restaurant.id] = {};
-    }
-  }
-
-  if (!mounted) return;
-
-  setState(() {
-    restaurantMenuCategories = result;
-    loadingMenuCategories = false;
-  });
-}
-
   Future<void> loadRestaurants() async {
   try {
     final data = await _restaurantService.getRestaurants();
@@ -540,14 +500,59 @@ Future<void> loadProfile() async {
       loadingRestaurants = false;
     });
 
-    // Load menu items after restaurants are available
-    final menuItems =
-        await _restaurantService.getAllMenuItems(data);
+    // Load menu items after restaurants are available.
+    // One pass builds everything the home screen needs:
+    // - flat item list (existing categories UI)
+    // - per-restaurant menu categories (cravings filter)
+    // - per-restaurant veg flags (veg mode filter)
+
+    final List<MenuItemModel> allItems = [];
+
+    final Map<String, Set<String>> categoryMap = {};
+
+    final Map<String, bool> vegMap = {};
+
+    for (final restaurant in data) {
+      try {
+        final items =
+            await _restaurantService.getRestaurantMenu(
+          restaurant.id,
+        );
+
+        allItems.addAll(items);
+
+        categoryMap[restaurant.id] = items
+            .map(
+              (item) =>
+                  item.category.trim().toLowerCase(),
+            )
+            .where(
+              (category) => category.isNotEmpty,
+            )
+            .toSet();
+
+        vegMap[restaurant.id] = items.any(
+          (item) => item.isVeg,
+        );
+      } catch (e) {
+        debugPrint(
+          'MENU LOAD ERROR ${restaurant.name}: $e',
+        );
+
+        categoryMap[restaurant.id] = {};
+
+        vegMap[restaurant.id] = false;
+      }
+    }
 
     if (!mounted) return;
 
     setState(() {
-      _allMenuItems = menuItems;
+      _allMenuItems = allItems;
+
+      restaurantMenuCategories = categoryMap;
+
+      restaurantHasVeg = vegMap;
     });
   } catch (e) {
     debugPrint('RESTAURANTS LOAD ERROR: $e');
@@ -585,6 +590,12 @@ Future<void> loadProfile() async {
             SliverToBoxAdapter(
               child: HomeGreetingWidget(
                 customerName: customerName,
+                searchController: _searchController,
+                onSearchChanged: (value) {
+                  setState(() {
+                    _searchQuery = value.trim();
+                  });
+                },
                 vegOnly: _vegOnly,
                 onVegChanged: (value) {
                   setState(() {
@@ -629,68 +640,6 @@ SliverToBoxAdapter(
 
 
 
-
-  // =====================================================
-  // SEARCH BAR
-  // =====================================================
-
-  SliverToBoxAdapter(
-    child: Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 14,
-          vertical: 2,
-        ),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: AppTheme.cardShadow,
-        ),
-        child: Row(
-          children: [
-            const Icon(
-              Icons.search,
-              color: AppTheme.mutedText,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: TextField(
-                controller: _searchController,
-                onChanged: (value) {
-                  setState(() {
-                    _searchQuery = value.trim();
-                  });
-                },
-                decoration: const InputDecoration(
-                  hintText: 'Search restaurants or cuisines',
-                  border: InputBorder.none,
-                  enabledBorder: InputBorder.none,
-                  focusedBorder: InputBorder.none,
-                  isDense: true,
-                ),
-              ),
-            ),
-            if (_searchQuery.isNotEmpty)
-              GestureDetector(
-                onTap: () {
-                  _searchController.clear();
-
-                  setState(() {
-                    _searchQuery = '';
-                  });
-                },
-                child: const Icon(
-                  Icons.close,
-                  color: AppTheme.mutedText,
-                  size: 20,
-                ),
-              ),
-          ],
-        ),
-      ),
-    ),
-  ),
 
   // =====================================================
   // ORDER AGAIN - real recent delivered orders

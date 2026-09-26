@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
 
 import '../../../theme/app_theme.dart';
+import '../../../widgets/custom_icon_widget.dart';
 
 class HomeGreetingWidget extends StatelessWidget {
   final String customerName;
+
+  final TextEditingController searchController;
+
+  final ValueChanged<String> onSearchChanged;
 
   final bool vegOnly;
   final ValueChanged<bool> onVegChanged;
@@ -11,6 +16,8 @@ class HomeGreetingWidget extends StatelessWidget {
   const HomeGreetingWidget({
     super.key,
     required this.customerName,
+    required this.searchController,
+    required this.onSearchChanged,
     required this.vegOnly,
     required this.onVegChanged,
   });
@@ -63,9 +70,8 @@ class HomeGreetingWidget extends StatelessWidget {
           const SizedBox(height: 10),
 
           // =====================================================
-          // VEG MODE
-          // (the real working search bar sits right below
-          // the greeting - this used to be a dead fake one)
+          // SEARCH + VEG MODE
+          // (original design - the search is real now)
           // =====================================================
 
           Container(
@@ -77,7 +83,37 @@ class HomeGreetingWidget extends StatelessWidget {
             ),
             child: Row(
               children: [
-                const Spacer(),
+                const SizedBox(width: 14),
+
+                CustomIconWidget(
+                  iconName: 'search_rounded',
+                  color: AppTheme.headlineText,
+                  size: 21,
+                ),
+
+                const SizedBox(width: 10),
+
+                Expanded(
+                  child: TextField(
+                    controller: searchController,
+                    onChanged: onSearchChanged,
+                    decoration: InputDecoration(
+                      hintText:
+                          'Search for food or restaurants',
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      isDense: true,
+                      hintStyle: Theme.of(context)
+                          .textTheme
+                          .bodyMedium
+                          ?.copyWith(
+                            color: AppTheme.mutedText,
+                            fontSize: 14,
+                          ),
+                    ),
+                  ),
+                ),
 
                 // =================================================
                 // VEG MODE
