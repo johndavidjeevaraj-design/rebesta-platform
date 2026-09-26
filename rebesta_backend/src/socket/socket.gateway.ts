@@ -83,6 +83,13 @@ joinDelivery(
     `delivery_${deliveryPartnerId}`,
   );
 
+  // ==========================================================
+  // Shared feed room: every connected rider listens here
+  // for new orders entering the delivery pool.
+  // ==========================================================
+
+  client.join('delivery_feed');
+
   console.log(
     `✅ Delivery joined delivery_${deliveryPartnerId}`,
   );
@@ -96,6 +103,25 @@ emitToDelivery(
 
   this.server
     .to(`delivery_${deliveryPartnerId}`)
+    .emit(event, data);
+
+}
+
+// ============================================================
+// Broadcast to EVERY connected delivery partner.
+//
+// Used when an order becomes available for delivery:
+// - restaurant marks the order ready
+// - a rider cancels and the order returns to the pool
+// ============================================================
+
+emitToAllDelivery(
+  event: string,
+  data: any,
+) {
+
+  this.server
+    .to('delivery_feed')
     .emit(event, data);
 
 }

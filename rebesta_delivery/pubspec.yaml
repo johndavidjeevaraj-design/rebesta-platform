@@ -38,6 +38,9 @@ dependencies:
   shared_preferences: ^2.5.3
   geolocator: ^14.0.2
 
+  # Realtime order offers (same version as the customers app).
+  socket_io_client: ^3.1.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
