@@ -72,5 +72,9 @@
 		<string>tel</string>
 		<string>https</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Take photos of your KYC documents and profile picture.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Upload your KYC documents from your photo library.</string>
 </dict>
 </plist>

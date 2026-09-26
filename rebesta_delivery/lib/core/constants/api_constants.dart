@@ -176,4 +176,14 @@ class ApiConstants {
 
   static const String earnings =
       '$delivery/earnings';
+
+  // ------------------------------------------------------------
+  // KYC (Swiggy-style rider verification)
+  // ------------------------------------------------------------
+
+  static const String kyc =
+      '$delivery/kyc';
+
+  static const String kycDocuments =
+      '$delivery/kyc/documents';
 }
