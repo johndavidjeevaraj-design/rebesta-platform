@@ -42,7 +42,7 @@ jobs:
       # Verify Jest is actually loading the bootstrap file.
       # This is intentionally done before the test command.
       # --------------------------------------------------------------
-           - name: Verify Jest setup
+      - name: Verify Jest setup
         run: |
           echo "=== Jest setup file ==="
 
