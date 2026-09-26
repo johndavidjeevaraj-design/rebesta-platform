@@ -181,6 +181,25 @@ export class DeliveryService {
       );
     }
 
+    // ============================================================
+    // Tell the other riders this order is gone from the pool,
+    // so their available lists update without a manual refresh.
+    // ============================================================
+
+    try {
+      this.socketGateway.emitToAllDelivery(
+        'order-taken',
+        {
+          orderId: data.id,
+        },
+      );
+    } catch (broadcastError) {
+      console.error(
+        'Order taken broadcast failed:',
+        broadcastError,
+      );
+    }
+
     return {
       success: true,
       message: 'Order accepted successfully',
@@ -360,6 +379,49 @@ export class DeliveryService {
     }
 
     this.socketGateway.sendOrderUpdate(orderId, 'ready');
+
+    // ============================================================
+    // Order returned to the pool ->
+    // broadcast it to every online rider again.
+    // ============================================================
+
+    try {
+      const { data: poolOrder } = await supabase
+        .from('orders')
+        .select(`
+          id,
+          total_amount,
+          order_status,
+          created_at,
+
+          customers(
+            name
+          ),
+
+          addresses(
+            title,
+            address,
+            landmark,
+            city,
+            state,
+            pincode,
+            latitude,
+            longitude
+          )
+        `)
+        .eq('id', orderId)
+        .single();
+
+      this.socketGateway.emitToAllDelivery(
+        'new-order',
+        poolOrder ?? data,
+      );
+    } catch (broadcastError) {
+      console.error(
+        'New order broadcast failed:',
+        broadcastError,
+      );
+    }
 
     return {
       success: true,

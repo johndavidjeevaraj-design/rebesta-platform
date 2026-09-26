@@ -259,6 +259,50 @@ try {
     orderId,
     newStatus,
   );
+
+  // ============================================================
+  // NEW ORDER BROADCAST
+  // The order just entered the delivery pool ->
+  // notify every online rider in realtime.
+  // ============================================================
+
+  if (newStatus === 'ready') {
+    const { data: poolOrder } = await supabase
+      .from('orders')
+      .select(`
+        id,
+        total_amount,
+        order_status,
+        created_at,
+
+        customers(
+          name
+        ),
+
+        addresses(
+          title,
+          address,
+          landmark,
+          city,
+          state,
+          pincode,
+          latitude,
+          longitude
+        )
+      `)
+      .eq('id', orderId)
+      .single();
+
+    this.socketGateway.emitToAllDelivery(
+      'new-order',
+      poolOrder ?? data,
+    );
+
+    console.log(
+      '🔔 New order broadcast sent to delivery feed:',
+      orderId,
+    );
+  }
 } catch (socketError) {
   console.error(
     'Socket notification failed:',

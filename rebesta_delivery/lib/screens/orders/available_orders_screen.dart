@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../active_delivery/active_delivery_screen.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/network/delivery_api_client.dart';
+import '../../core/services/delivery_socket_service.dart';
 
 class AvailableOrdersScreen extends StatefulWidget {
   const AvailableOrdersScreen({super.key});
@@ -21,6 +22,76 @@ class _AvailableOrdersScreenState
   void initState() {
     super.initState();
     _loadOrders();
+
+    // ============================================================
+    // REALTIME: live updates for the order pool
+    // ============================================================
+
+    _socketService.connect();
+
+    _socketService.addOnNewOrderListener(
+      _onNewOrder,
+    );
+
+    _socketService.addOnOrderTakenListener(
+      _onOrderTaken,
+    );
+  }
+
+  @override
+  void dispose() {
+    _socketService.removeOnNewOrderListener(
+      _onNewOrder,
+    );
+
+    _socketService.removeOnOrderTakenListener(
+      _onOrderTaken,
+    );
+
+    super.dispose();
+  }
+
+  // ============================================================
+  // NEW ORDER (REALTIME)
+  // ============================================================
+
+  void _onNewOrder(
+    Map<String, dynamic> order,
+  ) {
+    debugPrint(
+      '🔔 NEW ORDER BROADCAST: ${order['id']}',
+    );
+
+    if (!mounted) return;
+
+    _showMessage(
+      '🔔 New order just came in!',
+    );
+
+    _loadOrders();
+  }
+
+  // ============================================================
+  // ORDER TAKEN (REALTIME)
+  // ============================================================
+
+  void _onOrderTaken(
+    String orderId,
+  ) {
+    debugPrint(
+      '🚫 ORDER TAKEN BY ANOTHER RIDER: $orderId',
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+      _orders = _orders
+          .where(
+            (order) =>
+                order['id']?.toString() != orderId,
+          )
+          .toList();
+    });
   }
 
   // ============================================================

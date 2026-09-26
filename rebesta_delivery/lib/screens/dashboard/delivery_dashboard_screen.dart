@@ -34,7 +34,16 @@ class _DeliveryDashboardScreenState
   void initState() {
     super.initState();
     _loadDashboard();
-    
+
+    // ============================================================
+    // REALTIME: connect the socket and listen for new orders
+    // ============================================================
+
+    _socketService.connect();
+
+    _socketService.addOnNewOrderListener(
+      _onNewOrder,
+    );
   }
 
   // ============================================================
@@ -1297,6 +1306,17 @@ String _shortOrderId(String id) {
 
           Text(
             title,
+            style: const TextStyle(
+              color:
+                  Color(0xFF756864),
+              fontSize: 13,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}title,
             style: const TextStyle(
               color:
                   Color(0xFF756864),
