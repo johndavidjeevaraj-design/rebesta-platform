@@ -379,6 +379,40 @@ async profile(customerId: string) {
     customer: data,
   };
 }
+
+// ===============================
+// UPDATE CUSTOMER PROFILE
+//
+// Only the name is editable: the mobile number is the
+// customer's OTP login identity and must stay fixed.
+// ===============================
+
+async updateProfile(
+  customerId: string,
+  name: string,
+) {
+  const cleanName = (name ?? '').trim();
+
+  if (cleanName.length < 2) {
+    throw new Error('Please enter a valid name');
+  }
+
+  const { data, error } = await supabase
+    .from('customers')
+    .update({ name: cleanName })
+    .eq('id', customerId)
+    .select('id, name, email, mobile')
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return {
+    success: true,
+    customer: data,
+  };
+}
 async completeProfile(
   mobile: string,
   name: string,

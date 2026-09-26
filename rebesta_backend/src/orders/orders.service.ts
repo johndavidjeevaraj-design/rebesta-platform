@@ -442,9 +442,16 @@ try {
         order_status,
         created_at,
 
+        restaurant_partner_id,
+
+        restaurant_partners(
+          restaurant_name
+        ),
+
         order_items(
           quantity,
           price,
+          menu_item_id,
 
           menu_items(
             name,

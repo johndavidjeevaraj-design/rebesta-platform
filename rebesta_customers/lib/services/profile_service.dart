@@ -46,4 +46,48 @@ class ProfileService {
 
     return Customer.fromJson(customerData);
   }
+
+  // ============================================================
+  // UPDATE PROFILE (name only - mobile is the login identity)
+  // ============================================================
+
+  Future<Customer> updateProfile({
+    required String name,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    final token = prefs.getString('token');
+
+    if (token == null || token.isEmpty) {
+      throw Exception('No authentication token found');
+    }
+
+    final response = await _dio.patch(
+      '/customer-auth/profile',
+      data: {
+        'name': name,
+      },
+      options: Options(
+        headers: {
+          'Authorization': 'Bearer $token',
+        },
+      ),
+    );
+
+    final responseData = response.data;
+
+    if (responseData is! Map<String, dynamic>) {
+      throw Exception('Invalid profile response');
+    }
+
+    final customerData = responseData['customer'];
+
+    if (customerData is! Map<String, dynamic>) {
+      throw Exception(
+        'Customer data missing from profile response',
+      );
+    }
+
+    return Customer.fromJson(customerData);
+  }
 }

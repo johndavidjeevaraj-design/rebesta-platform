@@ -1,67 +1,142 @@
 import 'package:flutter/material.dart';
+
 import '../../../theme/app_theme.dart';
-import '../../../widgets/custom_icon_widget.dart';
-import '../../../widgets/custom_image_widget.dart';
+
+// ============================================================
+// ORDER AGAIN
+// ============================================================
+//
+// Real recent delivered orders passed in by the home screen.
+// Tapping a card re-adds every item to the cart and lands in
+// checkout for that restaurant.
+//
+// (Used to be hardcoded template data with fake restaurants
+// and placeholder images.)
+// ============================================================
 
 class OrderAgainWidget extends StatelessWidget {
-  final VoidCallback onOrderTap;
+  final List<Map<String, dynamic>> orders;
 
-  const OrderAgainWidget({required this.onOrderTap, super.key});
+  final void Function(Map<String, dynamic> order) onReorder;
 
-  static const List<Map<String, dynamic>> _pastOrders = [
-    {
-      'restaurant': 'The Burger Lab',
-      'item': 'Double Smash Burger',
-      'price': 14.99,
-      'imageUrl':
-          'https://img.rocket.new/generatedImages/rocket_gen_img_1950d7a04-1772256932396.png',
-      'semanticLabel': 'Double smash burger with crispy edges and cheese sauce',
-    },
-    {
-      'restaurant': 'Sakura Sushi Bar',
-      'item': 'Dragon Roll ×2',
-      'price': 22.50,
-      'imageUrl':
-          'https://img.rocket.new/generatedImages/rocket_gen_img_19d2b5aa9-1784357582038.png',
-      'semanticLabel':
-          'Dragon roll sushi with avocado and spicy mayo on dark plate',
-    },
-    {
-      'restaurant': 'Napoli Pizza Co.',
-      'item': 'Margherita L',
-      'price': 18.00,
-      'imageUrl':
-          'https://images.unsplash.com/photo-1726298882906-6d01c9116e13',
-      'semanticLabel': 'Margherita pizza with fresh basil and mozzarella',
-    },
-  ];
+  const OrderAgainWidget({
+    required this.orders,
+    required this.onReorder,
+    super.key,
+  });
+
+  // ==========================================================
+  // DATA HELPERS
+  // ==========================================================
+
+  String _restaurantName(Map<String, dynamic> order) {
+    final partner = order['restaurant_partners'];
+
+    if (partner is Map) {
+      return partner['restaurant_name']?.toString() ??
+          'Restaurant';
+    }
+
+    return 'Restaurant';
+  }
+
+  String _itemText(Map<String, dynamic> order) {
+    final items = order['order_items'];
+
+    if (items is! List || items.isEmpty) {
+      return 'Past order';
+    }
+
+    final first = items.first;
+
+    if (first is Map) {
+      final menuItem = first['menu_items'];
+
+      final name = menuItem is Map
+          ? menuItem['name']?.toString()
+          : null;
+
+      if (name != null && name.isNotEmpty) {
+        return items.length > 1
+            ? '$name +${items.length - 1} more'
+            : name;
+      }
+    }
+
+    return '${items.length} items';
+  }
+
+  String? _imageUrl(Map<String, dynamic> order) {
+    final items = order['order_items'];
+
+    if (items is! List || items.isEmpty) return null;
+
+    final first = items.first;
+
+    if (first is Map) {
+      final menuItem = first['menu_items'];
+
+      if (menuItem is Map) {
+        final url = menuItem['image_url']?.toString();
+
+        if (url != null && url.isNotEmpty) return url;
+      }
+    }
+
+    return null;
+  }
+
+  String _total(Map<String, dynamic> order) {
+    final amount = order['total_amount'];
+
+    final value = amount is num ? amount.toDouble() : 0;
+
+    return '\u20B9${value.toStringAsFixed(0)}';
+  }
+
+  Widget _image(String? imageUrl) {
+    if (imageUrl != null) {
+      return Image.network(
+        imageUrl,
+        width: 72,
+        height: 110,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => _imagePlaceholder(),
+      );
+    }
+
+    return _imagePlaceholder();
+  }
+
+  Widget _imagePlaceholder() {
+    return Container(
+      width: 72,
+      color: AppTheme.primary.withAlpha(25),
+      child: Icon(
+        Icons.restaurant_rounded,
+        color: AppTheme.primary,
+      ),
+    );
+  }
+
+  // ==========================================================
+  // UI
+  // ==========================================================
 
   @override
   Widget build(BuildContext context) {
+    if (orders.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
-          child: Row(
-            children: [
-              Text(
-                'Order Again',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const Spacer(),
-              GestureDetector(
-                onTap: onOrderTap,
-                child: Text(
-                  'See all',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.primary,
-                  ),
-                ),
-              ),
-            ],
+          child: Text(
+            'Order Again',
+            style: Theme.of(context).textTheme.titleMedium,
           ),
         ),
         SizedBox(
@@ -69,12 +144,13 @@ class OrderAgainWidget extends StatelessWidget {
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: _pastOrders.length,
+            itemCount: orders.length,
             separatorBuilder: (_, _) => const SizedBox(width: 12),
             itemBuilder: (context, index) {
-              final order = _pastOrders[index];
+              final order = orders[index];
+
               return GestureDetector(
-                onTap: onOrderTap,
+                onTap: () => onReorder(order),
                 child: Container(
                   width: 200,
                   decoration: BoxDecoration(
@@ -85,72 +161,61 @@ class OrderAgainWidget extends StatelessWidget {
                   child: Row(
                     children: [
                       ClipRRect(
-                        borderRadius: const BorderRadius.horizontal(
+                        borderRadius:
+                            const BorderRadius.horizontal(
                           left: Radius.circular(16),
                         ),
-                        child: CustomImageWidget(
-                          imageUrl: order['imageUrl'] as String,
-                          width: 80,
-                          height: 110,
-                          fit: BoxFit.cover,
-                          semanticLabel: order['semanticLabel'] as String,
-                        ),
+                        child: _image(_imageUrl(order)),
                       ),
                       Expanded(
                         child: Padding(
-                          padding: const EdgeInsets.fromLTRB(10, 10, 8, 10),
+                          padding: const EdgeInsets.all(10),
                           child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            crossAxisAlignment:
+                                CrossAxisAlignment.start,
+                            mainAxisAlignment:
+                                MainAxisAlignment.center,
                             children: [
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    order['restaurant'] as String,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .labelSmall
-                                        ?.copyWith(color: AppTheme.mutedText),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    order['item'] as String,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .labelMedium
-                                        ?.copyWith(fontSize: 12),
-                                    overflow: TextOverflow.ellipsis,
-                                    maxLines: 2,
-                                  ),
-                                ],
+                              Text(
+                                _restaurantName(order),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                ),
                               ),
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    '\$${(order['price'] as double).toStringAsFixed(2)}',
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w700,
-                                      color: AppTheme.primary,
-                                    ),
+                              const SizedBox(height: 3),
+                              Text(
+                                _itemText(order),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: AppTheme.mutedText,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Container(
+                                padding:
+                                    const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppTheme.primary
+                                      .withAlpha(25),
+                                  borderRadius:
+                                      BorderRadius.circular(10),
+                                ),
+                                child: Text(
+                                  _total(order),
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppTheme.primary,
                                   ),
-                                  Container(
-                                    padding: const EdgeInsets.all(4),
-                                    decoration: BoxDecoration(
-                                      color: AppTheme.primary,
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: CustomIconWidget(
-                                      iconName: 'replay_rounded',
-                                      color: Colors.white,
-                                      size: 14,
-                                    ),
-                                  ),
-                                ],
+                                ),
                               ),
                             ],
                           ),
