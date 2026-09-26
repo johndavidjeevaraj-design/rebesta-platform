@@ -1058,6 +1058,8 @@ SliverToBoxAdapter(
                       _currentStep,
                 ),
 
+                _buildDeliveryOtpCard(),
+
                 DriverInfoCardWidget(
                   rider:
                       _tracking?[
