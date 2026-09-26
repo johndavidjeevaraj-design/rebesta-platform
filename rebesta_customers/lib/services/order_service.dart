@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
 import '../core/constants/api_constants.dart';
+import '../core/network/session.dart';
 
 class OrderService {
   final Dio _dio = Dio(
@@ -11,7 +12,7 @@ class OrderService {
         'Content-Type': 'application/json',
       },
     ),
-  );
+  )..interceptors.add(authExpiredInterceptor());
 
   // ============================================================
   // TOKEN

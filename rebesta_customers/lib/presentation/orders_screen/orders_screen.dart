@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -155,9 +156,15 @@ class _OrdersScreenState extends State<OrdersScreen> {
 
       if (!mounted) return;
 
+      final sessionExpired = e is DioException &&
+          e.response?.statusCode == 401;
+
       setState(() {
         _loading = false;
-        _error = e.toString();
+
+        _error = sessionExpired
+            ? 'Session expired - please log in again'
+            : 'Could not load your orders. Pull down to retry.';
       });
     }
   }

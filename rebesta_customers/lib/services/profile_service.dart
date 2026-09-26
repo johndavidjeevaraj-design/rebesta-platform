@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/constants/api_constants.dart';
+import '../core/network/session.dart';
 import '../models/customer.dart';
 
 class ProfileService {
@@ -12,7 +13,7 @@ class ProfileService {
         'Content-Type': 'application/json',
       },
     ),
-  );
+  )..interceptors.add(authExpiredInterceptor());
 
   Future<Customer> getProfile() async {
     final prefs = await SharedPreferences.getInstance();

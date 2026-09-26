@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/constants/api_constants.dart';
+import '../core/network/session.dart';
 import '../models/address.dart';
 
 class AddressService {
@@ -12,7 +13,7 @@ class AddressService {
         'Content-Type': 'application/json',
       },
     ),
-  );
+  )..interceptors.add(authExpiredInterceptor());
 
   // ============================================================
   // GET TOKEN
