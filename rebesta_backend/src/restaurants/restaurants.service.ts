@@ -481,4 +481,84 @@ export class RestaurantsService {
 
     return data;
   }
+  // ============================================================
+  // PARTNER: GET OWN RESTAURANT
+  // ============================================================
+
+  async getMyRestaurant(
+    restaurantPartnerId: string,
+  ) {
+    const { data, error } = await supabase
+      .from('restaurants')
+      .select(
+        `id, name, cuisine, city, address, image_url, is_open, rating, delivery_time, delivery_fee, min_order`,
+      )
+      .eq(
+        'restaurant_partner_id',
+        restaurantPartnerId,
+      )
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    if (!data) {
+      throw new Error(
+        'No restaurant found for this account',
+      );
+    }
+
+    return {
+      success: true,
+
+      restaurant: {
+        id: data.id,
+        name: data.name,
+        cuisine: data.cuisine,
+        city: data.city,
+        address: data.address,
+        imageUrl: data.image_url,
+        isOpen: data.is_open,
+        rating: data.rating,
+        deliveryTime: data.delivery_time,
+        deliveryFee: data.delivery_fee,
+        minOrder: data.min_order,
+      },
+    };
+  }
+
+  // ============================================================
+  // PARTNER: OPEN / CLOSE THE STORE
+  // ============================================================
+
+  async updateStoreStatus(
+    restaurantPartnerId: string,
+    isOpen: boolean,
+  ) {
+    const { data, error } = await supabase
+      .from('restaurants')
+      .update({ is_open: isOpen })
+      .eq(
+        'restaurant_partner_id',
+        restaurantPartnerId,
+      )
+      .select('id, name, is_open')
+      .single();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return {
+      success: true,
+
+      restaurant: {
+        id: data.id,
+        name: data.name,
+        isOpen: data.is_open,
+      },
+    };
+  }
+
 }
