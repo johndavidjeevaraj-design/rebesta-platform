@@ -5,8 +5,7 @@ import {
   Body,
   Param,
   Req,
-  UseGuards,
-} from '@nestjs/common';
+  UseGuards, Patch} from '@nestjs/common';
 
 import { RestaurantsService } from './restaurants.service';
 import { JwtAuthGuard } from '../partner-auth/jwt-auth.guard';
@@ -39,6 +38,18 @@ export class RestaurantsController {
   // ===============================
   // CUSTOMER: GET SINGLE RESTAURANT
   // ===============================
+
+  // ===============================
+  // PARTNER: MY RESTAURANT
+  // ===============================
+
+  @Get('me')
+  @UseGuards(JwtAuthGuard)
+  getMyRestaurant(@Req() req) {
+    return this.restaurantsService.getMyRestaurant(
+      req.user.restaurantPartnerId,
+    );
+  }
 
   @Get(':id')
   findOne(
@@ -88,6 +99,22 @@ export class RestaurantsController {
       dto,
     );
 
+  }
+
+  // ===============================
+  // PARTNER: OPEN / CLOSE STORE
+  // ===============================
+
+  @Patch('me')
+  @UseGuards(JwtAuthGuard)
+  updateStoreStatus(
+    @Req() req,
+    @Body('isOpen') isOpen: boolean,
+  ) {
+    return this.restaurantsService.updateStoreStatus(
+      req.user.restaurantPartnerId,
+      isOpen === true,
+    );
   }
 
 }

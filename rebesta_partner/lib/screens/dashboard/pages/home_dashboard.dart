@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/colors.dart';
 import '../../../core/services/partner_auth_service.dart';
 import '../../../core/services/partner_orders_service.dart';
+import '../../../core/services/partner_restaurant_service.dart';
 import '../../../models/partner_order.dart';
 
 class HomeDashboard extends StatefulWidget {
@@ -45,6 +46,12 @@ class HomeDashboardState extends State<HomeDashboard> {
   String partnerName = 'Partner';
   String restaurantName = 'Restaurant';
 
+  // Real store status (from GET /restaurants/me)
+
+  bool isStoreOpen = true;
+
+  bool isStatusToggling = false;
+
   // ============================================================
   // INIT
   // ============================================================
@@ -54,6 +61,7 @@ class HomeDashboardState extends State<HomeDashboard> {
     super.initState();
 
     _loadDashboard();
+    _loadStoreStatus();
   }
 
   // ============================================================
@@ -157,6 +165,70 @@ debugPrint('========================================');
     }
   });
 }
+
+  // ============================================================
+  // STORE STATUS - load + toggle (real, from the API)
+  // ============================================================
+
+  Future<void> _loadStoreStatus() async {
+    try {
+      final restaurant =
+          await PartnerRestaurantService
+              .getMyRestaurant();
+
+      if (!mounted) return;
+
+      setState(() {
+        isStoreOpen =
+            restaurant['isOpen'] == true;
+      });
+    } catch (e) {
+      debugPrint(
+        'STORE STATUS LOAD ERROR: $e',
+      );
+    }
+  }
+
+  Future<void> _toggleStoreStatus() async {
+    if (isStatusToggling) return;
+
+    final previous = isStoreOpen;
+
+    final next = !previous;
+
+    // Flip instantly, revert if the server refuses
+
+    setState(() {
+      isStoreOpen = next;
+      isStatusToggling = true;
+    });
+
+    try {
+      await PartnerRestaurantService
+          .updateStoreStatus(next);
+    } catch (e) {
+      debugPrint('STORE STATUS ERROR: $e');
+
+      if (!mounted) return;
+
+      setState(() {
+        isStoreOpen = previous;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content:
+              Text('Could not update store status'),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          isStatusToggling = false;
+        });
+      }
+    }
+  }
 
   // ============================================================
   // REFRESH
@@ -532,117 +604,130 @@ debugPrint('========================================');
   // ============================================================
 
   Widget _buildRestaurantStatus() {
-    return Container(
-      padding:
-          const EdgeInsets.symmetric(
-        horizontal: 20,
-        vertical: 18,
-      ),
+    // Real status - tap the card to open / close the store
 
-      decoration: BoxDecoration(
-        color: Colors.white,
+    final statusColor =
+        isStoreOpen ? Colors.green : Colors.red;
 
-        borderRadius:
-            BorderRadius.circular(24),
-      ),
+    return GestureDetector(
+      onTap: _toggleStoreStatus,
 
-      child: Row(
-        children: [
-          Container(
-            width: 54,
-            height: 54,
-
-            decoration: BoxDecoration(
-              color:
-                  Colors.green.withValues(
-                alpha: 0.10,
-              ),
-
-              borderRadius:
-                  BorderRadius.circular(17),
-            ),
-
-            child: const Icon(
-              Icons.storefront_rounded,
-              color: Colors.green,
-              size: 27,
-            ),
-          ),
-
-          const SizedBox(width: 15),
-
-       Expanded(
-  child: Column(
-    crossAxisAlignment:
-        CrossAxisAlignment.start,
-    children: [
-      Text(
-        restaurantName,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(
-          fontFamily: 'Poppins',
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: 20,
+          vertical: 18,
         ),
-      ),
 
-      const SizedBox(height: 4),
-
-      const Text(
-        'Your restaurant is accepting orders',
-        style: TextStyle(
-          fontFamily: 'Poppins',
-          fontSize: 11,
-          color: Colors.grey,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
         ),
-      ),
-    ],
-  ),
-),
 
-          Container(
-            padding:
-                const EdgeInsets.symmetric(
-              horizontal: 11,
-              vertical: 7,
-            ),
+        child: Row(
+          children: [
+            Container(
+              width: 54,
+              height: 54,
 
-            decoration: BoxDecoration(
-              color:
-                  Colors.green.withValues(
-                alpha: 0.10,
-              ),
-
-              borderRadius:
-                  BorderRadius.circular(30),
-            ),
-
-            child: const Row(
-              children: [
-                Icon(
-                  Icons.circle,
-                  size: 8,
-                  color: Colors.green,
+              decoration: BoxDecoration(
+                color: statusColor.withValues(
+                  alpha: 0.10,
                 ),
 
-                SizedBox(width: 6),
+                borderRadius:
+                    BorderRadius.circular(17),
+              ),
 
-                Text(
-                  'ONLINE',
+              child: isStatusToggling
+                  ? const Padding(
+                      padding: EdgeInsets.all(15),
+                      child:
+                          CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                      ),
+                    )
+                  : Icon(
+                      Icons.storefront_rounded,
+                      color: statusColor,
+                      size: 27,
+                    ),
+            ),
 
-                  style: TextStyle(
-                    fontFamily: 'Poppins',
-                    fontSize: 9,
-                    fontWeight:
-                        FontWeight.w700,
-                    color: Colors.green,
+            const SizedBox(width: 15),
+
+            Expanded(
+              child: Column(
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    restaurantName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                ),
-              ],
+
+                  const SizedBox(height: 4),
+
+                  Text(
+                    isStoreOpen
+                        ? 'Your restaurant is accepting orders'
+                        : 'Closed - tap to start accepting orders',
+                    style: const TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 11,
+                      color: Colors.grey,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 11,
+                vertical: 7,
+              ),
+
+              decoration: BoxDecoration(
+                color: statusColor.withValues(
+                  alpha: 0.10,
+                ),
+
+                borderRadius:
+                    BorderRadius.circular(30),
+              ),
+
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.circle,
+                    size: 8,
+                    color: statusColor,
+                  ),
+
+                  const SizedBox(width: 6),
+
+                  Text(
+                    isStoreOpen
+                        ? 'ONLINE'
+                        : 'OFFLINE',
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 9,
+                      fontWeight: FontWeight.w700,
+                      color: statusColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
