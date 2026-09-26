@@ -1230,15 +1230,64 @@ export class DeliveryService {
         {
           ascending: false,
         },
-      );
+      )
+      .limit(200);
 
     if (error) {
       throw new BadRequestException(error.message);
     }
 
+    // ============================================================
+    // PERIOD SUMMARY (today / this week, Monday-based)
+    // ============================================================
+
+    const rows = data ?? [];
+
+    const now = new Date();
+
+    const startOfToday = new Date(now);
+    startOfToday.setHours(0, 0, 0, 0);
+
+    // Monday as the first day of the earnings week.
+
+    const startOfWeek = new Date(startOfToday);
+    startOfWeek.setDate(
+      startOfWeek.getDate() -
+        ((startOfWeek.getDay() + 6) % 7),
+    );
+
+    let todayTotal = 0;
+    let todayCount = 0;
+    let weekTotal = 0;
+    let weekCount = 0;
+
+    for (const row of rows) {
+      const amount = Number(row.amount ?? 0);
+
+      const createdAt = row.created_at
+        ? new Date(row.created_at)
+        : null;
+
+      if (createdAt && createdAt >= startOfWeek) {
+        weekTotal += amount;
+        weekCount++;
+
+        if (createdAt >= startOfToday) {
+          todayTotal += amount;
+          todayCount++;
+        }
+      }
+    }
+
     return {
       success: true,
-      earnings: data,
+      earnings: rows,
+      summary: {
+        todayTotal,
+        todayCount,
+        weekTotal,
+        weekCount,
+      },
     };
   }
 
