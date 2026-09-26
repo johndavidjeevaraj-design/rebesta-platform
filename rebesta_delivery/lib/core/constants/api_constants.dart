@@ -117,6 +117,15 @@ class ApiConstants {
   ) =>
       '$delivery/orders/$orderId/cancel';
 
+  // ------------------------------------------------------------
+  // DECLINE ORDER OFFER (Swiggy-style targeted assignment)
+  // ------------------------------------------------------------
+
+  static String declineOffer(
+    String orderId,
+  ) =>
+      '$delivery/orders/$orderId/decline-offer';
+
   // ============================================================
   // DELIVERY STATUS
   // ============================================================

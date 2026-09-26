@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { PartnerOrdersService } from './partner-orders.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { SocketGateway } from '../socket/socket.gateway';
+import { DispatchService } from '../dispatch/dispatch.service';
 import { FcmService } from '../fcm/fcm.service';
 
 describe('PartnerOrdersService', () => {
@@ -18,6 +19,10 @@ describe('PartnerOrdersService', () => {
         },
         {
           provide: SocketGateway,
+          useValue: {},
+        },
+        {
+          provide: DispatchService,
           useValue: {},
         },
         {

@@ -3,6 +3,7 @@ import { PartnerOrdersController } from './partner-orders.controller';
 import { PartnerOrdersService } from './partner-orders.service';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { SocketModule } from '../socket/socket.module';
+import { DispatchModule } from '../dispatch/dispatch.module';
 import { FcmModule } from '../fcm/fcm.module';
 
 
@@ -11,6 +12,7 @@ import { FcmModule } from '../fcm/fcm.module';
     NotificationsModule,
     SocketModule,
     FcmModule,
+    DispatchModule,
   ],
 
   controllers: [

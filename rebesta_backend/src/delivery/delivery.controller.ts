@@ -231,6 +231,22 @@ activeOrders(
     );
   }
 
+  // ==========================
+  // Decline Order Offer (Swiggy-style assignment)
+  // ==========================
+
+  @Patch('orders/:id/decline-offer')
+  @UseGuards(DeliveryJwtGuard)
+  declineOffer(
+    @Req() req,
+    @Param('id') orderId: string,
+  ) {
+    return this.deliveryService.declineOffer(
+      orderId,
+      req.user.deliveryPartnerId,
+    );
+  }
+
   @Patch('orders/:id/complete')
   @UseGuards(DeliveryJwtGuard)
   completeDeliveryWithoutOtp(

@@ -71,6 +71,44 @@ class DeliverySocketService {
   }
 
   // ============================================================
+  // ORDER OFFER (personal - Swiggy-style assignment)
+  // ============================================================
+
+  final List<void Function(Map<String, dynamic> offer)>
+      _orderOfferListeners = [];
+
+  void addOnOrderOfferListener(
+    void Function(Map<String, dynamic> offer) listener,
+  ) {
+    _orderOfferListeners.add(listener);
+  }
+
+  void removeOnOrderOfferListener(
+    void Function(Map<String, dynamic> offer) listener,
+  ) {
+    _orderOfferListeners.remove(listener);
+  }
+
+  // ============================================================
+  // OFFER EXPIRED / TAKEN (closes the offer dialog)
+  // ============================================================
+
+  final List<void Function(Map<String, dynamic> data)>
+      _offerExpiredListeners = [];
+
+  void addOnOfferExpiredListener(
+    void Function(Map<String, dynamic> data) listener,
+  ) {
+    _offerExpiredListeners.add(listener);
+  }
+
+  void removeOnOfferExpiredListener(
+    void Function(Map<String, dynamic> data) listener,
+  ) {
+    _offerExpiredListeners.remove(listener);
+  }
+
+  // ============================================================
   // CONNECT
   // ============================================================
 
@@ -167,6 +205,43 @@ class DeliverySocketService {
 
       for (final listener in List.of(_orderTakenListeners)) {
         listener(orderId);
+      }
+    });
+
+    // ============================================================
+    // ORDER OFFER (personal - Swiggy-style assignment)
+    // ============================================================
+
+    _socket!.on('order-offer', (data) {
+      debugPrint('=================================');
+      debugPrint('🔔🔔 ORDER OFFER JUST FOR YOU');
+      debugPrint('OFFER: $data');
+      debugPrint('=================================');
+
+      final offer = data is Map
+          ? Map<String, dynamic>.from(data)
+          : <String, dynamic>{};
+
+      for (final listener in List.of(_orderOfferListeners)) {
+        listener(offer);
+      }
+    });
+
+    // ============================================================
+    // OFFER EXPIRED / TAKEN (close the offer dialog)
+    // ============================================================
+
+    _socket!.on('offer-expired', (data) {
+      debugPrint(
+        '⌛ ORDER OFFER CLOSED: $data',
+      );
+
+      final payload = data is Map
+          ? Map<String, dynamic>.from(data)
+          : <String, dynamic>{};
+
+      for (final listener in List.of(_offerExpiredListeners)) {
+        listener(payload);
       }
     });
 

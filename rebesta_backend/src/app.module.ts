@@ -15,6 +15,7 @@ import { PartnerDashboardModule } from './partner-dashboard/partner-dashboard.mo
 import { AddressesModule } from './addresses/addresses.module';
 import { DeliveryAuthModule } from './delivery-auth/delivery-auth.module';
 import { DeliveryModule } from './delivery/delivery.module';
+import { DispatchModule } from './dispatch/dispatch.module';
 import { SocketModule } from './socket/socket.module';
 import { AdminModule } from './admin/admin.module';
 import { ReviewsModule } from './reviews/reviews.module';
@@ -55,6 +56,7 @@ import { ConfigModule } from '@nestjs/config';
     AddressesModule,
     DeliveryAuthModule,
     DeliveryModule,
+    DispatchModule,
     SocketModule,
     BannersModule,
     SettingsModule,
