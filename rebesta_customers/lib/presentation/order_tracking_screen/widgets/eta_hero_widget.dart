@@ -6,9 +6,15 @@ class EtaHeroWidget extends StatelessWidget {
   final int currentStep;
   final Animation<double> pulseAnimation;
 
+  // Live road-route ETA from the backend (OpenRouteService):
+  // { distance: km, duration: minutes, polyline: [...] }
+
+  final Map<String, dynamic>? eta;
+
   const EtaHeroWidget({
     required this.currentStep,
     required this.pulseAnimation,
+    this.eta,
     super.key,
   });
 
@@ -23,9 +29,51 @@ class EtaHeroWidget extends StatelessWidget {
     return labels[currentStep.clamp(0, 4)];
   }
 
+  // ============================================================
+  // LIVE ETA
+  //
+  // Real minutes from the rider's actual road route, updated
+  // on every tracking refresh. Before pickup there is no road
+  // route yet, so we say "Arriving soon" instead of inventing
+  // a number.
+  // ============================================================
+
+  int? get _etaMinutes {
+    final duration = eta?['duration'];
+
+    return duration is num ? duration.toInt() : null;
+  }
+
+  bool get _isArrivingNow {
+    return currentStep == 3 &&
+        _etaMinutes != null &&
+        _etaMinutes! <= 2;
+  }
+
+  String get _heroLabel {
+    if (currentStep == 4) return '🎉 Order Delivered!';
+
+    if (_isArrivingNow) return 'Almost there!';
+
+    return 'Estimated Arrival';
+  }
+
   String get _etaText {
     if (currentStep == 4) return 'Delivered';
-    return '12–18 min';
+
+    if (currentStep == 3) {
+      final minutes = _etaMinutes;
+
+      if (minutes == null) return 'On the way';
+
+      if (minutes <= 2) return 'Arriving now';
+
+      return '$minutes min';
+    }
+
+    // Steps 0-2: no rider on the road yet - no fake numbers.
+
+    return 'Arriving soon';
   }
 
   @override
@@ -60,7 +108,7 @@ class EtaHeroWidget extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  isDelivered ? '🎉 Order Delivered!' : 'Estimated Arrival',
+                  _heroLabel,
                   style: const TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w500,

@@ -900,6 +900,9 @@ class _OrderTrackingScreenState
                 _currentStep,
             pulseAnimation:
                 _pulseAnimation,
+            eta:
+                _tracking?['eta']
+                    as Map<String, dynamic>?,
           ),
         ),
 
@@ -1051,6 +1054,9 @@ SliverToBoxAdapter(
                       _currentStep,
                   pulseAnimation:
                       _pulseAnimation,
+                  eta:
+                      _tracking?['eta']
+                          as Map<String, dynamic>?,
                 ),
 
                 OrderStatusStepperWidget(
