@@ -951,50 +951,6 @@ if (selectedAddress is Address) {
 
           const SizedBox(width: 12),
 
-          Stack(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius:
-                      BorderRadius.circular(12),
-                  boxShadow:
-                      AppTheme.cardShadow,
-                ),
-                child: Center(
-                  child: CustomIconWidget(
-                    iconName:
-                        'notifications_outlined',
-                    color: AppTheme
-                        .headlineText,
-                    size: 22,
-                  ),
-                ),
-              ),
-              Positioned(
-                top: 8,
-                right: 8,
-                child: Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color:
-                        AppTheme.errorColor,
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: Colors.white,
-                      width: 1.5,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(width: 8),
-
           GestureDetector(
             onTap: () {
               context.push(
