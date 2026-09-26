@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../theme/app_theme.dart';
 import '../../../widgets/custom_icon_widget.dart';
 
@@ -210,8 +211,19 @@ class DriverInfoCardWidget extends StatelessWidget {
                     color: AppTheme.success,
                     onTap: mobile == null
                         ? null
-                        : () {
-                            // TODO: launch tel: link with url_launcher
+                        : () async {
+                            final uri = Uri(
+                              scheme: 'tel',
+                              path: mobile,
+                            );
+
+                            try {
+                              await launchUrl(uri);
+                            } catch (e) {
+                              debugPrint(
+                                'CALL LAUNCH ERROR: $e',
+                              );
+                            }
                           },
                   ),
                 ],

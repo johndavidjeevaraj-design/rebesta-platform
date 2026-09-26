@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../../theme/app_theme.dart';
-import '../../../widgets/custom_icon_widget.dart';
 
 class HomeGreetingWidget extends StatelessWidget {
   final String customerName;
@@ -64,7 +63,9 @@ class HomeGreetingWidget extends StatelessWidget {
           const SizedBox(height: 10),
 
           // =====================================================
-          // SEARCH + VEG MODE
+          // VEG MODE
+          // (the real working search bar sits right below
+          // the greeting - this used to be a dead fake one)
           // =====================================================
 
           Container(
@@ -76,34 +77,7 @@ class HomeGreetingWidget extends StatelessWidget {
             ),
             child: Row(
               children: [
-                const SizedBox(width: 14),
-
-                CustomIconWidget(
-                  iconName: 'search_rounded',
-                  color: AppTheme.headlineText,
-                  size: 21,
-                ),
-
-                const SizedBox(width: 10),
-
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () {
-                      // TODO:
-                      // Open search screen
-                    },
-                    child: Text(
-                      'Search for food or restaurants',
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodyMedium
-                          ?.copyWith(
-                            color: AppTheme.mutedText,
-                            fontSize: 14,
-                          ),
-                    ),
-                  ),
-                ),
+                const Spacer(),
 
                 // =================================================
                 // VEG MODE

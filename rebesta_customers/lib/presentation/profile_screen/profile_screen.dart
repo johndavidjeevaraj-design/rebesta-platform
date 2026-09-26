@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../models/customer.dart';
+import '../../routes/app_routes.dart';
+import '../../services/auth_service.dart';
+import '../../services/delivery_socket_service.dart';
 import '../../services/profile_service.dart';
 import '../../theme/app_theme.dart';
 
@@ -144,6 +148,60 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
       );
     }
+  }
+
+  // ==========================================================
+  // LOGOUT
+  // ==========================================================
+
+  Future<void> _confirmLogout() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: const Text(
+          'Log out?',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        content: const Text(
+          'You will need to log in again with your mobile number.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () =>
+                Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+              elevation: 0,
+            ),
+            onPressed: () =>
+                Navigator.of(dialogContext).pop(true),
+            child: const Text('Log out'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    // Clear the stored session + drop any live socket
+    await AuthService().logout();
+
+    DeliverySocketService().disconnect();
+
+    if (!mounted) return;
+
+    context.go(AppRoutes.loginScreen);
   }
 
   // ==========================================================
@@ -329,6 +387,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       backgroundColor: AppTheme.primary,
                       foregroundColor: Colors.white,
                       elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+
+                // ==================================================
+                // LOGOUT
+                // ==================================================
+
+                SizedBox(
+                  width: double.infinity,
+                  height: 54,
+                  child: OutlinedButton.icon(
+                    onPressed: _confirmLogout,
+                    icon: const Icon(
+                      Icons.logout_rounded,
+                      size: 20,
+                    ),
+                    label: const Text(
+                      'Log Out',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.red,
+                      side: const BorderSide(color: Colors.red),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                       ),
