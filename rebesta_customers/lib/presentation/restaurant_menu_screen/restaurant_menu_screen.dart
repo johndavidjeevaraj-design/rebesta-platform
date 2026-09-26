@@ -1782,7 +1782,7 @@ void _startOfferAutoSlide() {
                         .isNotEmpty ==
                     true
                 ? restaurant!.imageUrl!
-                : 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd';
+                : null; // no photo -> branded placeholder
 
     final isOpen =
         restaurant!.isOpen;

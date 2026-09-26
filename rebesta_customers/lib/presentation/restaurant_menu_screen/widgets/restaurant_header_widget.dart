@@ -4,6 +4,22 @@ import '../../../models/restaurant.dart';
 class RestaurantHeaderWidget extends StatelessWidget {
   final Restaurant restaurant;
 
+  // ============================================================
+  // Branded placeholder when the restaurant has no photo
+  // (used to be a random unsplash stock food photo)
+  // ============================================================
+
+  Widget _placeholder() {
+    return Container(
+      color: const Color(0xFFFF6B35).withAlpha(20),
+      child: const Icon(
+        Icons.restaurant_rounded,
+        size: 80,
+        color: Color(0xFFFF6B35),
+      ),
+    );
+  }
+
   const RestaurantHeaderWidget({
     super.key,
     required this.restaurant,
@@ -16,18 +32,16 @@ class RestaurantHeaderWidget extends StatelessWidget {
         SizedBox(
           height: 260,
           width: double.infinity,
-          child: Image.network(
-            restaurant.imageUrl ??
-                "https://images.unsplash.com/photo-1504674900247-0877df9cc836",
-            fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => Container(
-              color: Colors.grey.shade300,
-              child: const Icon(
-                Icons.restaurant,
-                size: 80,
-              ),
-            ),
-          ),
+          child: (restaurant.imageUrl ?? '')
+                  .trim()
+                  .isNotEmpty
+              ? Image.network(
+                  restaurant.imageUrl!,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) =>
+                      _placeholder(),
+                )
+              : _placeholder(),
         ),
 
         Container(

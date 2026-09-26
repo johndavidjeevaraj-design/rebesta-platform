@@ -3,8 +3,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 class HomePromoBannerWidget extends StatefulWidget {
+  final VoidCallback? onCtaTap;
+
   const HomePromoBannerWidget({
     super.key,
+    this.onCtaTap,
   });
 
   @override
@@ -180,27 +183,30 @@ class _HomePromoBannerWidgetState
 
                         const Spacer(),
 
-                        Container(
-                          padding:
-                              const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius:
-                                BorderRadius.circular(
-                              20,
+                        GestureDetector(
+                          onTap: widget.onCtaTap,
+                          child: Container(
+                            padding:
+                                const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
                             ),
-                          ),
-                          child: Text(
-                            banner.buttonText,
-                            style: const TextStyle(
-                              color:
-                                  Color(0xFFFF5735),
-                              fontSize: 11,
-                              fontWeight:
-                                  FontWeight.w700,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius:
+                                  BorderRadius.circular(
+                                20,
+                              ),
+                            ),
+                            child: Text(
+                              banner.buttonText,
+                              style: const TextStyle(
+                                color:
+                                    Color(0xFFFF5735),
+                                fontSize: 11,
+                                fontWeight:
+                                    FontWeight.w700,
+                              ),
                             ),
                           ),
                         ),

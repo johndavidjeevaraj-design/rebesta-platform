@@ -15,7 +15,6 @@ import './widgets/home_cravings_widget.dart';
 import '../../theme/app_theme.dart';
 import './widgets/home_promo_banner_widget.dart';
 import '../../widgets/custom_icon_widget.dart';
-import '../../widgets/custom_image_widget.dart';
 import '../../models/menu_item.dart';
 import './widgets/home_greeting_widget.dart';
 import './widgets/home_food_banner_widget.dart';
@@ -61,6 +60,10 @@ class _HomeScreenState extends State<HomeScreen> {
   String _searchQuery = '';
 
   List<Map<String, dynamic>> _recentOrders = [];
+
+  // Anchor for the banner CTAs ("Explore now") to scroll to
+
+  final GlobalKey _cravingsKey = GlobalKey();
   List<MenuItemModel> _allMenuItems = [];
 
   List<String> get cravingCategories {
@@ -77,15 +80,6 @@ Map<String, Set<String>> restaurantMenuCategories = {};
 
 bool loadingMenuCategories = false;
 
-  final List<String> _categories = [
-  'All',
-  'Burgers',
-  'Pizza',
-  'Sushi',
-  'Thai',
-  'Salads',
-  'Desserts',
-];
 
   bool _categoryMatches(
   String menuCategory,
@@ -299,6 +293,23 @@ if (_selectedCategoryIndex >= 0) {
     loadRestaurants();
     _loadRecentOrders();
     
+  }
+
+  // ============================================================
+  // SCROLL TO CRAVINGS CATEGORIES (used by banner CTAs)
+  // ============================================================
+
+  void _scrollToCravings() {
+    final cravingsContext = _cravingsKey.currentContext;
+
+    if (cravingsContext == null) return;
+
+    Scrollable.ensureVisible(
+      cravingsContext,
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeOutCubic,
+      alignment: 0.1,
+    );
   }
 
   // ============================================================
@@ -612,9 +623,7 @@ SliverToBoxAdapter(
     subtitle: 'Discover your next favorite meal.',
     buttonText: 'Explore now',
     imageUrl: null,
-    onTap: () {
-      // We'll connect this to real category data.
-    },
+    onTap: _scrollToCravings,
   ),
 ),
 
@@ -697,6 +706,7 @@ SliverToBoxAdapter(
 
 SliverToBoxAdapter(
   child: HomeCravingsWidget(
+    key: _cravingsKey,
     selectedIndex: _selectedCategoryIndex,
     onSelected: (index) {
       setState(() {
@@ -710,7 +720,9 @@ SliverToBoxAdapter(
 ),
 
 SliverToBoxAdapter(
-  child: const HomePromoBannerWidget(),
+  child: HomePromoBannerWidget(
+    onCtaTap: _scrollToCravings,
+  ),
 ),
            
 
@@ -995,20 +1007,23 @@ if (selectedAddress is Address) {
               decoration: BoxDecoration(
                 borderRadius:
                     BorderRadius.circular(12),
+                color: AppTheme.primary,
                 boxShadow:
                     AppTheme.cardShadow,
               ),
-              child: ClipRRect(
-                borderRadius:
-                    BorderRadius.circular(12),
-                child: const CustomImageWidget(
-                  imageUrl:
-                      "https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=200",
-                  width: 40,
-                  height: 40,
-                  fit: BoxFit.cover,
-                  semanticLabel:
-                      "Profile Image",
+              child: Center(
+                child: Text(
+                  customerName.trim().isNotEmpty
+                      ? customerName
+                          .trim()[0]
+                          .toUpperCase()
+                      : '?',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 17,
+                    fontWeight:
+                        FontWeight.w800,
+                  ),
                 ),
               ),
             ),
