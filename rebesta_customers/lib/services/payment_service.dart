@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/constants/api_constants.dart';
+import '../core/network/session.dart';
 
 class PaymentService {
   final Dio _dio = Dio(
@@ -11,7 +12,7 @@ class PaymentService {
         'Content-Type': 'application/json',
       },
     ),
-  );
+  )..interceptors.add(authExpiredInterceptor());
 
   static const String _pendingPaymentKey =
       'rebesta_pending_razorpay_order_id';
