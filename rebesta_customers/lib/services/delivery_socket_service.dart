@@ -14,6 +14,7 @@ class DeliverySocketService {
   Future<void> connect({
     required String orderId,
     required void Function(Map<String, dynamic>) onLocationUpdate,
+    void Function(Map<String, dynamic>)? onStatusUpdate,
   }) async {
     final prefs = await SharedPreferences.getInstance();
 
@@ -114,6 +115,49 @@ class DeliverySocketService {
         }
 
         onLocationUpdate(location);
+      },
+    );
+
+    // ==========================================================
+    // ORDER STATUS (instant tracking refresh - no more waiting
+    // for the polling timer)
+    // ==========================================================
+
+    _socket!.on(
+      'order_status',
+      (data) {
+        debugPrint('📦 ORDER STATUS EVENT: $data');
+
+        if (data is! Map) return;
+
+        final payload = Map<String, dynamic>.from(data);
+
+        if (payload['orderId']?.toString() != orderId) {
+          return;
+        }
+
+        onStatusUpdate?.call(payload);
+      },
+    );
+
+    // ==========================================================
+    // DELIVERY ASSIGNED (a rider just took the order)
+    // ==========================================================
+
+    _socket!.on(
+      'delivery_assigned',
+      (data) {
+        debugPrint('🚴 DELIVERY ASSIGNED EVENT: $data');
+
+        if (data is! Map) return;
+
+        final payload = Map<String, dynamic>.from(data);
+
+        if (payload['orderId']?.toString() != orderId) {
+          return;
+        }
+
+        onStatusUpdate?.call(payload);
       },
     );
 

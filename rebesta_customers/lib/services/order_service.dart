@@ -147,4 +147,30 @@ Future<Map<String, dynamic>> checkout({
       response.data,
     );
   }
+  // ============================================================
+  // SUBMIT REVIEW (after delivery)
+  // ============================================================
+
+  Future<Map<String, dynamic>> submitReview({
+    required String orderId,
+    required int restaurantRating,
+    int? deliveryRating,
+    String? review,
+  }) async {
+    final options = await _authOptions();
+
+    final response = await _dio.post(
+      '/reviews',
+      data: {
+        'orderId': orderId,
+        'restaurantRating': restaurantRating,
+        'deliveryRating': deliveryRating,
+        'review': review,
+      },
+      options: options,
+    );
+
+    return response.data as Map<String, dynamic>;
+  }
+
 }
