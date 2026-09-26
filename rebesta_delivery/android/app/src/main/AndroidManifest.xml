@@ -5,6 +5,24 @@
 <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
 <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
 <uses-permission android:name="android.permission.VIBRATE"/>
+
+    <!-- Deep-links: Google Maps navigation + phone dialer.
+         Android 11+ needs these declarations so canLaunchUrl
+         can see the apps that handle each scheme. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="google.navigation" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.DIAL" />
+            <data android:scheme="tel" />
+        </intent>
+    </queries>
     <application
         android:label="rebesta_delivery"
         android:name="${applicationName}"
