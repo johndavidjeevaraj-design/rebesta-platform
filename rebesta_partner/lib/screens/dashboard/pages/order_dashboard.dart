@@ -20,7 +20,7 @@ class _OrderDashboardState extends State<OrderDashboard> {
   // SERVICE
   // ============================================================
   final PartnerSocketService _socketService =
-    PartnerSocketService();
+    PartnerSocketService.instance;
 
   final PartnerOrdersService _ordersService =
       PartnerOrdersService();
@@ -45,8 +45,24 @@ class _OrderDashboardState extends State<OrderDashboard> {
   void initState() {
     super.initState();
 
+    _socketService.addOnNewOrderListener(
+      _onSocketNewOrder,
+    );
+
     _loadOrders();
     _initializeOrders();
+  }
+
+  // ============================================================
+  // SOCKET RELOAD (fires on 'new-order' and 'order-status')
+  // ============================================================
+
+  Future<void> _onSocketNewOrder() async {
+    debugPrint(
+      '🔄 New order/status received - reloading orders',
+    );
+
+    await _loadOrders();
   }
 
   // ============================================================
@@ -105,13 +121,6 @@ Future<void> _initializeOrders() async {
 
   _socketService.connect(
     restaurantPartnerId: restaurantPartnerId,
-    onNewOrder: () async {
-      debugPrint(
-        '🔄 New order/status received - reloading orders',
-      );
-
-      await _loadOrders();
-    },
   );
 }
   // ============================================================
@@ -301,7 +310,10 @@ Future<void> _confirmCancelOrder(
 
 @override
 void dispose() {
-  _socketService.disconnect();
+  _socketService.removeOnNewOrderListener(
+    _onSocketNewOrder,
+  );
+
   super.dispose();
 }
 

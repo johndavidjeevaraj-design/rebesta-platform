@@ -2,24 +2,59 @@ import 'package:flutter/foundation.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import '../constants/api_constants.dart';
 
+// ============================================================
+// PARTNER SOCKET (singleton)
+// ============================================================
+//
+// Connected ONCE for the whole session (from the dashboard
+// shell) so the restaurant hears 'new-order' and
+// 'order-status' on EVERY tab - not just while the Orders tab
+// happens to be open. Screens register listeners; the socket
+// outlives page navigation.
+// ============================================================
+
 class PartnerSocketService {
+  PartnerSocketService._();
+
+  static final PartnerSocketService instance =
+      PartnerSocketService._();
+
   IO.Socket? _socket;
 
-  String? _restaurantPartnerId;
+  // ============================================================
+  // LISTENERS (any screen that cares about order events)
+  // ============================================================
+
+  final List<void Function()> _newOrderListeners = [];
+
+  void addOnNewOrderListener(
+    void Function() listener,
+  ) {
+    _newOrderListeners.add(listener);
+  }
+
+  void removeOnNewOrderListener(
+    void Function() listener,
+  ) {
+    _newOrderListeners.remove(listener);
+  }
+
+  // ============================================================
+  // CONNECT (idempotent - safe to call from anywhere)
+  // ============================================================
 
   void connect({
     required String restaurantPartnerId,
-    required VoidCallback onNewOrder,
   }) {
     if (_socket != null && _socket!.connected) {
       return;
     }
 
-    _restaurantPartnerId = restaurantPartnerId;
-
     debugPrint('================================');
     debugPrint('📡 PARTNER SOCKET CONNECT');
-    debugPrint('Restaurant Partner ID: $restaurantPartnerId');
+    debugPrint(
+      'Restaurant Partner ID: $restaurantPartnerId',
+    );
     debugPrint('================================');
 
     _socket = IO.io(
@@ -37,10 +72,6 @@ class PartnerSocketService {
         'join_partner',
         restaurantPartnerId,
       );
-
-      debugPrint(
-        '📡 Joined partner_$restaurantPartnerId',
-      );
     });
 
     _socket!.on('new-order', (data) {
@@ -49,7 +80,9 @@ class PartnerSocketService {
       debugPrint('Data: $data');
       debugPrint('================================');
 
-      onNewOrder();
+      for (final listener in List.of(_newOrderListeners)) {
+        listener();
+      }
     });
 
     _socket!.on('order-status', (data) {
@@ -58,7 +91,9 @@ class PartnerSocketService {
       debugPrint('Data: $data');
       debugPrint('================================');
 
-      onNewOrder();
+      for (final listener in List.of(_newOrderListeners)) {
+        listener();
+      }
     });
 
     _socket!.onDisconnect((_) {
@@ -74,8 +109,11 @@ class PartnerSocketService {
     _socket!.connect();
   }
 
+  // ============================================================
+  // DISCONNECT (logout only - NOT on page navigation)
+  // ============================================================
+
   void disconnect() {
-    _socket?.disconnect();
     _socket?.dispose();
     _socket = null;
   }
