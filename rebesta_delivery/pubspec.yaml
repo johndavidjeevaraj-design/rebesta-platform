@@ -41,6 +41,10 @@ dependencies:
   # Realtime order offers (same version as the customers app).
   socket_io_client: ^3.1.2
 
+  # Order-offer alert: strong repeating vibration so riders
+  # notice offers even while driving.
+  vibration: ^3.2.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
