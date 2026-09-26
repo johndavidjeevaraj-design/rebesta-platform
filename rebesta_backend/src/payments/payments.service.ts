@@ -762,6 +762,27 @@ async webhook(
     try {
       this.socketGateway.sendOrderUpdate(order.id, 'pending');
     } catch (e) {
+      console.error('Order room status update failed:', e);
+    }
+
+    // ============================================================
+    // The restaurant app listens in the PARTNER room (it never
+    // joins order rooms). Payment success is the real
+    // "cook this order" signal for the restaurant.
+    // ============================================================
+
+    try {
+      this.socketGateway.emitToPartner(
+        freshAttempt.restaurant_partner_id,
+        'new-order',
+        {
+          orderId: order.id,
+          status: order.order_status,
+          paymentStatus: 'paid',
+          totalAmount: order.total_amount,
+        },
+      );
+    } catch (e) {
       console.error('Partner socket notification failed:', e);
     }
 

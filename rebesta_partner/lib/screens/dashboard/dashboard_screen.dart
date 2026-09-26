@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/services/partner_fcm_service.dart';
+import '../../core/services/partner_socket_service.dart';
 import '../../core/services/partner_orders_service.dart';
 import '../../core/constants/colors.dart';
 import '../../core/services/partner_auth_service.dart';
@@ -44,6 +45,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     PartnerFcmService.initialize(
       onOrder: _onNewOrder,
+    );
+
+    _connectSocket();
+  }
+
+  // ============================================================
+  // SESSION-LONG SOCKET
+  //
+  // Connect once here so the restaurant hears new orders on
+  // EVERY tab - the Orders tab alone must not be the only
+  // live channel.
+  // ============================================================
+
+  Future<void> _connectSocket() async {
+    final restaurantPartnerId =
+        await PartnerAuthService.getRestaurantPartnerId();
+
+    if (restaurantPartnerId == null ||
+        restaurantPartnerId.isEmpty) {
+      return;
+    }
+
+    PartnerSocketService.instance.connect(
+      restaurantPartnerId: restaurantPartnerId,
     );
   }
 

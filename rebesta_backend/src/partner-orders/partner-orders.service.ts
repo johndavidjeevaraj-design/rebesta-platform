@@ -177,11 +177,15 @@ async updateStatus(
     ],
 
     accepted: [
+      'preparing',
       'ready',
       'cancelled',
     ],
 
-    preparing: [],
+    preparing: [
+      'ready',
+      'cancelled',
+    ],
 
     ready: [],
 

@@ -336,7 +336,7 @@ const totalAmount =
 try {
   this.socketGateway.emitToPartner(
     order.restaurant_partner_id,
-    'new_order',
+    'new-order',
     {
       orderId: order.id,
       status: order.order_status,

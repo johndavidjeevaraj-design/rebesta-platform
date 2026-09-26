@@ -229,6 +229,8 @@ export class DeliveryService {
       'accepted_for_delivery',
     );
 
+    this.notifyPartnerStatus(orderId, 'accepted_for_delivery');
+
     if (data.customer_id) {
       this.socketGateway.emitToCustomer(
         data.customer_id,
@@ -345,6 +347,8 @@ export class DeliveryService {
 
     this.socketGateway.sendOrderUpdate(orderId, 'arrived_at_restaurant');
 
+    this.notifyPartnerStatus(orderId, 'arrived_at_restaurant');
+
     if (data.customer_id) {
       this.socketGateway.emitToCustomer(
         data.customer_id,
@@ -416,6 +420,8 @@ export class DeliveryService {
       'arrived_at_customer',
     );
 
+    this.notifyPartnerStatus(orderId, 'arrived_at_customer');
+
     if (data.customer_id) {
       this.socketGateway.emitToCustomer(
         data.customer_id,
@@ -478,6 +484,8 @@ export class DeliveryService {
     }
 
     this.socketGateway.sendOrderUpdate(orderId, 'ready');
+
+    this.notifyPartnerStatus(orderId, 'ready');
 
     // ============================================================
     // SWIGGY-STYLE DISPATCH: offer the returned order to the
@@ -680,6 +688,8 @@ export class DeliveryService {
 
     this.socketGateway.sendOrderUpdate(orderId, 'delivered');
 
+    this.notifyPartnerStatus(orderId, 'delivered');
+
     if (updatedOrder.customer_id) {
       this.socketGateway.emitToCustomer(
         updatedOrder.customer_id,
@@ -750,6 +760,8 @@ export class DeliveryService {
       'picked_up',
     );
 
+    this.notifyPartnerStatus(orderId, 'picked_up');
+
     if (data.customer_id) {
       this.socketGateway.emitToCustomer(
         data.customer_id,
@@ -815,6 +827,8 @@ export class DeliveryService {
       orderId,
       'out_for_delivery',
     );
+
+    this.notifyPartnerStatus(orderId, 'out_for_delivery');
 
     if (data.customer_id) {
       this.socketGateway.emitToCustomer(
@@ -1006,6 +1020,8 @@ export class DeliveryService {
       'delivered',
     );
 
+    this.notifyPartnerStatus(dto.orderId, 'delivered');
+
     if (updatedOrder.customer_id) {
       this.socketGateway.emitToCustomer(
         updatedOrder.customer_id,
@@ -1061,6 +1077,40 @@ export class DeliveryService {
 
       partner: data,
     };
+  }
+
+  // ============================================================
+  // Keep the restaurant in the loop: rider milestones also go
+  // to the PARTNER room. The partner app listens for
+  // 'order-status' there - it never joins order rooms, so
+  // sendOrderUpdate alone never reaches it.
+  // ============================================================
+
+  private async notifyPartnerStatus(
+    orderId: string,
+    status: string,
+  ) {
+    try {
+      const { data: order } = await supabase
+        .from('orders')
+        .select('restaurant_partner_id')
+        .eq('id', orderId)
+        .single();
+
+      if (order?.restaurant_partner_id) {
+        this.socketGateway.emitToPartner(
+          order.restaurant_partner_id,
+          'order-status',
+          {
+            orderId,
+            status,
+            updatedAt: new Date().toISOString(),
+          },
+        );
+      }
+    } catch (e) {
+      console.error('Partner status notify failed:', e);
+    }
   }
 
   // ============================================================
