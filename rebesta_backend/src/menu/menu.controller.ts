@@ -129,10 +129,32 @@ getPartnerMenu(@Req() req) {
 
 
 
+    // Multer delivers multipart fields as strings -
+    // coerce them back to their real types.
+
+    const raw = dto as any;
+
+    const isVeg =
+      raw.isVeg === true || raw.isVeg === 'true';
+
+    const isAvailable =
+      raw.isAvailable === true ||
+      raw.isAvailable === 'true';
+
+    const parsedPrice = Number(raw.price);
+
+    const price =
+      raw.price != null && Number.isFinite(parsedPrice)
+        ? parsedPrice
+        : (dto.price ?? 0);
+
     return this.menuService.createMenu(
       req.user.restaurantPartnerId,
       {
         ...dto,
+        price,
+        isVeg,
+        isAvailable,
         imageUrl,
       },
     );
@@ -149,17 +171,54 @@ getPartnerMenu(@Req() req) {
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard)
-  updateMenu(
+  @UseInterceptors(
+    FileInterceptor('image'),
+  )
+  async updateMenu(
     @Req() req,
     @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
     @Body() dto: UpdateMenuDto,
   ) {
+    // Optional new photo for the dish
 
+    let imageUrl: string | undefined = undefined;
+
+    if (file) {
+      imageUrl = await this.storageService.uploadImage(
+        file,
+      );
+    }
+
+    // Multer delivers multipart fields as strings -
+    // coerce them back to their real types.
+
+    const raw = dto as any;
+
+    const isVeg =
+      raw.isVeg === true || raw.isVeg === 'true';
+
+    const isAvailable =
+      raw.isAvailable === true ||
+      raw.isAvailable === 'true';
+
+    const parsedPrice = Number(raw.price);
+
+    const price =
+      raw.price != null && Number.isFinite(parsedPrice)
+        ? parsedPrice
+        : (dto.price ?? 0);
 
     return this.menuService.updateMenu(
       req.user.restaurantPartnerId,
       id,
-      dto,
+      {
+        ...dto,
+        price,
+        isVeg,
+        isAvailable,
+        ...(imageUrl != null ? { imageUrl } : {}),
+      },
     );
 
   }

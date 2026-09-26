@@ -118,13 +118,17 @@ class _MenuDashboardState extends State<MenuDashboard> {
       floatingActionButton: FloatingActionButton(
         backgroundColor: const Color(0xffFF5A1F),
 
-        onPressed: () {
-          Navigator.push(
+        onPressed: () async {
+          final saved = await Navigator.push(
             context,
             MaterialPageRoute(
               builder: (_) => const AddDishScreen(),
             ),
           );
+
+          if (saved == true) {
+            _loadMenu();
+          }
         },
 
         child: const Icon(
@@ -261,16 +265,155 @@ class _MenuDashboardState extends State<MenuDashboard> {
                         'Uncategorized',
 
                 available:
-                    item['isAvailable'] == true,
+                    (item['is_available'] ??
+                            item['isAvailable']) ==
+                        true,
 
-                imageUrl:
-                    item['imageUrl']?.toString(),
+                isVeg:
+                    (item['is_veg'] ?? item['isVeg']) ==
+                        true,
+
+                imageUrl: (item['image_url'] ??
+                        item['imageUrl'])
+                    ?.toString(),
+
+                onEdit: () => _editDish(item),
+
+                onDelete: () => _deleteDish(item),
+
+                onToggleAvailable: () =>
+                    _toggleAvailability(item),
               );
             },
           ),
         ],
       ),
     );
+  }
+
+  // ============================================================
+  // EDIT DISH
+  // ============================================================
+
+  Future<void> _editDish(
+    Map<String, dynamic> dish,
+  ) async {
+    final saved = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AddDishScreen(dish: dish),
+      ),
+    );
+
+    if (saved == true) {
+      _loadMenu();
+    }
+  }
+
+  // ============================================================
+  // DELETE DISH (with confirmation)
+  // ============================================================
+
+  Future<void> _deleteDish(
+    Map<String, dynamic> dish,
+  ) async {
+    final name =
+        dish['name']?.toString() ?? 'this dish';
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete dish?'),
+        content: Text(
+          '"$name" will be removed from your menu. '
+          'This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () =>
+                Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+              elevation: 0,
+            ),
+            onPressed: () =>
+                Navigator.of(dialogContext).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await PartnerMenuService.deleteDish(
+        dish['id']?.toString() ?? '',
+      );
+
+      _loadMenu();
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e.toString().replaceFirst(
+              'Exception: ',
+              '',
+            ),
+          ),
+        ),
+      );
+    }
+  }
+
+  // ============================================================
+  // TOGGLE AVAILABILITY (optimistic)
+  // ============================================================
+
+  Future<void> _toggleAvailability(
+    Map<String, dynamic> dish,
+  ) async {
+    final id = dish['id']?.toString() ?? '';
+
+    final current =
+        (dish['is_available'] ?? dish['isAvailable']) ==
+            true;
+
+    final next = !current;
+
+    // Flip instantly, revert if the server refuses
+
+    setState(() {
+      dish['is_available'] = next;
+    });
+
+    try {
+      await PartnerMenuService.toggleAvailability(
+        id,
+        next,
+      );
+    } catch (e) {
+      debugPrint('TOGGLE ERROR: $e');
+
+      if (!mounted) return;
+
+      setState(() {
+        dish['is_available'] = current;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content:
+              Text('Could not update availability'),
+        ),
+      );
+    }
   }
 
   // ============================================================
@@ -349,14 +492,23 @@ class _MenuCard extends StatelessWidget {
   final String price;
   final String category;
   final bool available;
+  final bool isVeg;
   final String? imageUrl;
+
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
+  final VoidCallback? onToggleAvailable;
 
   const _MenuCard({
     required this.name,
     required this.price,
     required this.category,
     required this.available,
+    required this.isVeg,
     this.imageUrl,
+    this.onEdit,
+    this.onDelete,
+    this.onToggleAvailable,
   });
 
   @override
@@ -458,33 +610,35 @@ class _MenuCard extends StatelessWidget {
                       ),
                     ),
 
+                    // Real veg / non-veg indicator
+
                     Container(
-                      padding:
-                          const EdgeInsets
-                              .symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
-
-                      decoration:
-                          BoxDecoration(
-                        color:
-                            Colors.orange.shade100,
+                      width: 14,
+                      height: 14,
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: isVeg
+                              ? Colors.green
+                              : Colors.red,
+                          width: 1.6,
+                        ),
                         borderRadius:
-                            BorderRadius.circular(
-                          20,
-                        ),
+                            BorderRadius.circular(3),
                       ),
-
-                      child: const Text(
-                        "⭐ Bestseller",
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight:
-                              FontWeight.bold,
-                        ),
-                      ),
+                      child: isVeg
+                          ? const Padding(
+                              padding:
+                                  EdgeInsets.all(2),
+                              child: CircleAvatar(
+                                backgroundColor:
+                                    Colors.green,
+                                radius: 2,
+                              ),
+                            )
+                          : null,
                     ),
+
+                    const SizedBox(width: 8),
                   ],
                 ),
 
@@ -516,41 +670,80 @@ class _MenuCard extends StatelessWidget {
 
                 Row(
                   children: [
-                    Icon(
-                      available
-                          ? Icons.check_circle
-                          : Icons.cancel,
+                    // Tap the status pill to toggle
 
-                      color: available
-                          ? Colors.green
-                          : Colors.red,
+                    GestureDetector(
+                      onTap: onToggleAvailable,
+                      child: Container(
+                        padding:
+                            const EdgeInsets
+                                .symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: available
+                              ? Colors.green
+                                  .withValues(
+                                      alpha: .1)
+                              : Colors.red
+                                  .withValues(
+                                      alpha: .1),
+                          borderRadius:
+                              BorderRadius.circular(
+                            20,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              available
+                                  ? Icons
+                                      .check_circle
+                                  : Icons.cancel,
 
-                      size: 18,
-                    ),
+                              color: available
+                                  ? Colors.green
+                                  : Colors.red,
 
-                    const SizedBox(width: 6),
+                              size: 16,
+                            ),
 
-                    Text(
-                      available
-                          ? "Available"
-                          : "Unavailable",
+                            const SizedBox(
+                                width: 5),
+
+                            Text(
+                              available
+                                  ? "Available"
+                                  : "Unavailable",
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight:
+                                    FontWeight
+                                        .bold,
+                                color: available
+                                    ? Colors.green
+                                    : Colors.red,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
 
                     const Spacer(),
 
                     IconButton(
-                      onPressed: () {
-                        // Edit dish
-                      },
+                      onPressed: onEdit,
+                      tooltip: 'Edit dish',
                       icon: const Icon(
                         Icons.edit_outlined,
                       ),
                     ),
 
                     IconButton(
-                      onPressed: () {
-                        // Delete dish
-                      },
+                      onPressed: onDelete,
+                      tooltip: 'Delete dish',
                       icon: const Icon(
                         Icons.delete_outline,
                         color: Colors.red,

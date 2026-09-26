@@ -1,17 +1,13 @@
 import 'package:flutter/material.dart';
 
 class SpecialSettingCard extends StatelessWidget {
-  final bool bestseller;
   final bool available;
 
-  final ValueChanged<bool> onBestSellerChanged;
   final ValueChanged<bool> onAvailableChanged;
 
   const SpecialSettingCard({
     super.key,
-    required this.bestseller,
     required this.available,
-    required this.onBestSellerChanged,
     required this.onAvailableChanged,
   });
 
@@ -59,16 +55,6 @@ class SpecialSettingCard extends StatelessWidget {
           ),
 
           const SizedBox(height: 20),
-
-          SwitchListTile(
-            value: bestseller,
-            activeThumbColor: const Color(0xffFF5A1F),
-            title: const Text("⭐ Bestseller"),
-            subtitle: const Text("Show this dish as a bestseller"),
-            onChanged: onBestSellerChanged,
-          ),
-
-          const Divider(),
 
           SwitchListTile(
             value: available,

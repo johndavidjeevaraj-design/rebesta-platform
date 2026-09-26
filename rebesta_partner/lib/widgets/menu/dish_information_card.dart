@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 class DishInformationCard extends StatelessWidget {
   final TextEditingController dishNameController;
   final TextEditingController priceController;
-  final TextEditingController prepTimeController;
 
   final String? category;
   final ValueChanged<String?> onCategoryChanged;
@@ -12,7 +11,6 @@ class DishInformationCard extends StatelessWidget {
     super.key,
     required this.dishNameController,
     required this.priceController,
-    required this.prepTimeController,
     required this.category,
     required this.onCategoryChanged,
   });
@@ -80,11 +78,14 @@ class DishInformationCard extends StatelessWidget {
 
           TextField(
             controller: priceController,
-            keyboardType: TextInputType.number,
+            keyboardType:
+                const TextInputType.numberWithOptions(
+              decimal: true,
+            ),
 
             decoration: InputDecoration(
-              labelText: "Price (£)",
-              prefixIcon: const Icon(Icons.currency_pound),
+              labelText: "Price (₹)",
+              prefixIcon: const Icon(Icons.currency_rupee),
 
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(16),
@@ -108,6 +109,61 @@ class DishInformationCard extends StatelessWidget {
             ),
 
             items: const [
+
+              // Dish types - these match what customers
+              // tap as cravings on the customer app home
+
+              DropdownMenuItem(
+                value: "Biriyani",
+                child: Text("Biriyani"),
+              ),
+
+              DropdownMenuItem(
+                value: "Pizzas",
+                child: Text("Pizzas"),
+              ),
+
+              DropdownMenuItem(
+                value: "Burgers",
+                child: Text("Burgers"),
+              ),
+
+              DropdownMenuItem(
+                value: "Rolls",
+                child: Text("Rolls"),
+              ),
+
+              DropdownMenuItem(
+                value: "Shawarma",
+                child: Text("Shawarma"),
+              ),
+
+              DropdownMenuItem(
+                value: "Dosa",
+                child: Text("Dosa"),
+              ),
+
+              DropdownMenuItem(
+                value: "Idli",
+                child: Text("Idli"),
+              ),
+
+              DropdownMenuItem(
+                value: "Noodles",
+                child: Text("Noodles"),
+              ),
+
+              DropdownMenuItem(
+                value: "Cakes",
+                child: Text("Cakes"),
+              ),
+
+              DropdownMenuItem(
+                value: "Ice Cream",
+                child: Text("Ice Cream"),
+              ),
+
+              // Meal types
 
               DropdownMenuItem(
                 value: "Breakfast",
@@ -142,22 +198,6 @@ class DishInformationCard extends StatelessWidget {
             ],
 
             onChanged: onCategoryChanged,
-          ),
-
-          const SizedBox(height: 18),
-
-          TextField(
-            controller: prepTimeController,
-            keyboardType: TextInputType.number,
-
-            decoration: InputDecoration(
-              labelText: "Preparation Time (Minutes)",
-              prefixIcon: const Icon(Icons.timer),
-
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-            ),
           ),
 
         ],
