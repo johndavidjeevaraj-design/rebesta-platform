@@ -18,6 +18,9 @@ class _AvailableOrdersScreenState
   bool _loading = true;
   List<dynamic> _orders = [];
 
+  final DeliverySocketService _socketService =
+    DeliverySocketService.instance;
+
   @override
   void initState() {
     super.initState();

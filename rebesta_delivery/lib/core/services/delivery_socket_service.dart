@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import 'package:socket_io_client/socket_io_client.dart' as IO;
+import 'package:socket_io_client/socket_io_client.dart' as socket_io;
 
 import '../constants/api_constants.dart';
 import '../storage/delivery_auth_storage.dart';
@@ -28,7 +28,7 @@ class DeliverySocketService {
   static final DeliverySocketService instance =
       DeliverySocketService._();
 
-  IO.Socket? _socket;
+  socket_io.Socket? _socket;
 
   bool get isConnected =>
       _socket?.connected ?? false;
@@ -90,9 +90,9 @@ class DeliverySocketService {
     );
     debugPrint('=================================');
 
-    _socket = IO.io(
+    _socket = socket_io.io(
       ApiConstants.baseUrl,
-      IO.OptionBuilder()
+      socket_io.OptionBuilder()
           .setTransports(['websocket'])
           .disableAutoConnect()
           .enableReconnection()
