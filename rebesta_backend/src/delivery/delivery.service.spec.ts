@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { DeliveryService } from './delivery.service';
 import { MapsService } from '../maps/maps.service';
 import { SocketGateway } from '../socket/socket.gateway';
+import { DispatchService } from '../dispatch/dispatch.service';
 
 describe('DeliveryService', () => {
   let service: DeliveryService;
@@ -17,6 +18,10 @@ describe('DeliveryService', () => {
         },
         {
           provide: SocketGateway,
+          useValue: {},
+        },
+        {
+          provide: DispatchService,
           useValue: {},
         },
       ],

@@ -4,6 +4,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationTemplates } from '../notifications/notification.templates';
 import { SocketGateway } from '../socket/socket.gateway';
 import { FcmService } from '../fcm/fcm.service';
+import { DispatchService } from '../dispatch/dispatch.service';
 
 @Injectable()
 export class PartnerOrdersService {
@@ -11,7 +12,8 @@ export class PartnerOrdersService {
   constructor(
   private readonly notificationsService: NotificationsService,
   private readonly socketGateway: SocketGateway,
-   private readonly fcmService: FcmService
+   private readonly fcmService: FcmService,
+   private readonly dispatchService: DispatchService,
 ) {}
 
   // Get restaurant orders
@@ -266,42 +268,24 @@ try {
   // notify every online rider in realtime.
   // ============================================================
 
+  // ============================================================
+  // SWIGGY-STYLE DISPATCH
+  // Offer the order to the best single rider first.
+  // Only fall back to a broadcast when there is nobody
+  // left to offer it to.
+  // ============================================================
+
   if (newStatus === 'ready') {
-    const { data: poolOrder } = await supabase
-      .from('orders')
-      .select(`
-        id,
-        total_amount,
-        order_status,
-        created_at,
+    const dispatched =
+      await this.dispatchService.dispatchOrder(
+        orderId,
+      );
 
-        customers(
-          name
-        ),
-
-        addresses(
-          title,
-          address,
-          landmark,
-          city,
-          state,
-          pincode,
-          latitude,
-          longitude
-        )
-      `)
-      .eq('id', orderId)
-      .single();
-
-    this.socketGateway.emitToAllDelivery(
-      'new-order',
-      poolOrder ?? data,
-    );
-
-    console.log(
-      '🔔 New order broadcast sent to delivery feed:',
-      orderId,
-    );
+    if (!dispatched) {
+      await this.dispatchService.broadcastOrderToFeed(
+        orderId,
+      );
+    }
   }
 } catch (socketError) {
   console.error(

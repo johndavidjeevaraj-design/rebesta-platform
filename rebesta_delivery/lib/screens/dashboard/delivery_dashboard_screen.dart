@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../history/delivery_history_screen.dart';
 import '../wallet/delivery_wallet_screen.dart';
@@ -34,6 +36,11 @@ class _DeliveryDashboardScreenState
   final DeliverySocketService _socketService =
     DeliverySocketService.instance;
 
+  // The order id currently shown in the offer dialog
+  // (only one offer dialog at a time).
+
+  String? _activeOfferOrderId;
+
   @override
   void initState() {
     super.initState();
@@ -47,6 +54,14 @@ class _DeliveryDashboardScreenState
 
     _socketService.addOnNewOrderListener(
       _onNewOrder,
+    );
+
+    // ============================================================
+    // Swiggy-style: personal order offers with a countdown
+    // ============================================================
+
+    _socketService.addOnOrderOfferListener(
+      _onOrderOffer,
     );
     
   }
@@ -313,6 +328,10 @@ void dispose() {
     _onNewOrder,
   );
 
+  _socketService.removeOnOrderOfferListener(
+    _onOrderOffer,
+  );
+
   _locationService.stopTracking();
   super.dispose();
 }
@@ -335,6 +354,112 @@ void dispose() {
     );
 
     _loadDashboard();
+  }
+
+  // ============================================================
+  // ORDER OFFER (REALTIME - Swiggy-style assignment)
+  // ============================================================
+
+  void _onOrderOffer(
+    Map<String, dynamic> offer,
+  ) {
+    debugPrint(
+      '🔔🔔 ORDER OFFER RECEIVED: ${offer['id']}',
+    );
+
+    if (!mounted) return;
+
+    // One offer dialog at a time.
+
+    if (_activeOfferOrderId != null) return;
+
+    final orderId = offer['id']?.toString() ?? '';
+
+    if (orderId.isEmpty) return;
+
+    _activeOfferOrderId = orderId;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => DeliveryOfferDialog(
+        order: offer,
+        orderId: orderId,
+        onAccept: () => _acceptOffer(orderId),
+        onDecline: () => _declineOffer(orderId),
+      ),
+    ).then((_) {
+      _activeOfferOrderId = null;
+    });
+  }
+
+  // ============================================================
+  // ACCEPT OFFER
+  // ============================================================
+
+  Future<void> _acceptOffer(
+    String orderId,
+  ) async {
+    try {
+      final options =
+          await DeliveryApiClient.authOptions();
+
+      final response =
+          await DeliveryApiClient.dio.patch(
+        ApiConstants.acceptOrder(orderId),
+        options: options,
+      );
+
+      if (response.data['success'] == true) {
+        _showMessage(
+          '🎉 Order accepted! Head to the restaurant.',
+        );
+
+        _loadDashboard();
+      } else {
+        throw Exception(
+          response.data['message'] ?? 'Unable to accept order',
+        );
+      }
+    } catch (e) {
+      debugPrint(
+        '❌ ACCEPT OFFER ERROR: $e',
+      );
+
+      _showMessage(
+        'Could not accept - the offer may have expired.',
+      );
+    }
+  }
+
+  // ============================================================
+  // DECLINE OFFER
+  // ============================================================
+
+  Future<void> _declineOffer(
+    String orderId,
+  ) async {
+    try {
+      final options =
+          await DeliveryApiClient.authOptions();
+
+      await DeliveryApiClient.dio.patch(
+        ApiConstants.declineOffer(orderId),
+        options: options,
+      );
+
+      _showMessage(
+        'Offer declined.',
+      );
+    } catch (e) {
+      debugPrint(
+        '❌ DECLINE OFFER ERROR: $e',
+      );
+
+      _showMessage(
+        'Could not decline - it may have expired already.',
+      );
+    }
   }
   // ============================================================
   // MESSAGE
@@ -1343,6 +1468,352 @@ String _shortOrderId(String id) {
           ),
         ],
       ),
+    );
+  }
+}
+// ============================================================
+// DELIVERY OFFER DIALOG
+// ============================================================
+//
+// Shown when the backend personally offers an order to this
+// rider (Swiggy-style assignment). Counts down from
+// ttl_seconds, then waits for the backend to reassign - the
+// server's offer-expired event closes it automatically.
+// ============================================================
+
+class DeliveryOfferDialog extends StatefulWidget {
+  final Map<String, dynamic> order;
+
+  final String orderId;
+
+  final Future<void> Function() onAccept;
+
+  final Future<void> Function() onDecline;
+
+  const DeliveryOfferDialog({
+    super.key,
+    required this.order,
+    required this.orderId,
+    required this.onAccept,
+    required this.onDecline,
+  });
+
+  @override
+  State<DeliveryOfferDialog> createState() =>
+      _DeliveryOfferDialogState();
+}
+
+class _DeliveryOfferDialogState
+    extends State<DeliveryOfferDialog> {
+  late int _secondsLeft;
+
+  bool _expired = false;
+
+  Timer? _timer;
+
+  String get _restaurantName {
+    final partner = widget.order['restaurant_partners'];
+
+    if (partner is Map) {
+      return partner['restaurant_name']?.toString() ??
+          'Restaurant';
+    }
+
+    return 'Restaurant';
+  }
+
+  String get _customerName {
+    final customer = widget.order['customers'];
+
+    if (customer is Map) {
+      return customer['name']?.toString() ?? 'Customer';
+    }
+
+    return 'Customer';
+  }
+
+  String get _address {
+    final address = widget.order['addresses'];
+
+    if (address is! Map) {
+      return 'Address unavailable';
+    }
+
+    final parts = <String>[];
+
+    for (final key in [
+      'address',
+      'landmark',
+      'city',
+      'pincode',
+    ]) {
+      final value = address[key]?.toString();
+
+      if (value != null && value.isNotEmpty) {
+        parts.add(value);
+      }
+    }
+
+    return parts.isEmpty
+        ? 'Address unavailable'
+        : parts.join(', ');
+  }
+
+  String get _amount {
+    return widget.order['total_amount']?.toString() ?? '0';
+  }
+
+  @override
+  void initState() {
+    super.initState();
+
+    final ttl = widget.order['ttl_seconds'];
+
+    _secondsLeft = ttl is num ? ttl.toInt() : 20;
+
+    _timer = Timer.periodic(
+      const Duration(seconds: 1),
+      (timer) {
+        if (!mounted) {
+          timer.cancel();
+          return;
+        }
+
+        if (_secondsLeft <= 1) {
+          timer.cancel();
+
+          setState(() {
+            _secondsLeft = 0;
+            _expired = true;
+          });
+        } else {
+          setState(() {
+            _secondsLeft--;
+          });
+        }
+      },
+    );
+
+    // The backend closes this offer (expiry / taken by
+    // another rider) -> close the dialog automatically.
+
+    DeliverySocketService.instance.addOnOfferExpiredListener(
+      _onOfferExpiredEvent,
+    );
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+
+    DeliverySocketService.instance
+        .removeOnOfferExpiredListener(
+      _onOfferExpiredEvent,
+    );
+
+    super.dispose();
+  }
+
+  void _onOfferExpiredEvent(
+    Map<String, dynamic> data,
+  ) {
+    if (!mounted) return;
+
+    if (data['orderId']?.toString() != widget.orderId) return;
+
+    Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: false,
+      child: Dialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ==============================================
+              // HEADER + COUNTDOWN
+              // ==============================================
+
+              Row(
+                children: [
+                  const Text(
+                    '🔔',
+                    style: TextStyle(fontSize: 28),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      _expired
+                          ? 'Offer expired'
+                          : 'New order for you!',
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF2A1D1A),
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _expired
+                          ? const Color(0xFFF3EFEC)
+                          : const Color(0xFFFFF0E8),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      _expired
+                          ? '0:00'
+                          : '0:${_secondsLeft.toString().padLeft(2, '0')}',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: _expired
+                            ? const Color(0xFF756864)
+                            : const Color(0xFFFF6B35),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 16),
+
+              // ==============================================
+              // DETAILS
+              // ==============================================
+
+              _detailRow(
+                Icons.storefront,
+                _restaurantName,
+              ),
+              const SizedBox(height: 10),
+              _detailRow(
+                Icons.person,
+                _customerName,
+              ),
+              const SizedBox(height: 10),
+              _detailRow(
+                Icons.location_on_outlined,
+                _address,
+              ),
+              const SizedBox(height: 10),
+              _detailRow(
+                Icons.currency_rupee,
+                '$_amount  •  payout on delivery',
+              ),
+
+              const SizedBox(height: 20),
+
+              // ==============================================
+              // ACTIONS
+              // ==============================================
+
+              if (_expired)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'This offer was reassigned to another rider.',
+                      style: TextStyle(
+                        color: Color(0xFF756864),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton(
+                        onPressed: () =>
+                            Navigator.of(context).pop(),
+                        child: const Text('Close'),
+                      ),
+                    ),
+                  ],
+                )
+              else
+                Column(
+                  children: [
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: FilledButton(
+                        onPressed: () {
+                          widget.onAccept();
+                          Navigator.of(context).pop();
+                        },
+                        style: FilledButton.styleFrom(
+                          backgroundColor:
+                              const Color(0xFFFF6B35),
+                          foregroundColor: Colors.white,
+                        ),
+                        child: const Text(
+                          'ACCEPT ORDER',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: OutlinedButton(
+                        onPressed: () {
+                          widget.onDecline();
+                          Navigator.of(context).pop();
+                        },
+                        child: const Text('Decline'),
+                      ),
+                    ),
+                  ],
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // DETAIL ROW
+  // ============================================================
+
+  Widget _detailRow(
+    IconData icon,
+    String text,
+  ) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(
+          icon,
+          size: 18,
+          color: const Color(0xFFFF6B35),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(
+              fontSize: 14,
+              color: Color(0xFF2A1D1A),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

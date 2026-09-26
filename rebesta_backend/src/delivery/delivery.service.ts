@@ -2,6 +2,7 @@ import { Injectable, BadRequestException } from '@nestjs/common';
 
 import { supabase } from '../supabase';
 import { SocketGateway } from '../socket/socket.gateway';
+import { DispatchService } from '../dispatch/dispatch.service';
 import { MapsService } from '../maps/maps.service';
 import { VerifyDeliveryOtpDto } from './dto/verify-delivery-otp.dto';
 
@@ -10,6 +11,7 @@ export class DeliveryService {
   constructor(
     private readonly mapsService: MapsService,
     private readonly socketGateway: SocketGateway,
+    private readonly dispatchService: DispatchService,
   ) {}
 
   // ============================================================
@@ -47,9 +49,37 @@ export class DeliveryService {
       throw new BadRequestException(error.message);
     }
 
+    // ============================================================
+    // SWIGGY-STYLE: hide orders that are currently being offered
+    // to a specific rider, so nobody can grab them from the pool
+    // mid-offer. (Fails open if the offers table is missing.)
+    // ============================================================
+
+    let pool = data ?? [];
+
+    try {
+      const { data: pendingOffers } = await supabase
+        .from('delivery_offers')
+        .select('order_id')
+        .eq('status', 'pending')
+        .gt('expires_at', new Date().toISOString());
+
+      if (pendingOffers && pendingOffers.length > 0) {
+        const offeredOrderIds = new Set(
+          pendingOffers.map((o) => o.order_id as string),
+        );
+
+        pool = pool.filter(
+          (o) => !offeredOrderIds.has(o.id as string),
+        );
+      }
+    } catch (e) {
+      console.error('Offer pool filter skipped:', e);
+    }
+
     return {
       success: true,
-      orders: data,
+      orders: pool,
     };
   }
 
@@ -142,6 +172,36 @@ export class DeliveryService {
       throw new BadRequestException('Order already accepted');
     }
 
+    // ============================================================
+    // SWIGGY-STYLE FAIRNESS: while this order is being offered
+    // to a specific rider, nobody else may grab it.
+    // (Fails open if the offers table is not set up yet.)
+    // ============================================================
+
+    try {
+      const { data: activeOffers } = await supabase
+        .from('delivery_offers')
+        .select('delivery_partner_id')
+        .eq('order_id', orderId)
+        .eq('status', 'pending')
+        .gt('expires_at', new Date().toISOString());
+
+      if (activeOffers && activeOffers.length > 0) {
+        const mine = activeOffers.some(
+          (o) => o.delivery_partner_id === deliveryPartnerId,
+        );
+
+        if (!mine) {
+          throw new BadRequestException(
+            'This order is currently offered to another delivery partner',
+          );
+        }
+      }
+    } catch (e) {
+      if (e instanceof BadRequestException) throw e;
+      console.error('Offer fairness check skipped:', e);
+    }
+
     const { data, error } = await supabase
       .from('orders')
       .update({
@@ -198,6 +258,45 @@ export class DeliveryService {
         'Order taken broadcast failed:',
         broadcastError,
       );
+    }
+
+    // ============================================================
+    // SETTLE OFFERS: mark mine accepted, close everyone else's
+    // ============================================================
+
+    try {
+      const now = new Date().toISOString();
+
+      await supabase
+        .from('delivery_offers')
+        .update({
+          status: 'accepted',
+          responded_at: now,
+        })
+        .eq('order_id', orderId)
+        .eq('delivery_partner_id', deliveryPartnerId)
+        .eq('status', 'pending');
+
+      const { data: otherOffers } = await supabase
+        .from('delivery_offers')
+        .update({ status: 'superseded' })
+        .eq('order_id', orderId)
+        .eq('status', 'pending')
+        .neq('delivery_partner_id', deliveryPartnerId)
+        .select('delivery_partner_id');
+
+      for (const other of otherOffers ?? []) {
+        this.socketGateway.emitToDelivery(
+          other.delivery_partner_id,
+          'offer-expired',
+          {
+            orderId,
+            reason: 'taken',
+          },
+        );
+      }
+    } catch (e) {
+      console.error('Offer settlement skipped:', e);
     }
 
     return {
@@ -381,45 +480,16 @@ export class DeliveryService {
     this.socketGateway.sendOrderUpdate(orderId, 'ready');
 
     // ============================================================
-    // Order returned to the pool ->
-    // broadcast it to every online rider again.
+    // SWIGGY-STYLE DISPATCH: offer the returned order to the
+    // next best rider first; broadcast only as a fallback.
     // ============================================================
 
-    try {
-      const { data: poolOrder } = await supabase
-        .from('orders')
-        .select(`
-          id,
-          total_amount,
-          order_status,
-          created_at,
+    const dispatched =
+      await this.dispatchService.dispatchOrder(orderId);
 
-          customers(
-            name
-          ),
-
-          addresses(
-            title,
-            address,
-            landmark,
-            city,
-            state,
-            pincode,
-            latitude,
-            longitude
-          )
-        `)
-        .eq('id', orderId)
-        .single();
-
-      this.socketGateway.emitToAllDelivery(
-        'new-order',
-        poolOrder ?? data,
-      );
-    } catch (broadcastError) {
-      console.error(
-        'New order broadcast failed:',
-        broadcastError,
+    if (!dispatched) {
+      await this.dispatchService.broadcastOrderToFeed(
+        orderId,
       );
     }
 
@@ -427,6 +497,55 @@ export class DeliveryService {
       success: true,
       message: 'Delivery cancelled, order returned to pool',
       order: data,
+    };
+  }
+
+  // ============================================================
+  // Decline a personal order offer (Swiggy-style assignment)
+  // ============================================================
+
+  async declineOffer(
+    orderId: string,
+    deliveryPartnerId: string,
+  ) {
+    const now = new Date().toISOString();
+
+    // Only a PENDING offer held by THIS rider can be declined.
+
+    const { data: offer, error } = await supabase
+      .from('delivery_offers')
+      .update({
+        status: 'declined',
+        responded_at: now,
+      })
+      .eq('order_id', orderId)
+      .eq('delivery_partner_id', deliveryPartnerId)
+      .eq('status', 'pending')
+      .select()
+      .single();
+
+    if (error) {
+      throw new BadRequestException(error.message);
+    }
+
+    // Offer it to the next rider straight away.
+
+    if (offer) {
+      const dispatched =
+        await this.dispatchService.dispatchOrder(orderId);
+
+      if (!dispatched) {
+        await this.dispatchService.broadcastOrderToFeed(
+          orderId,
+        );
+      }
+    }
+
+    return {
+      success: true,
+      message: offer
+        ? 'Offer declined - order passed to the next rider'
+        : 'No active offer for this order',
     };
   }
 
