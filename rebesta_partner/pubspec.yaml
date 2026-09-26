@@ -75,3 +75,7 @@ flutter:
           weight: 600
         - asset: assets/fonts/Poppins-Bold.ttf
           weight: 700
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
