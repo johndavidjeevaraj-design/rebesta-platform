@@ -13,6 +13,7 @@ import '../../widgets/custom_icon_widget.dart';
 import './widgets/driver_info_card_widget.dart';
 import './widgets/eta_hero_widget.dart';
 import './widgets/order_status_stepper_widget.dart';
+import './widgets/review_nudge_sheet.dart';
 import './widgets/order_summary_widget.dart';
 
 class OrderTrackingScreen extends StatefulWidget {
@@ -68,6 +69,10 @@ class _OrderTrackingScreenState
   int _currentStep = 0;
 
   bool _isOrderSummaryExpanded = true;
+
+  // Ask for a review only once per tracking-screen visit.
+
+  bool _reviewPromptShown = false;
 
   Map<String, dynamic>? _tracking;
 
@@ -246,6 +251,23 @@ class _OrderTrackingScreenState
       });
 
       // ========================================================
+      // DELIVERED? -> ASK FOR A REVIEW (once per visit)
+      // ========================================================
+
+      if (currentStep == 4 && !_reviewPromptShown) {
+        _reviewPromptShown = true;
+
+        Future.delayed(
+          const Duration(milliseconds: 800),
+          () {
+            if (!mounted) return;
+
+            _showReviewNudge();
+          },
+        );
+      }
+
+      // ========================================================
       // CONNECT SOCKET ONLY ON FIRST LOAD
       // ========================================================
 
@@ -271,6 +293,37 @@ class _OrderTrackingScreenState
         _error = e.toString();
       });
     }
+  }
+
+  // ============================================================
+  // REVIEW NUDGE (order just delivered)
+  // ============================================================
+
+  Future<void> _showReviewNudge() async {
+    final restaurant = _tracking?['restaurant'];
+
+    final rider = _tracking?['rider'];
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(24),
+        ),
+      ),
+      builder: (sheetContext) => ReviewNudgeSheet(
+        orderId: widget.orderId,
+        restaurantName: restaurant is Map
+            ? restaurant['restaurant_name']?.toString() ??
+                  'the restaurant'
+            : 'the restaurant',
+        riderName: rider is Map
+            ? rider['name']?.toString()
+            : null,
+      ),
+    );
   }
 
   // ============================================================
@@ -332,6 +385,15 @@ class _OrderTrackingScreenState
 
       await _deliverySocket.connect(
         orderId: widget.orderId,
+        onStatusUpdate: (status) {
+          if (!mounted) return;
+
+          debugPrint(
+            '📦 LIVE STATUS EVENT - refreshing tracking instantly',
+          );
+
+          _loadTracking();
+        },
         onLocationUpdate: (location) {
           if (!mounted) return;
 
