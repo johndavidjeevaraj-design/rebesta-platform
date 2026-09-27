@@ -107,13 +107,16 @@ export class RestaurantsController {
 
   @Patch('me')
   @UseGuards(JwtAuthGuard)
-  updateStoreStatus(
+  updateStoreProfile(
     @Req() req,
-    @Body('isOpen') isOpen: boolean,
+    @Body('isOpen') isOpen?: boolean,
+    @Body('openingTime') openingTime?: string | null,
+    @Body('closingTime') closingTime?: string | null,
+    @Body('closedDays') closedDays?: number[],
   ) {
-    return this.restaurantsService.updateStoreStatus(
+    return this.restaurantsService.updateStoreProfile(
       req.user.restaurantPartnerId,
-      isOpen === true,
+      { isOpen, openingTime, closingTime, closedDays },
     );
   }
 

@@ -66,6 +66,12 @@ export class RestaurantsService {
 
         isOpen: restaurant.is_open,
 
+        openingTime: restaurant.opening_time,
+
+        closingTime: restaurant.closing_time,
+
+        closedDays: restaurant.closed_days ?? [],
+
         promoLabel: restaurant.promo_label,
 
         category: restaurant.category,
@@ -152,6 +158,15 @@ export class RestaurantsService {
 
         isOpen:
           data.is_open,
+
+        openingTime:
+          data.opening_time,
+
+        closingTime:
+          data.closing_time,
+
+        closedDays:
+          data.closed_days ?? [],
 
         promoLabel:
           data.promo_label,
@@ -491,7 +506,7 @@ export class RestaurantsService {
     const { data, error } = await supabase
       .from('restaurants')
       .select(
-        `id, name, cuisine, city, address, image_url, is_open, rating, delivery_time, delivery_fee, min_order`,
+        `id, name, cuisine, city, address, image_url, is_open, rating, delivery_time, delivery_fee, min_order, opening_time, closing_time, closed_days`,
       )
       .eq(
         'restaurant_partner_id',
@@ -524,26 +539,105 @@ export class RestaurantsService {
         deliveryTime: data.delivery_time,
         deliveryFee: data.delivery_fee,
         minOrder: data.min_order,
+        openingTime: data.opening_time,
+        closingTime: data.closing_time,
+        closedDays: data.closed_days ?? [],
       },
     };
   }
 
   // ============================================================
-  // PARTNER: OPEN / CLOSE THE STORE
+  // PARTNER: UPDATE STORE PROFILE
+  // (open/close toggle + optional weekly hours)
   // ============================================================
 
-  async updateStoreStatus(
+  async updateStoreProfile(
     restaurantPartnerId: string,
-    isOpen: boolean,
+    changes: {
+      isOpen?: boolean;
+      openingTime?: string | null;
+      closingTime?: string | null;
+      closedDays?: number[];
+    },
   ) {
+    const update: Record<string, any> = {};
+
+    if (changes.isOpen !== undefined) {
+      update.is_open = changes.isOpen === true;
+    }
+
+    // 'HH:mm' clock times; null clears the schedule
+
+    const timePattern =
+      /^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/;
+
+    for (const field of [
+      'openingTime',
+      'closingTime',
+    ] as const) {
+      const value = changes[field];
+
+      if (value === undefined) continue;
+
+      if (value !== null) {
+        if (
+          typeof value !== 'string' ||
+          !timePattern.test(value)
+        ) {
+          throw new Error(
+            `${field} must be HH:mm (24h) or null`,
+          );
+        }
+      }
+
+      update[field === 'openingTime'
+        ? 'opening_time'
+        : 'closing_time'] =
+        value === null
+          ? null
+          : value.length === 5
+            ? `${value}:00`
+            : value;
+    }
+
+    // Weekday numbers: 0 = Sunday ... 6 = Saturday
+
+    if (changes.closedDays !== undefined) {
+      if (
+        !Array.isArray(changes.closedDays) ||
+        changes.closedDays.some(
+          (d) =>
+            !Number.isInteger(d) ||
+            d < 0 ||
+            d > 6,
+        )
+      ) {
+        throw new Error(
+          'closedDays must be weekday numbers 0-6',
+        );
+      }
+
+      update.closed_days = [
+        ...new Set(changes.closedDays),
+      ];
+    }
+
+    if (Object.keys(update).length === 0) {
+      throw new Error(
+        'Nothing to update - provide isOpen, openingTime, closingTime or closedDays',
+      );
+    }
+
     const { data, error } = await supabase
       .from('restaurants')
-      .update({ is_open: isOpen })
+      .update(update)
       .eq(
         'restaurant_partner_id',
         restaurantPartnerId,
       )
-      .select('id, name, is_open')
+      .select(
+        'id, name, is_open, opening_time, closing_time, closed_days',
+      )
       .single();
 
     if (error) {
@@ -557,6 +651,9 @@ export class RestaurantsService {
         id: data.id,
         name: data.name,
         isOpen: data.is_open,
+        openingTime: data.opening_time,
+        closingTime: data.closing_time,
+        closedDays: data.closed_days ?? [],
       },
     };
   }
