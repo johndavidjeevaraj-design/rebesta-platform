@@ -39,6 +39,10 @@ class RestaurantInfoStripWidget extends StatelessWidget {
             ? restaurant.cuisine!
             : 'Food · Restaurant';
 
+    // Weekly schedule line (hidden when no hours set)
+
+    final hoursLine = _buildHoursLine();
+
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.fromLTRB(
@@ -191,9 +195,112 @@ class RestaurantInfoStripWidget extends StatelessWidget {
               ],
             ),
           ),
+
+          if (hoursLine != null) ...[
+            const SizedBox(height: 10),
+
+            Row(
+              children: [
+                const Icon(
+                  Icons.event_available_rounded,
+                  size: 13,
+                  color: muted,
+                ),
+
+                const SizedBox(width: 4),
+
+                Expanded(
+                  child: Text(
+                    hoursLine,
+                    maxLines: 1,
+                    overflow:
+                        TextOverflow.ellipsis,
+                    style: GoogleFonts.sora(
+                      fontSize: 10.5,
+                      fontWeight:
+                          FontWeight.w500,
+                      color: muted,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );
+  }
+
+  // =====================================================
+  // HOURS LINE
+  // =====================================================
+
+  String? _buildHoursLine() {
+    final opening = restaurant.openingTime;
+    final closing = restaurant.closingTime;
+
+    if (opening == null ||
+        opening.isEmpty ||
+        closing == null ||
+        closing.isEmpty) {
+      return null;
+    }
+
+    // Backend closedDays: 0 = Sunday ... 6 = Saturday
+    // Dart DateTime.weekday: Mon = 1 ... Sun = 7
+
+    final todayClosed = restaurant.closedDays
+        .contains(DateTime.now().weekday % 7);
+
+    if (todayClosed) {
+      return 'Closed today';
+    }
+
+    final open = _formatTime(opening);
+    final close = _formatTime(closing);
+
+    if (restaurant.closedDays.isEmpty) {
+      return '$open - $close';
+    }
+
+    return '$open - $close - Closed ${_closedDaysLabel(restaurant.closedDays)}';
+  }
+
+  String _formatTime(String hhmmss) {
+    final parts = hhmmss.split(':');
+
+    final hour =
+        int.tryParse(parts.isNotEmpty ? parts[0] : '') ?? 0;
+
+    final minute =
+        parts.length > 1 ? int.tryParse(parts[1]) ?? 0 : 0;
+
+    final period = hour >= 12 ? 'PM' : 'AM';
+
+    final hour12 = hour % 12 == 0 ? 12 : hour % 12;
+
+    final mm = minute.toString().padLeft(2, '0');
+
+    return '$hour12:$mm $period';
+  }
+
+  String _closedDaysLabel(List<int> days) {
+    const names = [
+      'Sun',
+      'Mon',
+      'Tue',
+      'Wed',
+      'Thu',
+      'Fri',
+      'Sat',
+    ];
+
+    final sorted = [...days]..sort();
+
+    return sorted
+        .map((d) => d >= 0 && d < 7 ? names[d] : '')
+        .where((name) => name.isNotEmpty)
+        .join(', ');
   }
 
   String _formatReviews(int count) {
