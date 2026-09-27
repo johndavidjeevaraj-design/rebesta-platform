@@ -18,6 +18,11 @@ import { DeliveryModule } from './delivery/delivery.module';
 import { DispatchModule } from './dispatch/dispatch.module';
 import { DeliveryKycModule } from './delivery-kyc/delivery-kyc.module';
 import { SocketModule } from './socket/socket.module';
+import { APP_GUARD } from '@nestjs/core';
+import {
+  ThrottlerModule,
+  ThrottlerGuard,
+} from '@nestjs/throttler';
 import { AdminModule } from './admin/admin.module';
 import { ReviewsModule } from './reviews/reviews.module';
 import { FirebaseModule } from './firebase/firebase.module';
@@ -32,6 +37,8 @@ import { ConfigModule } from '@nestjs/config';
 
 @Module({
   imports: [
+    // Global rate limit: 100 requests / minute / IP
+    ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]),
     CategoriesModule,
     MenuModule,
     RestaurantsModule,
@@ -65,6 +72,12 @@ import { ConfigModule } from '@nestjs/config';
     SupportModule
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+    AppService,
+  ],
 })
 export class AppModule {}

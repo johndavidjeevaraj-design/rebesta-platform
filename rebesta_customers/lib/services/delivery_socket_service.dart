@@ -19,9 +19,14 @@ class DeliverySocketService {
     final prefs = await SharedPreferences.getInstance();
 
     final customerId = prefs.getString('customerId');
+    final token = prefs.getString('token');
 
     if (customerId == null || customerId.isEmpty) {
       throw Exception('Customer ID not found');
+    }
+
+    if (token == null || token.isEmpty) {
+      throw Exception('Auth token not found');
     }
 
     debugPrint('================================');
@@ -34,11 +39,14 @@ class DeliverySocketService {
     // Prevent duplicate connections
     disconnect();
 
+    // JWT travels in the handshake - the gateway rejects
+    // unauthenticated connections.
     _socket = IO.io(
       ApiConstants.baseUrl,
       IO.OptionBuilder()
           .setTransports(['websocket'])
           .disableAutoConnect()
+          .setAuth({'token': token})
           .build(),
     );
 

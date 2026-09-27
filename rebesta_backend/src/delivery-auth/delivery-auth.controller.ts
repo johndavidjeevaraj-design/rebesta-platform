@@ -7,6 +7,9 @@ import {
   UseGuards,
 } from '@nestjs/common';
 
+import { Throttle } from '@nestjs/throttler';
+
+
 import { DeliveryAuthService } from './delivery-auth.service';
 
 import { RegisterDeliveryDto } from './dto/register-delivery.dto';
@@ -24,6 +27,7 @@ export class DeliveryAuthController {
   // ===============================
   // Register
   // ===============================
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('register')
   register(
     @Body() dto: RegisterDeliveryDto,
@@ -38,6 +42,7 @@ export class DeliveryAuthController {
   // ===============================
   // Login
   // ===============================
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Post('login')
   login(
     @Body() dto: LoginDeliveryDto,
