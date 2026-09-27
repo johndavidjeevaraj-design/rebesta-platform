@@ -438,25 +438,6 @@ handleLocation(
 }
 
 // ============================================================
-// EMIT: RAW ORDER LOCATION (legacy room - kept for compat)
-// ============================================================
-
- sendLocation(
-  orderId: string,
-  data: any,
-) {
-
-  console.log('📡 Sending location to room:', orderId);
-  console.log(data);
-
-  this.server.to(orderId).emit(
-    'location-update',
-    data,
-  );
-
-}
-
-// ============================================================
 // EMIT: ORDER STATUS
 // ============================================================
 
