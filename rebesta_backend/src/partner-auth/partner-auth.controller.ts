@@ -7,6 +7,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 
+import { Throttle } from '@nestjs/throttler';
+
 import { PartnerAuthService } from './partner-auth.service';
 
 import { PartnerSignupDto } from './dto/partner-signup.dto';
@@ -27,6 +29,7 @@ export class PartnerAuthController {
   // PARTNER SIGNUP
   // ============================================================
 
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('signup')
   signup(
     @Body() dto: PartnerSignupDto,
@@ -38,6 +41,7 @@ export class PartnerAuthController {
   // EMAIL + PASSWORD LOGIN
   // ============================================================
 
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Post('login')
   login(
     @Body() dto: PartnerLoginDto,
@@ -49,6 +53,7 @@ export class PartnerAuthController {
   // SEND MOBILE OTP
   // ============================================================
 
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
   @Post('send-otp')
   sendOtp(
     @Body() dto: PartnerSendOtpDto,
@@ -62,6 +67,7 @@ export class PartnerAuthController {
   // VERIFY MOBILE OTP
   // ============================================================
 
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Post('verify-otp')
   verifyOtp(
     @Body() dto: PartnerVerifyOtpDto,

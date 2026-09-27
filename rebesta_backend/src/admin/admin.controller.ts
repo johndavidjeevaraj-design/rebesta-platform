@@ -1,7 +1,14 @@
-import { Controller, Get } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  UseGuards,
+} from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { Body, Param, Patch } from '@nestjs/common';
+import { AdminGuard } from './admin.guard';
 
+// Every admin route requires the x-admin-key header
+@UseGuards(AdminGuard)
 @Controller('admin')
 export class AdminController {
   constructor(

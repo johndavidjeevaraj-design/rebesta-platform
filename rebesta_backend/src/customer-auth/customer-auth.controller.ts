@@ -6,6 +6,8 @@ import {
   Request
 , Patch} from '@nestjs/common';
 
+import { Throttle } from '@nestjs/throttler';
+
 import { CustomerAuthService } from './customer-auth.service';
 import { CustomerJwtGuard } from './customer-jwt.guard';
 import { CustomerSignupDto } from './dto/customer-signup.dto';
@@ -28,6 +30,7 @@ export class CustomerAuthController {
   // CUSTOMER SIGNUP
   // ===============================
 
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('signup')
   signup(
     @Body() dto: CustomerSignupDto,
@@ -47,6 +50,7 @@ export class CustomerAuthController {
   // CUSTOMER LOGIN
   // ===============================
 
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Post('login')
   login(
     @Body() dto: CustomerLoginDto,
@@ -99,12 +103,14 @@ updateProfile(
   );
 }
 
+@Throttle({ default: { limit: 3, ttl: 60000 } })
 @Post('send-otp')
 sendOtp(
   @Body('mobile') mobile: string,
 ) {
   return this.customerAuthService.sendOtp(mobile);
 }
+@Throttle({ default: { limit: 10, ttl: 60000 } })
 @Post('verify-otp')
 verifyOtp(
   @Body('mobile') mobile: string,

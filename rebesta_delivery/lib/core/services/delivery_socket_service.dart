@@ -112,7 +112,14 @@ class DeliverySocketService {
   // CONNECT
   // ============================================================
 
-  void connect() {
+  Future<void> connect() async {
+    final token = await DeliveryAuthStorage.getToken();
+
+    if (token == null || token.isEmpty) {
+      debugPrint('❌ DELIVERY SOCKET: no auth token - not connecting');
+      return;
+    }
+
     if (_socket != null && _socket!.connected) {
       debugPrint(
         '🚴 DELIVERY SOCKET ALREADY CONNECTED',
@@ -128,12 +135,15 @@ class DeliverySocketService {
     );
     debugPrint('=================================');
 
+    // JWT travels in the handshake - the gateway rejects
+    // unauthenticated connections.
     _socket = socket_io.io(
       ApiConstants.baseUrl,
       socket_io.OptionBuilder()
           .setTransports(['websocket'])
           .disableAutoConnect()
           .enableReconnection()
+          .setAuth({'token': token})
           .build(),
     );
 

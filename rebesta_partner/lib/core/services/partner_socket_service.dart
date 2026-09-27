@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import '../constants/api_constants.dart';
+import 'partner_auth_service.dart';
 
 // ============================================================
 // PARTNER SOCKET (singleton)
@@ -43,10 +44,17 @@ class PartnerSocketService {
   // CONNECT (idempotent - safe to call from anywhere)
   // ============================================================
 
-  void connect({
+  Future<void> connect({
     required String restaurantPartnerId,
-  }) {
+  }) async {
     if (_socket != null && _socket!.connected) {
+      return;
+    }
+
+    final token = await PartnerAuthService.getToken();
+
+    if (token == null || token.isEmpty) {
+      debugPrint('❌ PARTNER SOCKET: no auth token - not connecting');
       return;
     }
 
@@ -57,11 +65,14 @@ class PartnerSocketService {
     );
     debugPrint('================================');
 
+    // JWT travels in the handshake - the gateway rejects
+    // unauthenticated connections.
     _socket = IO.io(
       ApiConstants.baseUrl,
       IO.OptionBuilder()
           .setTransports(['websocket'])
           .disableAutoConnect()
+          .setAuth({'token': token})
           .build(),
     );
 
