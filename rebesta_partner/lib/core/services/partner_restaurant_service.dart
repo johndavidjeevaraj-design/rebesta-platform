@@ -79,6 +79,40 @@ class PartnerRestaurantService {
   }
 
   // ============================================================
+  // STORE HOURS
+  // (null times clear the schedule)
+  // ============================================================
+
+  static Future<void> updateStoreHours({
+    String? openingTime,
+    String? closingTime,
+    required List<int> closedDays,
+  }) async {
+    final token = await PartnerAuthService.getToken();
+
+    if (token == null || token.isEmpty) {
+      throw Exception(
+        'Partner session expired. Please login again.',
+      );
+    }
+
+    final response = await http.patch(
+      Uri.parse('$baseUrl/restaurants/me'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'openingTime': openingTime,
+        'closingTime': closingTime,
+        'closedDays': closedDays,
+      }),
+    );
+
+    await _handle(response);
+  }
+
+  // ============================================================
   // SHARED RESPONSE HANDLING
   // ============================================================
 

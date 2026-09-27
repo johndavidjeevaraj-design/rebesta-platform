@@ -52,6 +52,16 @@ class HomeDashboardState extends State<HomeDashboard> {
 
   bool isStatusToggling = false;
 
+  // Store hours (null = no schedule, manual toggle only)
+
+  String? openingTime;
+
+  String? closingTime;
+
+  List<int> closedDays = [];
+
+  bool isHoursSaving = false;
+
   // ============================================================
   // INIT
   // ============================================================
@@ -181,6 +191,25 @@ debugPrint('========================================');
       setState(() {
         isStoreOpen =
             restaurant['isOpen'] == true;
+
+        final rawOpening =
+            restaurant['openingTime'];
+
+        final rawClosing =
+            restaurant['closingTime'];
+
+        openingTime =
+            rawOpening is String ? rawOpening : null;
+
+        closingTime =
+            rawClosing is String ? rawClosing : null;
+
+        final rawDays =
+            restaurant['closedDays'];
+
+        closedDays = rawDays is List
+            ? rawDays.whereType<int>().toList()
+            : [];
       });
     } catch (e) {
       debugPrint(
@@ -356,6 +385,14 @@ debugPrint('========================================');
             // ==================================================
 
             _buildRestaurantStatus(),
+
+            const SizedBox(height: 16),
+
+            // ==================================================
+            // STORE HOURS
+            // ==================================================
+
+            _buildStoreHours(),
 
             const SizedBox(height: 26),
 
@@ -724,6 +761,591 @@ debugPrint('========================================');
                     ),
                   ),
                 ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // STORE HOURS CARD
+  // ============================================================
+
+  Widget _buildStoreHours() {
+    final hasSchedule =
+        openingTime != null && closingTime != null;
+
+    String subtitle;
+
+    if (hasSchedule) {
+      final days = closedDays.isEmpty
+          ? 'Open all week'
+          : 'Closed ${_closedDaysLabel()}';
+
+      subtitle =
+          '${_formatDisplay(openingTime!)} - ${_formatDisplay(closingTime!)} - $days';
+    } else {
+      subtitle =
+          'No schedule set - manual toggle only';
+    }
+
+    return GestureDetector(
+      onTap: _showHoursEditor,
+
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: 20,
+          vertical: 18,
+        ),
+
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+        ),
+
+        child: Row(
+          children: [
+            Container(
+              width: 54,
+              height: 54,
+
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(
+                  alpha: 0.10,
+                ),
+
+                borderRadius:
+                    BorderRadius.circular(17),
+              ),
+
+              child: const Icon(
+                Icons.schedule_rounded,
+                color: AppColors.primary,
+                size: 26,
+              ),
+            ),
+
+            const SizedBox(width: 15),
+
+            Expanded(
+              child: Column(
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Store Hours',
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+
+                  const SizedBox(height: 4),
+
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 11,
+                      color: Colors.grey,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: Colors.grey,
+              size: 22,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // STORE HOURS EDITOR (bottom sheet)
+  // ============================================================
+
+  Future<void> _showHoursEditor() async {
+    var opening = _parseTime(openingTime);
+    var closing = _parseTime(closingTime);
+    var days = List<int>.from(closedDays);
+    var isSaving = false;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(28),
+        ),
+      ),
+
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (sheetContext, setSheetState) {
+            return Padding(
+              padding: EdgeInsets.fromLTRB(
+                20,
+                20,
+                20,
+                20 +
+                    MediaQuery.of(sheetContext)
+                        .viewInsets
+                        .bottom,
+              ),
+
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Store Hours',
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+
+                  const SizedBox(height: 6),
+
+                  const Text(
+                    'Customers see these hours on your restaurant page.',
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 11,
+                      color: Colors.grey,
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  _hoursTimeRow(
+                    label: 'Opens',
+                    time: opening,
+                    onTap: () async {
+                      final picked =
+                          await showTimePicker(
+                        context: sheetContext,
+                        initialTime: opening ??
+                            const TimeOfDay(
+                              hour: 10,
+                              minute: 0,
+                            ),
+                      );
+
+                      if (picked != null) {
+                        setSheetState(() {
+                          opening = picked;
+                        });
+                      }
+                    },
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  _hoursTimeRow(
+                    label: 'Closes',
+                    time: closing,
+                    onTap: () async {
+                      final picked =
+                          await showTimePicker(
+                        context: sheetContext,
+                        initialTime: closing ??
+                            const TimeOfDay(
+                              hour: 22,
+                              minute: 0,
+                            ),
+                      );
+
+                      if (picked != null) {
+                        setSheetState(() {
+                          closing = picked;
+                        });
+                      }
+                    },
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  const Text(
+                    'Closed days',
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children:
+                        List.generate(7, (i) {
+                      final selected =
+                          days.contains(i);
+
+                      return GestureDetector(
+                        onTap: () {
+                          setSheetState(() {
+                            if (selected) {
+                              days.remove(i);
+                            } else {
+                              days.add(i);
+                            }
+                          });
+                        },
+
+                        child: Container(
+                          width: 42,
+                          height: 42,
+                          alignment:
+                              Alignment.center,
+                          decoration:
+                              BoxDecoration(
+                            color: selected
+                                ? AppColors.primary
+                                : Colors
+                                    .grey.shade100,
+                            borderRadius:
+                                BorderRadius
+                                    .circular(13),
+                          ),
+                          child: Text(
+                            _dayLetters[i],
+                            style: TextStyle(
+                              fontFamily:
+                                  'Poppins',
+                              fontSize: 12,
+                              fontWeight:
+                                  FontWeight
+                                      .w700,
+                              color: selected
+                                  ? Colors.white
+                                  : Colors.grey,
+                            ),
+                          ),
+                        ),
+                      );
+                    }),
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton(
+                      onPressed: isSaving
+                          ? null
+                          : () async {
+                              final onlyOne =
+                                  (opening == null) !=
+                                      (closing ==
+                                          null);
+
+                              if (onlyOne) {
+                                _hoursError(
+                                    'Set both opening and closing time');
+                                return;
+                              }
+
+                              final invalidRange =
+                                  opening !=
+                                          null &&
+                                      closing !=
+                                          null &&
+                                      (closing!.hour <
+                                              opening!
+                                                  .hour ||
+                                          (closing!.hour ==
+                                                  opening!
+                                                      .hour &&
+                                              closing!
+                                                      .minute <=
+                                                  opening!
+                                                      .minute));
+
+                              if (invalidRange) {
+                                _hoursError(
+                                    'Closing time must be after opening time');
+                                return;
+                              }
+
+                              setSheetState(() {
+                                isSaving = true;
+                              });
+
+                              try {
+                                await PartnerRestaurantService
+                                    .updateStoreHours(
+                                  openingTime: opening ==
+                                          null
+                                      ? null
+                                      : _formatTimeOfDay(
+                                          opening!),
+                                  closingTime:
+                                      closing == null
+                                          ? null
+                                          : _formatTimeOfDay(
+                                              closing!),
+                                  closedDays: days,
+                                );
+
+                                if (!mounted) {
+                                  return;
+                                }
+
+                                setState(() {
+                                  openingTime = opening ==
+                                          null
+                                      ? null
+                                      : _formatTimeOfDay(
+                                          opening!);
+                                  closingTime =
+                                      closing == null
+                                          ? null
+                                          : _formatTimeOfDay(
+                                              closing!);
+                                  closedDays =
+                                      List<int>.from(
+                                          days);
+                                });
+
+                                if (sheetContext
+                                    .mounted) {
+                                  Navigator.of(
+                                          sheetContext)
+                                      .pop();
+                                }
+
+                                if (!mounted) {
+                                  return;
+                                }
+
+                                ScaffoldMessenger
+                                        .of(context)
+                                    .showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                        'Store hours updated'),
+                                  ),
+                                );
+                              } catch (e) {
+                                debugPrint(
+                                    'HOURS SAVE ERROR: $e');
+
+                                setSheetState(() {
+                                  isSaving = false;
+                                });
+
+                                if (!mounted) {
+                                  return;
+                                }
+
+                                _hoursError(
+                                    'Could not save store hours');
+                              }
+                            },
+
+                      style:
+                          ElevatedButton.styleFrom(
+                        backgroundColor:
+                            AppColors.primary,
+                        foregroundColor:
+                            Colors.white,
+                        shape:
+                            RoundedRectangleBorder(
+                          borderRadius:
+                              BorderRadius
+                                  .circular(16),
+                        ),
+                      ),
+
+                      child: isSaving
+                          ? const SizedBox(
+                              width: 22,
+                              height: 22,
+                              child:
+                                  CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                color:
+                                    Colors.white,
+                              ),
+                            )
+                          : const Text(
+                              'Save Hours',
+                              style: TextStyle(
+                                fontFamily:
+                                    'Poppins',
+                                fontSize: 14,
+                                fontWeight:
+                                    FontWeight
+                                        .w700,
+                              ),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // ============================================================
+  // HOURS HELPERS
+  // ============================================================
+
+  static const List<String> _dayLetters = [
+    'S',
+    'M',
+    'T',
+    'W',
+    'T',
+    'F',
+    'S',
+  ];
+
+  static const List<String> _dayNames = [
+    'Sun',
+    'Mon',
+    'Tue',
+    'Wed',
+    'Thu',
+    'Fri',
+    'Sat',
+  ];
+
+  void _hoursError(String message) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  TimeOfDay? _parseTime(String? value) {
+    if (value == null) return null;
+
+    final parts = value.split(':');
+
+    if (parts.length < 2) return null;
+
+    final hour = int.tryParse(parts[0]);
+    final minute = int.tryParse(parts[1]);
+
+    if (hour == null || minute == null) {
+      return null;
+    }
+
+    return TimeOfDay(
+      hour: hour,
+      minute: minute,
+    );
+  }
+
+  String _formatTimeOfDay(TimeOfDay t) =>
+      '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+
+  String _formatTimeOfDayDisplay(TimeOfDay t) {
+    final hour12 =
+        t.hourOfPeriod == 0 ? 12 : t.hourOfPeriod;
+
+    final minute =
+        t.minute.toString().padLeft(2, '0');
+
+    final period =
+        t.period == DayPeriod.am ? 'AM' : 'PM';
+
+    return '$hour12:$minute $period';
+  }
+
+  String _formatDisplay(String value) {
+    final t = _parseTime(value);
+
+    return t == null
+        ? value
+        : _formatTimeOfDayDisplay(t);
+  }
+
+  String _closedDaysLabel() {
+    final names = closedDays
+        .where((d) => d >= 0 && d < 7)
+        .map((d) => _dayNames[d])
+        .toList()
+      ..sort();
+
+    return names.join(', ');
+  }
+
+  Widget _hoursTimeRow({
+    required String label,
+    required TimeOfDay? time,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
+
+        decoration: BoxDecoration(
+          color: Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: Colors.grey.shade200,
+          ),
+        ),
+
+        child: Row(
+          children: [
+            Icon(
+              Icons.access_time_rounded,
+              size: 20,
+              color: AppColors.primary,
+            ),
+
+            const SizedBox(width: 12),
+
+            Text(
+              label,
+              style: const TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+
+            const Spacer(),
+
+            Text(
+              time == null
+                  ? 'Not set'
+                  : _formatTimeOfDayDisplay(time),
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 13,
+                color: time == null
+                    ? Colors.grey
+                    : Colors.black87,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ],
