@@ -1,4 +1,8 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 
 import { supabase } from '../supabase';
 import { SocketGateway } from '../socket/socket.gateway';
@@ -149,6 +153,32 @@ export class DeliveryService {
     orderId: string,
     deliveryPartnerId: string,
   ) {
+    // ============================================================
+    // KYC GATE: only verified riders may accept deliveries
+    // (defense in depth - dispatch also filters, and the
+    // broadcast pool is closed here no matter the source)
+    // ============================================================
+
+    const { data: partner } = await supabase
+      .from('delivery_partners')
+      .select('id, kyc_status')
+      .eq('id', deliveryPartnerId)
+      .maybeSingle();
+
+    if (!partner) {
+      throw new BadRequestException(
+        'Delivery partner not found',
+      );
+    }
+
+    if (partner.kyc_status !== 'verified') {
+      throw new ForbiddenException(
+        partner.kyc_status === 'rejected'
+          ? 'Your KYC was rejected - please re-upload valid documents to continue'
+          : 'KYC verification pending - you can accept orders once your documents are approved',
+      );
+    }
+
     const { data: order, error: findError } = await supabase
       .from('orders')
       .select(`

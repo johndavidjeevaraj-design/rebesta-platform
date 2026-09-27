@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import '../active_delivery/active_delivery_screen.dart';
 import '../../core/constants/api_constants.dart';
@@ -242,12 +243,24 @@ if (completed == true) {
 
       if (!mounted) return;
 
-      _showMessage(
-        e.toString().replaceFirst(
-              'Exception: ',
-              '',
-            ),
-      );
+      var message =
+          e.toString().replaceFirst(
+                'Exception: ',
+                '',
+              );
+
+      // 4xx from the backend (e.g. the KYC gate) carries the
+      // real reason in response.data['message'].
+
+      if (e is DioException) {
+        final data = e.response?.data;
+
+        if (data is Map && data['message'] != null) {
+          message = data['message'].toString();
+        }
+      }
+
+      _showMessage(message);
     }
   }
 
