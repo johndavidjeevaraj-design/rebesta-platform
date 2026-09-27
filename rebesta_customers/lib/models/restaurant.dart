@@ -26,6 +26,12 @@ class Restaurant {
   final String? promoLabel;
   final String? category;
 
+  // Weekly schedule (null times = no schedule set)
+
+  final String? openingTime;
+  final String? closingTime;
+  final List<int> closedDays;
+
   Restaurant({
     required this.id,
     this.restaurantPartnerId,
@@ -44,6 +50,9 @@ class Restaurant {
     required this.isOpen,
     this.promoLabel,
     this.category,
+    this.openingTime,
+    this.closingTime,
+    this.closedDays = const [],
   });
 
   factory Restaurant.fromJson(
@@ -95,6 +104,20 @@ class Restaurant {
 
       category:
           json['category']?.toString(),
+
+      // Weekly schedule (absent for older records)
+
+      openingTime:
+          json['openingTime']?.toString(),
+
+      closingTime:
+          json['closingTime']?.toString(),
+
+      closedDays:
+          (json['closedDays'] as List?)
+                  ?.whereType<int>()
+                  .toList() ??
+              const [],
     );
   }
 }
