@@ -161,7 +161,8 @@ export class DispatchService implements OnModuleInit, OnModuleDestroy {
       }
 
       // --------------------------------------------------------
-      // 2. Online riders
+      // 2. Online riders with VERIFIED KYC
+      //    (unverified riders never receive personal offers)
       // --------------------------------------------------------
 
       const { data: partners, error: partnersError } =
@@ -174,7 +175,8 @@ export class DispatchService implements OnModuleInit, OnModuleDestroy {
             current_longitude,
             last_location_updated_at
           `)
-          .eq('is_online', true);
+          .eq('is_online', true)
+          .eq('kyc_status', 'verified');
 
       if (partnersError || !partners || partners.length === 0) {
         return false;
