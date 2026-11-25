@@ -215,3 +215,11 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 - [ ] Validate socket status names against DB schema/client tracking contract and add integration tests. Gateway rider-location handler should not be treated as end-to-end GPS tracking until a client contract uses it.
 - [ ] Available-orders endpoint still exposes customer name and full delivery address/coordinates to authenticated riders before KYC/offer eligibility; needs a verified privacy-minimized app contract before changing response.
 - No UI/design changes, DB migration, deployment, or test execution in this pass.
+
+
+## GPS REST input validation (2026-11-25)
+- [x] Added server-side DTO latitude/longitude numeric validation and geographic bounds (-90..90, -180..180), rejecting NaN and infinities.
+- [x] Added unit tests for valid boundaries/coordinates and out-of-range/non-finite values; execution remains unverified in this environment.
+- [ ] Verify rate limiting, tracking permission/consent, and active-order fan-out behavior in staging; current endpoint updates the rider's stored location and emits to customers on their active assigned orders.
+- [ ] Available-order feed still returns recipient details before rider eligibility/assignment; safe contract change requires app compatibility validation.
+- No UI/design changes, migrations or deployment.
