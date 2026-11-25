@@ -1,6 +1,4 @@
 import 'dart:async';
-import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../core/constants/api_constants.dart';
@@ -24,9 +22,6 @@ class DeliveryLocationService {
 
   Future<void> startTracking() async {
     if (_isTracking) {
-      debugPrint(
-        '📍 LOCATION TRACKING ALREADY RUNNING',
-      );
       return;
     }
 
@@ -89,17 +84,12 @@ class DeliveryLocationService {
         );
       },
       onError: (error) {
-        debugPrint(
-          '❌ LOCATION STREAM ERROR: $error',
-        );
+
       },
     );
 
     _isTracking = true;
 
-    debugPrint(
-      '🚴 DELIVERY LOCATION TRACKING STARTED',
-    );
   }
 
   // ============================================================
@@ -113,9 +103,6 @@ class DeliveryLocationService {
 
     _isTracking = false;
 
-    debugPrint(
-      '🛑 DELIVERY LOCATION TRACKING STOPPED',
-    );
   }
 
   // ============================================================
@@ -130,8 +117,7 @@ class DeliveryLocationService {
       final options =
           await DeliveryApiClient.authOptions();
 
-      final response =
-          await DeliveryApiClient.dio.post(
+      await DeliveryApiClient.dio.post(
         ApiConstants.updateLocation,
         data: {
           'latitude': latitude,
@@ -140,25 +126,11 @@ class DeliveryLocationService {
         options: options,
       );
 
-      debugPrint(
-        '✅ LOCATION UPDATE SUCCESS: '
-        '${response.statusCode}',
-      );
 
-      debugPrint(
-        'LOCATION RESPONSE: '
-        '${response.data}',
-      );
-    } on DioException catch (e) {
-      debugPrint(
-        '❌ LOCATION UPDATE FAILED: '
-        '${e.response?.statusCode}',
-      );
-
-    } catch (e) {
-      debugPrint(
-        '❌ LOCATION ERROR: $e',
-      );
+    } on DioException {
+      // Location updates are best-effort; avoid logging response bodies.
+    } catch (_) {
+      // Avoid logging sensitive location or exception payloads.
     }
   }
 }
