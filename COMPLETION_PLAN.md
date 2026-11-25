@@ -43,7 +43,7 @@ Benchmark: core functional capabilities of major food delivery platforms; not co
 - [x] Dispatch re-checks order state after inserting a personal offer and supersedes it instead of notifying a rider if the order was accepted concurrently.
 - [ ] Add staging concurrency tests for simultaneous rider acceptance, dispatch insert vs acceptance, and one-pending-offer constraints.
 - [x] COD checkout now explicitly carries `delivery` vs `pickup`; pickup skips address lookup and delivery-fee calculation and records `order_type='pickup'` without changing the existing UI.
-- [x] Online payment attempts now persist `order_type`; a follow-up migration carries it into the paid order so online pickup remains pickup instead of silently defaulting to delivery. Existing attempts default to delivery for compatibility.
+- [x] Online payment attempts now persist `order_type`; a follow-up migration carries it into the paid order so online pickup remains pickup instead of silently defaulting to delivery. Legacy attempts are backfilled from the prior checkout contract (null address means pickup); new attempts default to delivery.
 - [x] Restaurant acceptance now blocks pending/failed Razorpay-backed orders while preserving legitimate COD acceptance; unit tests cover COD, captured online, unpaid online, and already-accepted states.
 - [ ] Apply `20261125190000_preserve_paid_order_type.sql` in staging before deploying the updated payment service; verify pickup and delivery conversion end-to-end.
 - [x] Dispatch now also prevents a rider from holding simultaneous pending offers for different orders, with candidate filtering plus a database unique index and retry-on-conflict.
