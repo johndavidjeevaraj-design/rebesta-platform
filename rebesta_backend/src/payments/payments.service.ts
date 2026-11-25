@@ -29,7 +29,7 @@ export class PaymentsService {
   // CREATE CHECKOUT PAYMENT
   //
   // Validates cart, calculates price server-side, creates a
-  // Razorpay order, and stores a payment_attempts row.
+  // Cashfree order, and stores a payment_attempts row.
   //
   // IMPORTANT: this does NOT create a row in `orders`. No real
   // order exists until payment is verified.
@@ -270,6 +270,10 @@ if (!Number.isFinite(totalAmount) || totalAmount <= 0 || !Number.isSafeInteger(M
     if (customerError || !customer?.mobile) {
       throw new BadRequestException('A verified customer phone number is required for online payment');
     }
+    const customerPhone = String(customer.mobile).replace(/\\D/g, '');
+    if (!/^\\d{10,15}$/.test(customerPhone)) {
+      throw new BadRequestException('A valid customer phone number is required for Cashfree payment');
+    }
 
     const cashfreeOrderId = `rb_${crypto.randomUUID().replace(/-/g, '')}`;
     const { data: attempt, error: insertError } = await supabase
@@ -305,7 +309,7 @@ if (!Number.isFinite(totalAmount) || totalAmount <= 0 || !Number.isSafeInteger(M
           customer_id: customerId,
           ...(customer.name ? { customer_name: customer.name } : {}),
           ...(customer.email ? { customer_email: customer.email } : {}),
-          customer_phone: String(customer.mobile).replace(/\\D/g, ''),
+          customer_phone: customerPhone,
         },
         order_note: isPickup ? 'Food pickup order' : 'Food delivery order',
       };
