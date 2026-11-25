@@ -749,6 +749,21 @@ export class DeliveryService {
     deliveryPartnerId: string,
     isOnline: boolean,
   ) {
+    if (isOnline) {
+      const { data: rider, error: riderError } = await supabase
+        .from('delivery_partners')
+        .select('id, kyc_status, status')
+        .eq('id', deliveryPartnerId)
+        .maybeSingle();
+
+      if (riderError || !rider) {
+        throw new BadRequestException('Unable to verify delivery partner');
+      }
+      if (rider.kyc_status !== 'verified' || rider.status !== 'approved') {
+        throw new ForbiddenException('Account approval and KYC verification are required to go online');
+      }
+    }
+
     const { data, error } = await supabase
       .from('delivery_partners')
       .update({
@@ -756,20 +771,16 @@ export class DeliveryService {
         is_available: isOnline,
       })
       .eq('id', deliveryPartnerId)
-      .select()
+      .select('id, name, email, mobile, status, kyc_status, is_online, is_available')
       .single();
 
     if (error) {
-      throw new BadRequestException(error.message);
+      throw new BadRequestException('Unable to update delivery availability');
     }
 
     return {
       success: true,
-
-      message: isOnline
-        ? 'You are now online'
-        : 'You are now offline',
-
+      message: isOnline ? 'You are now online' : 'You are now offline',
       partner: data,
     };
   }
