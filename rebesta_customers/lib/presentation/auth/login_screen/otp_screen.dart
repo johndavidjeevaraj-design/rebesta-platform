@@ -332,6 +332,7 @@ Future<void> _verifyOtp() async {
       MaterialPageRoute(
         builder: (_) => NameScreen(
           phone: widget.phone,
+          verificationToken: authService.lastVerificationToken!,
         ),
       ),
     );
