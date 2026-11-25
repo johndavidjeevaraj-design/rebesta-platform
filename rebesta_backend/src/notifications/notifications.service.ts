@@ -83,7 +83,7 @@ export class NotificationsService {
 
     if (error) {
       throw new BadRequestException(
-        error.message,
+        'Notification operation failed',
       );
     }
 
@@ -119,7 +119,7 @@ export class NotificationsService {
 
     if (error) {
       throw new BadRequestException(
-        error.message,
+        'Notification operation failed',
       );
     }
 
@@ -149,7 +149,7 @@ export class NotificationsService {
 
     if (error) {
       throw new BadRequestException(
-        error.message,
+        'Notification operation failed',
       );
     }
 
