@@ -593,16 +593,17 @@ async webhook(
   signature: string,
   rawBody: Buffer,
 ) {
-  if (!signature || !rawBody) {
+  const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
+  if (!signature || !rawBody || !webhookSecret) {
     throw new BadRequestException(
-      'Missing webhook signature',
+      'Webhook signature or secret is missing',
     );
   }
 
   const expectedSignature = crypto
     .createHmac(
       'sha256',
-      process.env.RAZORPAY_WEBHOOK_SECRET!,
+      webhookSecret,
     )
     .update(rawBody)
     .digest('hex');
