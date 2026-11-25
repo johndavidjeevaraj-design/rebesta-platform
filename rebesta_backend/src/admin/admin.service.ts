@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { supabase } from '../supabase';
 import { StorageService } from '../storage/storage.service';
 import { PaymentsService } from '../payments/payments.service';
@@ -964,18 +964,48 @@ async getOrder(id: string) {
 // Cancel Order
 // ==========================
 async cancelOrder(id: string) {
+  // Admin cancellation is deliberately limited to orders that have not
+  // entered restaurant preparation/dispatch. Paid orders must be refunded
+  // through the provider-backed refund flow before they can be cancelled.
+  const { data: currentOrder, error: lookupError } = await supabase
+    .from('orders')
+    .select('id, order_status, payment_status')
+    .eq('id', id)
+    .maybeSingle();
 
+  if (lookupError) {
+    throw new Error(lookupError.message);
+  }
+
+  if (!currentOrder) {
+    throw new NotFoundException('Order not found');
+  }
+
+  if (!isAdminCancellableOrder(currentOrder.order_status, currentOrder.payment_status)) {
+    throw new ConflictException(
+      'Only pending orders with no outstanding payment can be cancelled. Refund paid orders first and do not cancel orders already accepted by the restaurant.',
+    );
+  }
+
+  // Re-check both states in the UPDATE so a concurrent restaurant/payment
+  // transition cannot be overwritten by this admin action.
   const { data, error } = await supabase
     .from('orders')
-    .update({
-      order_status: 'cancelled',
-    })
+    .update({ order_status: 'cancelled' })
     .eq('id', id)
+    .eq('order_status', 'pending')
+    .in('payment_status', ['pending', 'failed', 'refunded'])
     .select()
-    .single();
+    .maybeSingle();
 
   if (error) {
     throw new Error(error.message);
+  }
+
+  if (!data) {
+    throw new ConflictException(
+      'Order state changed while cancellation was being processed. Refresh and review the order.',
+    );
   }
 
   return {
@@ -983,7 +1013,6 @@ async cancelOrder(id: string) {
     message: 'Order cancelled successfully',
     order: data,
   };
-
 }
 // ==========================
 // Refund Order
@@ -1153,4 +1182,16 @@ orders?.forEach(order => {
   };
 
 }
+}
+
+// Keep admin cancellation conservative: payment must be settled as unpaid,
+// failed, or already refunded, and the restaurant must not have accepted it.
+export function isAdminCancellableOrder(
+  orderStatus: string,
+  paymentStatus: string,
+): boolean {
+  return (
+    orderStatus === 'pending' &&
+    ['pending', 'failed', 'refunded'].includes(paymentStatus)
+  );
 }
