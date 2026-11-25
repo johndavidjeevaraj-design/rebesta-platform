@@ -270,8 +270,8 @@ if (!Number.isFinite(totalAmount) || totalAmount <= 0 || !Number.isSafeInteger(M
     if (customerError || !customer?.mobile) {
       throw new BadRequestException('A verified customer phone number is required for online payment');
     }
-    const customerPhone = String(customer.mobile).replace(/\\D/g, '');
-    if (!/^\\d{10,15}$/.test(customerPhone)) {
+    const customerPhone = String(customer.mobile).replace(/\D/g, '');
+    if (!/^\d{10,15}$/.test(customerPhone)) {
       throw new BadRequestException('A valid customer phone number is required for Cashfree payment');
     }
 
