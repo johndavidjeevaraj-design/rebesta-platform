@@ -386,9 +386,7 @@ Future<bool> _runAction({
       '$action STATUS: ${response.statusCode}',
     );
 
-    debugPrint(
-      '$action RESPONSE: ${response.data}',
-    );
+
 
     final data = response.data;
 
@@ -629,10 +627,7 @@ Future<void> _cancelDelivery() async {
         '${response.statusCode}',
       );
 
-      debugPrint(
-        'VERIFY OTP RESPONSE: '
-        '${response.data}',
-      );
+
 
       final data = response.data;
 
