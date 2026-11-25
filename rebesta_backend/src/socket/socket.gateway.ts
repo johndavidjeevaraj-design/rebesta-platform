@@ -477,12 +477,7 @@ sendOrderUpdate(
 ) {
   const room = `order_${orderId}`;
 
-  console.log('====================================');
-  console.log('📡 LIVE ORDER STATUS');
-  console.log('Room:', room);
-  console.log('Order ID:', orderId);
-  console.log('Status:', status);
-  console.log('====================================');
+  // Emit status without logging order identifiers or payloads.
 
   this.server.to(room).emit(
     'order-status',
