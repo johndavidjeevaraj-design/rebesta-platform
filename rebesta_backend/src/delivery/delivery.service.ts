@@ -719,7 +719,7 @@ export class DeliveryService {
     });
 
     if (error || !data) {
-      throw new BadRequestException(error?.message ?? 'Delivery completion failed');
+      throw new BadRequestException('Delivery completion failed; verify the order status and retry');
     }
 
     const order = data.order;
@@ -958,7 +958,7 @@ export class DeliveryService {
       .single();
 
     if (error) {
-      throw new BadRequestException(error.message);
+      throw new BadRequestException('Unable to load delivery wallet');
     }
 
     return {
@@ -990,7 +990,7 @@ export class DeliveryService {
       .limit(200);
 
     if (error) {
-      throw new BadRequestException(error.message);
+      throw new BadRequestException('Unable to load delivery earnings');
     }
 
     // ============================================================
