@@ -162,3 +162,13 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 - [ ] Verify webhook payload/signature/header configuration and event delivery behavior against Cashfree sandbox.
 - [ ] Validate the Cashfree SQL conversion against schema: compare order metadata (coupon/subtotal/tax fields, if present), defaults, and constraints. The conversion currently inserts the same core fields as the original conversion but may omit ancillary fields.
 - [ ] Add integration tests for webhook ordering (failure followed by success), duplicate success events, and simultaneous verify/webhook conversion; tests remain unexecuted.
+
+
+## Cashfree conversion/concurrency audit (2026-11-25)
+- Reviewed the Cashfree verification, reconciliation, webhook, refund and conversion RPC paths alongside the earlier Razorpay conversion RPC and order-type migration.
+- The Cashfree conversion locks its payment_attempt row and checks an existing linked order, then checks for an order matching the Cashfree order ID; concurrent calls for the same attempt are serialized by the row lock. The provider-specific unique indexes provide additional collision protection, but staging race tests remain required.
+- The Cashfree conversion RPC validates snapshot JSON after inserting the order row; PostgreSQL transaction rollback should undo the order insert on an exception, but moving validation ahead of insert would improve clarity and should be considered in a follow-up migration.
+- The conversion persists discount, delivery fee and total, order type, provider IDs and order items. The attempt also stores subtotal and coupon code, but the reviewed conversion does not copy those into the order; confirm the live orders schema and reporting contract before deciding whether additional order fields are needed.
+- The verification and reconciliation paths query Cashfree's authoritative payments list and require a successful payment matching the expected order, amount and INR currency. A success webhook triggers this same authoritative lookup instead of trusting its payload alone.
+- Failure webhooks intentionally do not mutate attempt state; reconciliation handles terminal failure/expiry after checking provider state.
+- **Not verified:** live schema/types/constraints/grants, RPC race behavior under simultaneous webhook + verify + reconcile, malformed snapshot rollback, duplicate provider payment IDs, sandbox event ordering, and integration tests. No migration applied and no deployment performed.
