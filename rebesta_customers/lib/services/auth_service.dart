@@ -82,6 +82,8 @@ class AuthService {
     required String otp,
     required String sessionId,
   }) async {
+    // Avoid reusing profile-completion proof from an earlier OTP attempt.
+    lastVerificationToken = null;
     final response = await _dio.post(
       "/customer-auth/verify-otp",
       data: {
@@ -247,11 +249,7 @@ class AuthService {
 
     final token = prefs.getString("token");
 
-    print("=================================");
-  print("SAVED TOKEN: $token");
-  print("=================================");
-
-  return token != null && token.isNotEmpty;
+    return token != null && token.isNotEmpty;
   }
 
   // ============================================================
