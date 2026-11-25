@@ -342,6 +342,22 @@ if (!Number.isFinite(totalAmount) || totalAmount <= 0 || !Number.isSafeInteger(M
   // VERIFY PAYMENT (client-triggered path)
   // ============================================================
 
+  private assertCapturedPaymentMatchesAttempt(
+    payment: { order_id?: string; status?: string; amount?: number; currency?: string },
+    attempt: { razorpay_order_id: string; total_amount: number | string },
+  ) {
+    const expectedAmount = Math.round(Number(attempt.total_amount) * 100);
+    if (
+      payment.order_id !== attempt.razorpay_order_id ||
+      payment.status !== 'captured' ||
+      payment.currency !== 'INR' ||
+      !Number.isSafeInteger(expectedAmount) ||
+      payment.amount !== expectedAmount
+    ) {
+      throw new BadRequestException('Captured payment does not match the expected order amount and currency');
+    }
+  }
+
   async verifyPayment(
     customerId: string,
     dto: VerifyPaymentDto,
@@ -380,23 +396,7 @@ if (!Number.isFinite(totalAmount) || totalAmount <= 0 || !Number.isSafeInteger(M
 // PAYMENT MUST BELONG TO THIS RAZORPAY ORDER
 // ----------------------------------------------------------
 
-if (
-  razorpayPayment.order_id !== dto.razorpayOrderId
-) {
-  throw new BadRequestException(
-    'Payment does not belong to this order',
-  );
-}
-
-// ----------------------------------------------------------
-// PAYMENT MUST BE CAPTURED
-// ----------------------------------------------------------
-
-if (razorpayPayment.status !== 'captured') {
-  throw new BadRequestException(
-    `Payment is not captured: ${razorpayPayment.status}`,
-  );
-}
+this.assertCapturedPaymentMatchesAttempt(razorpayPayment, attempt);
 
 // ----------------------------------------------------------
 // VERIFY RAZORPAY CHECKOUT SIGNATURE
@@ -500,6 +500,7 @@ return this.createOrderFromAttempt(
       );
 
       if (capturedPayment) {
+        this.assertCapturedPaymentMatchesAttempt(capturedPayment, attempt);
         const result = await this.createOrderFromAttempt(
           attempt,
           capturedPayment.id,
@@ -683,9 +684,12 @@ async webhook(
         .maybeSingle();
 
       if (attempt && payment.status === 'captured') {
-        await this.createOrderFromAttempt(attempt, payment.id, null).catch(
-          (e) => console.error('Webhook order creation failed:', e),
-        );
+        try {
+          this.assertCapturedPaymentMatchesAttempt(payment, attempt);
+          await this.createOrderFromAttempt(attempt, payment.id, null);
+        } catch (e) {
+          console.error('Webhook order creation failed:', e);
+        }
       }
     }
 
