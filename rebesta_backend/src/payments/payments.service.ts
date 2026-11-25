@@ -630,6 +630,15 @@ async webhook(
     );
   }
 
+  if (
+    !body ||
+    typeof body !== 'object' ||
+    typeof body.event !== 'string' ||
+    body.event.length === 0
+  ) {
+    throw new BadRequestException('Invalid webhook payload');
+  }
+
   const event = body.event;
 
   // existing webhook logic...
