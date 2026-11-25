@@ -637,15 +637,10 @@ if (!Number.isFinite(totalAmount) || totalAmount <= 0 || !Number.isSafeInteger(M
         if (payment) await this.createOrderFromCashfreeAttempt(attempt, String(payment.cf_payment_id));
       }
     } else if (eventType === 'PAYMENT_FAILED_WEBHOOK') {
-      const orderId = data.order?.order_id;
-      if (typeof orderId === 'string') {
-        await supabase.from('payment_attempts')
-          .update({ status: 'failed' })
-          .eq('cashfree_order_id', orderId)
-          .eq('payment_provider', 'cashfree')
-          .eq('status', 'created')
-          .is('order_id', null);
-      }
+      // Failure webhooks are informational only: payment attempts can be retried,
+      // and webhook delivery may be out of order. Do not terminally mark the
+      // local attempt from this event alone; authoritative reconciliation queries
+      // Cashfree's current order/payment state before changing local state.
     } else if (eventType === 'REFUND_STATUS_WEBHOOK') {
       const orderId = data.refund?.order_id;
       const refundId = data.refund?.refund_id;
