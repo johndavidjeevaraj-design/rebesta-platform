@@ -359,3 +359,17 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 - [!] OTP verify/send and profile completion rely on global in-memory throttling (distributed rate limiting is still pending); confirm provider-session reuse behavior and resend/verification abuse limits under staging.
 - [ ] Verify mobile-number normalization/uniqueness, OTP replay, token replay/expiry, blocked account behavior, legacy password account compatibility, profile mutation DTO validation, and duplicate profile creation under concurrency. Tests not executed.
 - No UI changes, migrations, deployment or merge.
+
+
+## Admin security review (2026-11-25; runtime verification pending)
+- [x] Admin controller is guarded at controller level with AdminGuard for all routes; guard fails closed without configured key and compares equal-length key buffers timing-safely.
+- [x] Admin payout endpoint requires payout reference DTO validation; payout is executed through transactional payout RPC reviewed earlier.
+- [x] Admin order cancellation conservatively limits cancellation to pending orders with payment pending/failed/refunded and repeats status predicates in update to reduce races.
+- [x] Restaurant approval/rejection/block/unblock use constrained conditional state updates for the restaurant transition paths reviewed.
+- [x] Sanitized admin service database errors, including payout RPC error details.
+- [!] Single shared ADMIN_API_KEY is broad authorization: all admin routes (customers, order details, KYC, payout, refunds, partner blocking) share same privileges; lacks distinct identity, role/permission controls, key rotation lifecycle, and per-action audit log. High-priority production risk.
+- [!] Admin service returns substantial customer/partner/order PII and sensitive profile fields in detail/list operations. Restrict admin access further and audit minimization/retention.
+- [!] Block/unblock rider operations currently update availability fields without a distinct account-status/blocked flag in reviewed service paths; ensure rider auth/dispatch logic reliably treats blocked accounts as disabled.
+- [!] Admin dashboard/analytics aggregations appear to include orders without consistent paid/refund/COD reconciliation filters; financial definitions require review.
+- [ ] Test unauthorized access to every admin route, key rotation, payout/refund restrictions, state-transition races, blocked rider JWT/socket/feed behavior, and PII exposure. Tests not executed.
+- No UI changes, deployment, merge or migrations.
