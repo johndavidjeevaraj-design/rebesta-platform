@@ -487,7 +487,7 @@ if (!Number.isFinite(totalAmount) || totalAmount <= 0 || !Number.isSafeInteger(M
       );
       return { success: true, state: 'confirmed', order: result.order };
     }
-    const terminalFailureStatuses = ['FAILED', 'USER_DROPPED', 'CANCELLED'];
+    const terminalFailureStatuses = ['FAILED', 'USER_DROPPED', 'CANCELLED', 'VOID'];
     const allAttemptsFailed = payments.length > 0 &&
       payments.every((item: any) => terminalFailureStatuses.includes(String(item.payment_status).toUpperCase()));
 
