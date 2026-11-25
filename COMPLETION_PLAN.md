@@ -373,3 +373,14 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 - [!] Admin dashboard/analytics aggregations appear to include orders without consistent paid/refund/COD reconciliation filters; financial definitions require review.
 - [ ] Test unauthorized access to every admin route, key rotation, payout/refund restrictions, state-transition races, blocked rider JWT/socket/feed behavior, and PII exposure. Tests not executed.
 - No UI changes, deployment, merge or migrations.
+
+
+## Database/RLS/schema audit (2026-11-25; migration execution/live verification pending)
+- [x] Reviewed RLS migration inventory and the public-schema lockdown migration: enables RLS across public tables and revokes table/sequence privileges from anon/authenticated roles.
+- [x] Reviewed Cashfree conversion RPC grant restriction: revoke PUBLIC/anon/authenticated and grant execution only to service_role; RPC locks payment attempt and creates order/items in transaction.
+- [!] RLS lockdown is migration content only; not confirmed applied to the actual Supabase project. Verify table coverage, policies, grants, storage policies, and service-role connectivity live.
+- [!] Default privileges for newly created public tables/sequences and storage bucket policy coverage need explicit audit; table/sequence REVOKE on current tables alone does not establish future defaults.
+- [!] SECURITY DEFINER RPCs reviewed in migrations commonly use SET search_path = public. Inspect every function for object qualification/search-path hardening and verify PUBLIC execute revocation/grants for each function.
+- [!] Supabase client uses service-role key; privileged API access therefore depends heavily on backend guards, secrets, and endpoint authorization. Key must never appear in client builds or logs.
+- [ ] Live SQL verification: all public tables RLS enabled; policies reviewed; anon/authenticated privileges absent; function execute grants scoped; storage bucket permissions audited; tests using direct anon REST requests. Not executed.
+- No migration applied, deployment, merge or UI change.
