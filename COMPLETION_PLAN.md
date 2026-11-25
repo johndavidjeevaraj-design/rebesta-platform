@@ -299,3 +299,9 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 - [x] Validate delivery completion order ID as UUID and OTP as 4–8 numeric digits at DTO boundary.
 - [x] Rate limit authenticated delivery completion OTP endpoint to 5 attempts/minute per throttler key.
 - [ ] Validate expected OTP format against database function and test in staging; test suites not executed.
+
+
+## Rider order-state error sanitization (2026-11-25)
+- [x] Sanitized database error details returned by rider order lifecycle transitions (arrival, pickup, cancellation/out-for-delivery guarded updates) to avoid leaking internal database diagnostics.
+- [x] Existing lifecycle transitions use rider/order-scoped and status-conditional updates; concurrent state change checks retained where present.
+- [ ] Validate lifecycle and retry behavior in staging; tests not executed.
