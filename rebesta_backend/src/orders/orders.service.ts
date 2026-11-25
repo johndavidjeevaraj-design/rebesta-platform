@@ -557,7 +557,7 @@ try {
     .single();
 
   if (error || !order) {
-    console.error('TRACK ORDER ERROR:', error);
+    // Avoid logging order/customer-specific details here.
     throw new Error('Order not found');
   }
 
@@ -584,20 +584,13 @@ try {
       .maybeSingle();
 
     if (addressError) {
-      console.error(
-        'TRACK ADDRESS ERROR:',
-        addressError,
-      );
+      // Address lookup failures are handled without logging customer data.
     }
 
     address = addressData;
   }
 
-  console.log('====================================');
-  console.log('📍 TRACKING DESTINATION');
-  console.log('Address ID:', order.address_id);
-  console.log('Destination:', address);
-  console.log('====================================');
+  // Destination data is deliberately not logged.
 
   // ==========================================================
   // RIDER
@@ -608,10 +601,7 @@ try {
       ? order.delivery_partners[0]
       : order.delivery_partners;
 
-  console.log('====================================');
-  console.log('🚴 TRACKING RIDER');
-  console.log('Rider:', rider);
-  console.log('====================================');
+  // Rider identity and location data are deliberately not logged.
 
   // ==========================================================
   // ETA / ROAD ROUTE
@@ -628,19 +618,7 @@ try {
     address.longitude != null
   ) {
     try {
-      console.log('====================================');
-      console.log('🛣️ CALCULATING RIDER → CUSTOMER ROUTE');
-      console.log(
-        'Rider:',
-        rider.current_latitude,
-        rider.current_longitude,
-      );
-      console.log(
-        'Customer:',
-        address.latitude,
-        address.longitude,
-      );
-      console.log('====================================');
+      // Route calculation uses coordinates without logging them.
 
       eta = await this.mapsService.getETA(
         Number(rider.current_latitude),
@@ -649,24 +627,14 @@ try {
         Number(address.longitude),
       );
 
-      console.log('====================================');
-      console.log('✅ ROAD ROUTE RESULT');
-      console.log('ETA:', eta);
-      console.log('====================================');
+      // ETA details are not logged.
     } catch (error) {
-      console.error(
-        'ETA calculation failed:',
-        error,
-      );
+      // Do not log provider errors that may contain location context.
 
       eta = null;
     }
   } else {
-    console.log('====================================');
-    console.log('⚠️ CANNOT CALCULATE ROUTE');
-    console.log('Rider:', rider);
-    console.log('Address:', address);
-    console.log('====================================');
+    // Missing tracking inputs are handled without logging PII.
   }
 
   // ==========================================================
