@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:razorpay_flutter/razorpay_flutter.dart';
+import 'package:flutter_cashfree_pg_sdk/api/cfpayment/cfwebcheckoutpayment.dart';
+import 'package:flutter_cashfree_pg_sdk/api/cfpaymentgateway/cfpaymentgatewayservice.dart';
+import 'package:flutter_cashfree_pg_sdk/api/cfsession/cfsession.dart';
+import 'package:flutter_cashfree_pg_sdk/utils/cfenums.dart';
+import 'package:flutter_cashfree_pg_sdk/utils/cfexceptions.dart';
+import 'package:flutter_cashfree_pg_sdk/api/cferrorresponse/cferrorresponse.dart';
 
 import '../../models/address.dart';
 import '../../models/cart_item.dart';
@@ -89,7 +94,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   String? _currentOrderId;
 
-  late Razorpay _razorpay;
+  late CFPaymentGatewayService _cashfree;
 
   // ============================================================
   // GET TOTAL
@@ -115,21 +120,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   void initState() {
     super.initState();
 
-    _razorpay = Razorpay();
-
-    _razorpay.on(
-      Razorpay.EVENT_PAYMENT_SUCCESS,
-      _handlePaymentSuccess,
-    );
-
-    _razorpay.on(
-      Razorpay.EVENT_PAYMENT_ERROR,
-      _handlePaymentError,
-    );
-
-    _razorpay.on(
-      Razorpay.EVENT_EXTERNAL_WALLET,
-      _handleExternalWallet,
+    _cashfree = CFPaymentGatewayService();
+    _cashfree.setCallback(
+      _handleCashfreePaymentVerify,
+      _handleCashfreePaymentError,
     );
 
     _loadCart();
@@ -143,7 +137,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   @override
   void dispose() {
-    _razorpay.clear();
     super.dispose();
   }
 
@@ -706,119 +699,69 @@ Future<void> _changeQuantity(int index, int delta) async {
   Future<void> _placeOnlineOrder() async {
     if (_processingPayment) return;
 
-    if (_checkoutType == CheckoutType.delivery) {
-      if (_selectedAddress == null) {
-        _showMessage('Please select a delivery address');
-        return;
-      }
+    if (_checkoutType == CheckoutType.delivery && _selectedAddress == null) {
+      _showMessage('Please select a delivery address');
+      return;
     }
-
     if (_items.isEmpty) {
       _showMessage('Your cart is empty');
       return;
     }
 
-    setState(() {
-      _processingPayment = true;
-    });
+    setState(() => _processingPayment = true);
 
     try {
-      debugPrint('================================');
-      debugPrint('CREATING CHECKOUT PAYMENT');
-      debugPrint('Restaurant: ${widget.restaurantPartnerId}');
-      debugPrint('Address: ${_selectedAddress?.id}');
-      debugPrint('================================');
+      final paymentResponse = await _paymentService.createCheckoutPayment(
+        addressId: _checkoutType == CheckoutType.delivery ? _selectedAddress?.id : null,
+        restaurantPartnerId: widget.restaurantPartnerId,
+        couponCode: _couponCode,
+        orderType: _checkoutType == CheckoutType.delivery ? 'delivery' : 'pickup',
+      );
 
-      final paymentResponse =
-    await _paymentService.createCheckoutPayment(
-  addressId: _checkoutType == CheckoutType.delivery
-      ? _selectedAddress?.id
-      : null,
-  restaurantPartnerId: widget.restaurantPartnerId,
-  couponCode: _couponCode,
-  orderType: _checkoutType == CheckoutType.delivery
-      ? 'delivery'
-      : 'pickup',
-);
-
-      debugPrint('PAYMENT ORDER RESPONSE: $paymentResponse');
-
-      final razorpayOrderId =
-          paymentResponse['orderId']?.toString();
-      final key = paymentResponse['key']?.toString();
+      final cashfreeOrderId = paymentResponse['orderId']?.toString();
+      final paymentSessionId = paymentResponse['paymentSessionId']?.toString();
       final amount = paymentResponse['amount'];
-      final currency =
-          paymentResponse['currency']?.toString() ?? 'INR';
+      final environment = paymentResponse['environment']?.toString();
 
-      final serverAmount = (amount as num).toDouble();
-      
+      if (cashfreeOrderId == null || cashfreeOrderId.isEmpty ||
+          paymentSessionId == null || paymentSessionId.isEmpty ||
+          amount is! num) {
+        throw Exception('Cashfree did not return a valid payment session');
+      }
 
       if (mounted) {
-  setState(() {
-    _serverTotal = serverAmount / 100;
-  });
-}
-
-debugPrint(
-  'SERVER PAYMENT AMOUNT: ₹$serverAmount',
-);
-
-      if (razorpayOrderId == null || razorpayOrderId.isEmpty) {
-        throw Exception('Unable to start payment. Please try again.');
+        setState(() => _serverTotal = amount.toDouble());
       }
 
-      if (key == null || key.isEmpty) {
-        throw Exception('Unable to start payment. Please try again.');
-      }
+      final cfEnvironment = environment == 'PRODUCTION'
+          ? CFEnvironment.PRODUCTION
+          : CFEnvironment.SANDBOX;
 
-      final options = {
-        'key': key,
-        'amount': amount,
-        'currency': currency,
-        'name': 'REBESTA',
-        'description': _checkoutType == CheckoutType.delivery
-            ? 'Food Delivery Order'
-            : 'Food Pickup Order',
-        'order_id': razorpayOrderId,
-        if (_customerPhone.isNotEmpty)
-          'prefill': {
-            'name': _customerName,
-            'contact': _customerPhone,
-          },
-        'theme': {'color': '#F05C03'},
-        'modal': {'confirm_close': true, 'animation': true},
-        'retry': {'enabled': true, 'max_count': 3},
-      };
+      final session = CFSessionBuilder()
+          .setEnvironment(cfEnvironment)
+          .setOrderId(cashfreeOrderId)
+          .setPaymentSessionId(paymentSessionId)
+          .build();
 
-      debugPrint('OPENING RAZORPAY');
-      debugPrint('================================');
-debugPrint('RAZORPAY FINAL AMOUNT');
-debugPrint('Server amount paise: $amount');
-debugPrint(
-  'Server amount rupees: ${serverAmount.toStringAsFixed(2)}',
-);
-debugPrint(
-  'Checkout UI total: ₹${_total.toStringAsFixed(2)}',
-);
-debugPrint('================================');
+      final checkout = CFWebCheckoutPaymentBuilder()
+          .setSession(session)
+          .build();
 
-
-      _razorpay.open(options);
-    } catch (e, stackTrace) {
-      debugPrint('CHECKOUT PAYMENT ERROR: $e');
-      debugPrint('$stackTrace');
-
+      _cashfree.doPayment(checkout);
+    } on CFException catch (e) {
       if (!mounted) return;
-
-      setState(() {
-        _processingPayment = false;
-      });
-
+      setState(() => _processingPayment = false);
+      _showMessage(e.message);
+    } catch (e, stackTrace) {
+      debugPrint('CASHFREE CHECKOUT ERROR: $e');
+      debugPrint('$stackTrace');
+      if (!mounted) return;
+      setState(() => _processingPayment = false);
       _showMessage(_friendlyError(e));
     }
   }
 
-  // ============================================================
+// ============================================================
 // PLACE ORDER (dispatcher)
 // ============================================================
 
@@ -896,109 +839,69 @@ Future<void> _placeCODOrder() async {
   // of verified payment — not before.
   // ============================================================
 
-  Future<void> _handlePaymentSuccess(
-    PaymentSuccessResponse response,
-  ) async {
-    debugPrint('RAZORPAY PAYMENT SUCCESS: ${response.paymentId}');
+  Future<void> _handleCashfreePaymentVerify(String cashfreeOrderId) async {
+    try {
+      final result = await _paymentService.verifyPayment(
+        cashfreeOrderId: cashfreeOrderId,
+      );
+      final order = result['order'];
+      final orderId = order is Map ? order['id']?.toString() : null;
+      if (result['success'] != true || orderId == null || orderId.isEmpty) {
+        throw Exception('Cashfree payment is not yet confirmed');
+      }
 
-    if (response.orderId == null ||
-        response.paymentId == null ||
-        response.signature == null) {
+      if (!mounted) return;
+      setState(() => _processingPayment = false);
+      context.go(AppRoutes.orderTrackingScreen, extra: orderId);
+    } catch (e, stackTrace) {
+      debugPrint('CASHFREE PAYMENT VERIFICATION ERROR: $e');
+      debugPrint('$stackTrace');
+      final recovery = await _paymentService.reconcilePayment(cashfreeOrderId);
+      final recoveredOrder = recovery['order'];
+      final recoveredId = recoveredOrder is Map
+          ? recoveredOrder['id']?.toString()
+          : null;
+      if (recovery['state'] == 'confirmed' && recoveredId != null && recoveredId.isNotEmpty) {
+        if (!mounted) return;
+        setState(() => _processingPayment = false);
+        context.go(AppRoutes.orderTrackingScreen, extra: recoveredId);
+        return;
+      }
       if (!mounted) return;
       setState(() => _processingPayment = false);
       _showMessage(
-        'Payment received, but verification data is missing. '
-        'Please contact support if money was deducted.',
-      );
-      return;
-    }
-
-    try {
-      final result = await _paymentService.verifyPayment(
-        razorpayOrderId: response.orderId!,
-        razorpayPaymentId: response.paymentId!,
-        signature: response.signature!,
-      );
-
-      debugPrint('VERIFY RESPONSE: $result');
-
-      if (result['success'] != true) {
-        throw Exception('Payment verification failed');
-      }
-
-      final order = result['order'];
-      final orderId = order?['id']?.toString();
-
-      if (orderId == null || orderId.isEmpty) {
-        throw Exception('Order could not be confirmed');
-      }
-
-      _currentOrderId = orderId;
-
-      if (!mounted) return;
-
-      setState(() {
-        _processingPayment = false;
-      });
-
-      context.go(
-        AppRoutes.orderTrackingScreen,
-        extra: orderId,
-      );
-    } catch (e, stackTrace) {
-      debugPrint('PAYMENT VERIFICATION ERROR: $e');
-      debugPrint('$stackTrace');
-
-      if (!mounted) return;
-
-      setState(() {
-        _processingPayment = false;
-      });
-
-      _showMessage(
-        'Payment received, but we could not confirm your order. '
-        'Please contact support before trying again.',
+        'Payment status is still being confirmed. Your payment is saved; please check your orders before trying again.',
       );
     }
   }
 
-  // ============================================================
-  // PAYMENT ERROR (failed or cancelled by user)
-  //
-  // No order was ever created for this attempt — nothing to
-  // clean up. Cart remains untouched so the customer can retry.
-  // ============================================================
+  Future<void> _handleCashfreePaymentError(
+    CFErrorResponse errorResponse,
+    String cashfreeOrderId,
+  ) async {
+    debugPrint('CASHFREE CHECKOUT RESPONSE: ${errorResponse.getMessage()}');
 
-  void _handlePaymentError(
-    PaymentFailureResponse response,
-  ) {
-    debugPrint('RAZORPAY PAYMENT FAILED: ${response.code} ${response.message}');
+    if (cashfreeOrderId.isNotEmpty) {
+      try {
+        final recovery = await _paymentService.reconcilePayment(cashfreeOrderId);
+        final order = recovery['order'];
+        final orderId = order is Map ? order['id']?.toString() : null;
+        if (recovery['state'] == 'confirmed' && orderId != null && orderId.isNotEmpty) {
+          if (!mounted) return;
+          setState(() => _processingPayment = false);
+          context.go(AppRoutes.orderTrackingScreen, extra: orderId);
+          return;
+        }
+      } catch (e) {
+        debugPrint('CASHFREE ERROR RECOVERY DEFERRED: $e');
+      }
+    }
 
     if (!mounted) return;
-
-    setState(() {
-      _processingPayment = false;
-    });
-
-    final isCancelled = response.code == 2; // Razorpay: user-cancelled code
-
+    setState(() => _processingPayment = false);
     _showMessage(
-      isCancelled
-          ? 'Payment cancelled. Your order has not been placed — your cart is still saved.'
-          : 'Payment could not be completed. Your order has not been placed. Please try again.',
+      'Payment was not confirmed. If money was deducted, your payment will be reconciled automatically. You can retry after checking your orders.',
     );
-  }
-
-  void _handleExternalWallet(
-    ExternalWalletResponse response,
-  ) {
-    debugPrint('External wallet: ${response.walletName}');
-
-    if (!mounted) return;
-
-    setState(() {
-      _processingPayment = false;
-    });
   }
 
   // ============================================================
