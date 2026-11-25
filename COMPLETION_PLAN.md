@@ -269,3 +269,9 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 ## Cashfree error-response hardening (2026-11-25)
 - [x] Payment order-creation failure now returns a generic client-facing error instead of forwarding upstream provider error details.
 - [ ] Continue reviewing error responses and logs for leakage; payment sandbox and concurrency validation remain outstanding.
+
+
+## OTP provider error-response hardening (2026-11-25)
+- [x] Customer OTP send/verify now return sanitized service-unavailable/provider errors instead of surfacing provider diagnostic details.
+- [x] Invalid OTP verification returns a generic authorization error.
+- [ ] Verify OTP flows in staging, including provider outages and invalid codes; automated tests/runtime verification remain outstanding.
