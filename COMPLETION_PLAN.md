@@ -20,6 +20,20 @@ Benchmark: core functional capabilities of major food delivery platforms; not co
 - CI checks build/test; Android release builds, dependency audit and integration/E2E gates need adding.
 - The three apps need independent release tracks and signing identities.
 
+## Security remediation log (PR #27; CI verification pending)
+- [x] Customer address update/delete operations are scoped to the authenticated customer; address payload validation is enabled.
+- [x] Customer, partner and delivery JWT strategies validate role/subject identity and require a strong JWT secret.
+- [x] Customer OTP challenge tokens bind the provider session to the submitted phone number; partner OTP challenge tokens use the same binding.
+- [x] New customer profile creation requires a short-lived OTP proof and refuses to mutate an existing account.
+- [x] Legacy customer password signup and public partner self-registration are disabled until verified registration/invitation flows are implemented. This is an intentional temporary restriction.
+- [x] Customer OTP/profile, cart-add, payment verification and reconciliation request DTOs were added or hardened for the global whitelist pipe.
+- [x] Cart item quantities are bounded and checkout verifies menu items belong to the selected restaurant.
+- [x] Captured Razorpay payments are checked against the expected checkout amount, currency and order before order conversion (verify, reconcile and webhook paths).
+- [ ] Confirm OTP/session changes compile and pass tests on latest PR head.
+- [ ] Confirm all DTOs have validation decorators; empty DTO files and inline body types remain under review.
+- [ ] Verify all public tables, policies, storage policies and RPC grants against the live Supabase schema; repository SQL alone cannot establish live database state.
+- [ ] Replace temporary public partner signup block with authenticated admin-issued invitations and approval checks.
+
 ## Step 2 — Security and infrastructure
 - [ ] Explicit CORS allowlist and strict global DTO validation.
 - [ ] Endpoint-specific throttling for OTP/auth, checkout, payment verification, refunds and support.
