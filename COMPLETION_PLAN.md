@@ -275,3 +275,8 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 - [x] Customer OTP send/verify now return sanitized service-unavailable/provider errors instead of surfacing provider diagnostic details.
 - [x] Invalid OTP verification returns a generic authorization error.
 - [ ] Verify OTP flows in staging, including provider outages and invalid codes; automated tests/runtime verification remain outstanding.
+
+
+## OTP profile-completion abuse protection (2026-11-25)
+- [x] Added endpoint-specific throttling (5 requests/minute) to customer profile completion, which previously had no route-level throttle.
+- [ ] Validate throttling in staging and review distributed throttler storage for multi-instance deployments.
