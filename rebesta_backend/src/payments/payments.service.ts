@@ -3,7 +3,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 
-import Razorpay from 'razorpay';
+import axios from 'axios';
 import * as crypto from 'crypto';
 
 import { supabase } from '../supabase';
@@ -18,19 +18,12 @@ import { VerifyPaymentDto } from './dto/verify-payment.dto';
 @Injectable()
 export class PaymentsService {
 
-  private razorpay: Razorpay;
-
   constructor(
     private readonly socketGateway: SocketGateway,
     private readonly fcmService: FcmService,
     private readonly mapsService: MapsService,
     private readonly couponsService: CouponsService,
-  ) {
-    this.razorpay = new Razorpay({
-      key_id: process.env.RAZORPAY_KEY_ID!,
-      key_secret: process.env.RAZORPAY_KEY_SECRET!,
-    });
-  }
+  ) {}
 
   // ============================================================
   // CREATE CHECKOUT PAYMENT
@@ -266,28 +259,25 @@ if (!Number.isFinite(totalAmount) || totalAmount <= 0 || !Number.isSafeInteger(M
     'Invalid order amount',
   );
 }
-    // ----------------------------------------------------------
-    // CREATE RAZORPAY ORDER
-    // ----------------------------------------------------------
+    // Create a local attempt first so retries use a stable Cashfree order ID
+    // and idempotency key. The client never supplies amount or credentials.
+    const { data: customer, error: customerError } = await supabase
+      .from('customers')
+      .select('id, name, mobile, email')
+      .eq('id', customerId)
+      .maybeSingle();
 
-    const razorpayOrder = await this.razorpay.orders.create({
-      amount: Math.round(totalAmount * 100),
-      currency: 'INR',
-      receipt: `attempt_${Date.now()}`,
-    });
+    if (customerError || !customer?.mobile) {
+      throw new BadRequestException('A verified customer phone number is required for online payment');
+    }
 
-    // ----------------------------------------------------------
-    // STORE PAYMENT ATTEMPT (NOT an order)
-    // ----------------------------------------------------------
-
-    const { error: insertError } = await supabase
+    const cashfreeOrderId = `rb_${crypto.randomUUID().replace(/-/g, '')}`;
+    const { data: attempt, error: insertError } = await supabase
       .from('payment_attempts')
       .insert({
         customer_id: customerId,
         restaurant_partner_id: dto.restaurantPartnerId,
-        address_id: isPickup
-        ? null
-        : dto.addressId,
+        address_id: isPickup ? null : dto.addressId,
         order_type: isPickup ? 'pickup' : 'delivery',
         subtotal,
         discount_amount: discount,
@@ -295,44 +285,96 @@ if (!Number.isFinite(totalAmount) || totalAmount <= 0 || !Number.isSafeInteger(M
         total_amount: totalAmount,
         coupon_code: dto.couponCode ?? null,
         cart_items_snapshot: snapshot,
-        razorpay_order_id: razorpayOrder.id,
+        payment_provider: 'cashfree',
+        cashfree_order_id: cashfreeOrderId,
         status: 'created',
-      });
+      })
+      .select('id, cashfree_idempotency_key')
+      .single();
 
-    if (insertError) {
-      throw new BadRequestException(insertError.message);
+    if (insertError || !attempt) {
+      throw new BadRequestException(insertError?.message ?? 'Could not create payment attempt');
     }
 
-    return {
-  success: true,
+    try {
+      const orderPayload: Record<string, any> = {
+        order_id: cashfreeOrderId,
+        order_amount: Number(totalAmount.toFixed(2)),
+        order_currency: 'INR',
+        customer_details: {
+          customer_id: customerId,
+          customer_name: customer.name || 'Rebesta Customer',
+          customer_email: customer.email || 'customer@rebesta.in',
+          customer_phone: String(customer.mobile).replace(/\\D/g, ''),
+        },
+        order_note: isPickup ? 'Food pickup order' : 'Food delivery order',
+      };
 
-  key: process.env.RAZORPAY_KEY_ID,
-
-  orderId: razorpayOrder.id,
-
-  amount: razorpayOrder.amount,
-
-  currency: razorpayOrder.currency,
-
-  subtotal,
-
-  discount,
-
-  deliveryFee: finalDeliveryFee,
-
-  totalAmount,
-
-  coupon: appliedCoupon
-    ? {
-        id: appliedCoupon.id,
-        code: appliedCoupon.code,
-        title: appliedCoupon.title,
-        description: appliedCoupon.description,
-        freeDelivery:
-          appliedCoupon.free_delivery === true,
+      if (process.env.CASHFREE_RETURN_URL) {
+        orderPayload.order_meta = {
+          return_url: `${process.env.CASHFREE_RETURN_URL}${process.env.CASHFREE_RETURN_URL.includes('?') ? '&' : '?'}order_id={order_id}`,
+        };
       }
-    : null,
-};
+
+      const response = await axios.post(
+        `${this.cashfreeBaseUrl()}/orders`,
+        orderPayload,
+        {
+          headers: this.cashfreeHeaders(String(attempt.cashfree_idempotency_key)),
+          timeout: 15000,
+        },
+      );
+
+      const cashfreeOrder = response.data;
+      if (!cashfreeOrder?.payment_session_id || cashfreeOrder.order_id !== cashfreeOrderId) {
+        throw new Error('Cashfree returned an invalid order session');
+      }
+
+      const { error: sessionError } = await supabase
+        .from('payment_attempts')
+        .update({ cashfree_payment_session_id: cashfreeOrder.payment_session_id })
+        .eq('id', attempt.id)
+        .eq('payment_provider', 'cashfree');
+
+      if (sessionError) {
+        throw new Error('Cashfree order created but payment session could not be saved; reconcile before retrying');
+      }
+
+      return {
+        success: true,
+        provider: 'cashfree',
+        orderId: cashfreeOrderId,
+        paymentSessionId: cashfreeOrder.payment_session_id,
+        environment: this.cashfreeEnvironment(),
+        amount: Number(cashfreeOrder.order_amount ?? totalAmount),
+        currency: cashfreeOrder.order_currency ?? 'INR',
+        subtotal,
+        discount,
+        deliveryFee: finalDeliveryFee,
+        totalAmount,
+        coupon: appliedCoupon
+          ? {
+              id: appliedCoupon.id,
+              code: appliedCoupon.code,
+              title: appliedCoupon.title,
+              description: appliedCoupon.description,
+              freeDelivery: appliedCoupon.free_delivery === true,
+            }
+          : null,
+      };
+    } catch (providerError: any) {
+      await supabase
+        .from('payment_attempts')
+        .update({ status: 'failed' })
+        .eq('id', attempt.id)
+        .eq('status', 'created');
+      const providerMessage = providerError?.response?.data?.message;
+      throw new BadRequestException(
+        typeof providerMessage === 'string'
+          ? `Cashfree order creation failed: ${providerMessage}`
+          : 'Cashfree order creation failed. Please try again.',
+      );
+    }
   }
 
   // ============================================================
@@ -347,438 +389,300 @@ if (!Number.isFinite(totalAmount) || totalAmount <= 0 || !Number.isSafeInteger(M
   // VERIFY PAYMENT (client-triggered path)
   // ============================================================
 
-  private assertCapturedPaymentMatchesAttempt(
-    payment: { order_id?: string; status?: string; amount?: string | number; currency?: string },
-    attempt: { razorpay_order_id: string; total_amount: number | string },
-  ) {
-    const expectedAmount = Math.round(Number(attempt.total_amount) * 100);
+  private assertCashfreePaymentMatchesAttempt(payment: any, attempt: any) {
+    const expectedAmount = Number(Number(attempt.total_amount).toFixed(2));
     if (
-      payment.order_id !== attempt.razorpay_order_id ||
-      payment.status !== 'captured' ||
-      payment.currency !== 'INR' ||
-      !Number.isSafeInteger(expectedAmount) ||
-      Number(payment.amount) !== expectedAmount
+      payment.order_id !== attempt.cashfree_order_id ||
+      payment.payment_status !== 'SUCCESS' ||
+      payment.payment_currency !== 'INR' ||
+      Number(payment.order_amount) !== expectedAmount ||
+      Number(payment.payment_amount) !== expectedAmount ||
+      !payment.cf_payment_id
     ) {
-      throw new BadRequestException('Captured payment does not match the expected order amount and currency');
+      throw new BadRequestException('Cashfree payment does not match the expected order, amount and currency');
     }
   }
 
-  async verifyPayment(
-    customerId: string,
-    dto: VerifyPaymentDto,
-  ) {
-    const { data: attempt, error: attemptError } = await supabase
+  private async getSuccessfulCashfreePayment(orderId: string, attempt: any) {
+    const response = await axios.get(
+      `${this.cashfreeBaseUrl()}/orders/${encodeURIComponent(orderId)}/payments`,
+      { headers: this.cashfreeHeaders(), timeout: 15000 },
+    );
+    const payments = Array.isArray(response.data) ? response.data : [];
+    const successful = payments.find((payment: any) => payment.payment_status === 'SUCCESS');
+    if (!successful) return null;
+    this.assertCashfreePaymentMatchesAttempt(successful, attempt);
+    return successful;
+  }
+
+  async verifyPayment(customerId: string, dto: VerifyPaymentDto) {
+    const { data: attempt, error } = await supabase
       .from('payment_attempts')
       .select('*')
-      .eq('razorpay_order_id', dto.razorpayOrderId)
+      .eq('cashfree_order_id', dto.cashfreeOrderId)
       .eq('customer_id', customerId)
-      .single();
+      .eq('payment_provider', 'cashfree')
+      .maybeSingle();
 
-    if (attemptError || !attempt) {
-      throw new BadRequestException('Payment attempt not found');
-    }
+    if (error || !attempt) throw new BadRequestException('Cashfree payment attempt not found');
 
     if (attempt.order_id) {
       const { data: existingOrder } = await supabase
         .from('orders')
         .select('id, order_status, payment_status, total_amount')
         .eq('id', attempt.order_id)
-        .single();
-
-      return {
-        success: true,
-        message: 'Payment already verified',
-        order: existingOrder,
-      };
+        .maybeSingle();
+      return { success: true, message: 'Payment already verified', order: existingOrder };
     }
 
-  const razorpayPayment =
-  await this.razorpay.payments.fetch(
-    dto.razorpayPaymentId,
-  );
-
-// ----------------------------------------------------------
-// PAYMENT MUST BELONG TO THIS RAZORPAY ORDER
-// ----------------------------------------------------------
-
-this.assertCapturedPaymentMatchesAttempt(razorpayPayment, attempt);
-
-// ----------------------------------------------------------
-// VERIFY RAZORPAY CHECKOUT SIGNATURE
-// ----------------------------------------------------------
-
-const body =
-  dto.razorpayOrderId +
-  '|' +
-  dto.razorpayPaymentId;
-
-const expectedSignature = crypto
-  .createHmac(
-    'sha256',
-    process.env.RAZORPAY_KEY_SECRET!,
-  )
-  .update(body)
-  .digest('hex');
-
-const expectedBuffer = Buffer.from(
-  expectedSignature,
-  'utf8',
-);
-
-const signatureBuffer = Buffer.from(
-  dto.signature,
-  'utf8',
-);
-
-if (
-  expectedBuffer.length !== signatureBuffer.length ||
-  !crypto.timingSafeEqual(
-    expectedBuffer,
-    signatureBuffer,
-  )
-) {
-  // Do not poison the attempt on a client signature failure.
-  // A separately verified captured webhook/reconciliation can still recover it.
-
-  throw new BadRequestException(
-    'Invalid payment signature',
-  );
-}
-
-return this.createOrderFromAttempt(
-  attempt,
-  dto.razorpayPaymentId,
-  dto.signature,
-);
+    const payment = await this.getSuccessfulCashfreePayment(dto.cashfreeOrderId, attempt);
+    if (!payment) {
+      throw new BadRequestException('Cashfree has not confirmed a successful payment yet');
+    }
+    return this.createOrderFromCashfreeAttempt(attempt, String(payment.cf_payment_id));
   }
 
-  // ============================================================
-  // RECONCILE (app-reopen path — spec #11/#27)
-  //
-  // Client calls this when it doesn't know the outcome of a
-  // payment (e.g. app was killed after Razorpay closed but
-  // before verify() completed). Looks up by razorpay_order_id
-  // and returns whatever the true current state is — creating
-  // the order itself if Razorpay confirms success but our own
-  // records haven't caught up yet.
-  // ============================================================
-
-  async reconcilePayment(
-    customerId: string,
-    razorpayOrderId: string,
-  ) {
-    const { data: attempt, error: attemptError } = await supabase
+  async reconcilePayment(customerId: string, cashfreeOrderId: string) {
+    const { data: attempt, error } = await supabase
       .from('payment_attempts')
       .select('*')
-      .eq('razorpay_order_id', razorpayOrderId)
+      .eq('cashfree_order_id', cashfreeOrderId)
       .eq('customer_id', customerId)
-      .single();
+      .eq('payment_provider', 'cashfree')
+      .maybeSingle();
 
-    if (attemptError || !attempt) {
-      throw new BadRequestException('Payment attempt not found');
-    }
+    if (error || !attempt) throw new BadRequestException('Cashfree payment attempt not found');
 
     if (attempt.order_id) {
       const { data: existingOrder } = await supabase
         .from('orders')
         .select('id, order_status, payment_status, total_amount')
         .eq('id', attempt.order_id)
-        .single();
-
-      return {
-        success: true,
-        state: 'confirmed',
-        order: existingOrder,
-      };
+        .maybeSingle();
+      return { success: true, state: 'confirmed', order: existingOrder };
     }
 
-    // Ask Razorpay directly what actually happened to this order.
-    const razorpayOrder = await this.razorpay.orders.fetch(razorpayOrderId);
+    const orderResponse = await axios.get(
+      `${this.cashfreeBaseUrl()}/orders/${encodeURIComponent(cashfreeOrderId)}`,
+      { headers: this.cashfreeHeaders(), timeout: 15000 },
+    );
+    const payment = await this.getSuccessfulCashfreePayment(cashfreeOrderId, attempt);
+    if (payment) {
+      const result = await this.createOrderFromCashfreeAttempt(attempt, String(payment.cf_payment_id));
+      return { success: true, state: 'confirmed', order: result.order };
+    }
 
-    if (razorpayOrder.status === 'paid') {
-      const payments = await this.razorpay.orders.fetchPayments(
-        razorpayOrderId,
-      );
-
-      const capturedPayment = payments.items.find(
-        (p: any) => p.status === 'captured',
-      );
-
-      if (capturedPayment) {
-        this.assertCapturedPaymentMatchesAttempt(capturedPayment, attempt);
-        const result = await this.createOrderFromAttempt(
-          attempt,
-          capturedPayment.id,
-          null,
-        );
-
-        return { success: true, state: 'confirmed', order: result.order };
-      }
+    const providerOrderStatus = orderResponse.data?.order_status;
+    if (providerOrderStatus === 'EXPIRED') {
+      await supabase.from('payment_attempts')
+        .update({ status: 'failed' })
+        .eq('id', attempt.id)
+        .eq('status', 'created');
+      return { success: true, state: 'failed', order: null };
     }
 
     return { success: true, state: 'pending', order: null };
   }
 
-  // ===========================================
-  // Refund (unchanged)
-  // ===========================================
-
+  // Cashfree refund requests are idempotent: the refund ID is persisted
+  // before the provider call and reused if the outcome is uncertain.
   async refund(orderId: string) {
     const { data: order, error } = await supabase
       .from('orders')
-      .select('id, payment_status, razorpay_payment_id')
+      .select('id, payment_status, cashfree_order_id, cashfree_payment_id, cashfree_refund_id')
       .eq('id', orderId)
-      .single();
-
-    if (error || !order) {
-      throw new BadRequestException('Order not found');
-    }
-    if (order.payment_status === 'refunded') {
-      throw new BadRequestException('Order has already been refunded');
-    }
-    if (order.payment_status !== 'paid') {
-      throw new BadRequestException('Only paid orders can be refunded');
-    }
-    if (!order.razorpay_payment_id) {
-      throw new BadRequestException('Payment not found');
-    }
-
-    // Atomically claim the refund operation to prevent concurrent duplicate calls.
-    const { data: claimed, error: claimError } = await supabase
-      .from('orders')
-      .update({ payment_status: 'refund_pending' })
-      .eq('id', orderId)
-      .eq('payment_status', 'paid')
-      .select('id')
       .maybeSingle();
 
-    if (claimError || !claimed) {
-      throw new BadRequestException(
-        'Refund is already being processed or order state changed',
-      );
+    if (error || !order) throw new BadRequestException('Order not found');
+    if (order.payment_status === 'refunded') {
+      return { success: true, message: 'Order has already been refunded' };
+    }
+    if (!order.cashfree_order_id || !order.cashfree_payment_id) {
+      throw new BadRequestException('This order does not have a Cashfree payment');
     }
 
-    let providerRefund: any;
-    try {
-      providerRefund = await this.razorpay.payments.refund(
-        order.razorpay_payment_id,
-        {},
-      );
-    } catch (providerError) {
-      // Network errors can be ambiguous: Razorpay may have accepted the refund
-      // before the response was lost. Keep refund_pending to block duplicate
-      // attempts until the provider state is reconciled or refund.failed arrives.
-      throw new BadRequestException(
-        'Refund outcome is uncertain. Order remains refund_pending; reconcile with Razorpay before retrying.',
-      );
-    }
-
-    // Razorpay can accept a refund while it is still pending. Do not mark
-    // the order refunded until the provider confirms a processed refund.
-    // The signed refund.processed / refund.failed webhooks finalize the state.
-    const providerStatus = providerRefund?.status;
-    if (providerStatus === 'processed') {
-      const { data: updatedOrder, error: updateError } = await supabase
+    let refundId = order.cashfree_refund_id;
+    if (order.payment_status === 'paid') {
+      refundId = `rf_${crypto.randomUUID().replace(/-/g, '')}`;
+      const { data: claimed, error: claimError } = await supabase
         .from('orders')
-        .update({ payment_status: 'refunded' })
+        .update({
+          payment_status: 'refund_pending',
+          cashfree_refund_id: refundId,
+          cashfree_refund_status: 'PENDING',
+        })
         .eq('id', orderId)
-        .eq('payment_status', 'refund_pending')
+        .eq('payment_status', 'paid')
         .select('id')
         .maybeSingle();
-
-      if (updateError || !updatedOrder) {
-        throw new BadRequestException(
-          'Refund was processed by Razorpay but order status update failed. Reconcile this order before retrying.',
-        );
+      if (claimError || !claimed) {
+        throw new BadRequestException('Refund is already being processed or order state changed');
       }
-    } else if (providerStatus === 'failed') {
-      const { error: restoreError } = await supabase
-        .from('orders')
-        .update({ payment_status: 'paid' })
-        .eq('id', orderId)
-        .eq('payment_status', 'refund_pending');
-
-      if (restoreError) {
-        throw new BadRequestException(
-          'Razorpay rejected the refund but the order payment state could not be restored. Reconcile this order.',
-        );
-      }
+    } else if (order.payment_status !== 'refund_pending' || !refundId) {
+      throw new BadRequestException('Only paid orders can be refunded');
     }
 
-    return {
-      success: true,
-      message: providerStatus === 'processed'
-        ? 'Refund processed successfully'
-        : providerStatus === 'failed'
-          ? 'Razorpay rejected the refund'
-          : 'Refund submitted; awaiting Razorpay confirmation',
-      refundId: providerRefund?.id ?? null,
-      refundStatus: providerStatus ?? 'unknown',
-    };
-  }
-  // ============================================================
-  // WEBHOOK (server-side safety net)
-  // ============================================================
+    try {
+      let providerRefund: any;
+      try {
+        const fetched = await axios.get(
+          `${this.cashfreeBaseUrl()}/orders/${encodeURIComponent(order.cashfree_order_id)}/refunds/${encodeURIComponent(refundId)}`,
+          { headers: this.cashfreeHeaders(), timeout: 15000 },
+        );
+        providerRefund = fetched.data;
+      } catch (fetchError: any) {
+        if (fetchError?.response?.status !== 404) throw fetchError;
+        const created = await axios.post(
+          `${this.cashfreeBaseUrl()}/orders/${encodeURIComponent(order.cashfree_order_id)}/refunds`,
+          {
+            refund_amount: Number(order.total_amount),
+            refund_id: refundId,
+            refund_note: 'Order refund',
+          },
+          {
+            headers: this.cashfreeHeaders(crypto.randomUUID()),
+            timeout: 15000,
+          },
+        );
+        providerRefund = created.data;
+      }
 
-async webhook(
-  body: any,
-  signature: string,
-  rawBody: Buffer,
-) {
-  const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
-  if (!signature || !rawBody || !webhookSecret) {
-    throw new BadRequestException(
-      'Webhook signature or secret is missing',
-    );
-  }
-
-  const expectedSignature = crypto
-    .createHmac(
-      'sha256',
-      webhookSecret,
-    )
-    .update(rawBody)
-    .digest('hex');
-
-  const expectedBuffer = Buffer.from(
-    expectedSignature,
-    'utf8',
-  );
-
-  const signatureBuffer = Buffer.from(
-    signature,
-    'utf8',
-  );
-
-  if (
-    expectedBuffer.length !== signatureBuffer.length ||
-    !crypto.timingSafeEqual(
-      expectedBuffer,
-      signatureBuffer,
-    )
-  ) {
-    throw new BadRequestException(
-      'Invalid webhook signature',
-    );
+      const status = String(providerRefund?.refund_status ?? 'PENDING').toUpperCase();
+      await this.applyCashfreeRefundStatus(order.cashfree_order_id, refundId, status);
+      return {
+        success: true,
+        message: status === 'SUCCESS'
+          ? 'Refund processed successfully'
+          : status === 'FAILED'
+            ? 'Cashfree rejected the refund'
+            : 'Refund submitted; awaiting Cashfree confirmation',
+        refundId,
+        refundStatus: status,
+      };
+    } catch {
+      throw new BadRequestException(
+        'Refund outcome is uncertain. Order remains refund_pending; reconcile with Cashfree before retrying.',
+      );
+    }
   }
 
-  if (
-    !body ||
-    typeof body !== 'object' ||
-    typeof body.event !== 'string' ||
-    body.event.length === 0
-  ) {
-    throw new BadRequestException('Invalid webhook payload');
+  private async applyCashfreeRefundStatus(orderId: string, refundId: string, status: string) {
+    if (status === 'SUCCESS') {
+      await supabase.from('orders')
+        .update({ payment_status: 'refunded', cashfree_refund_status: status })
+        .eq('cashfree_order_id', orderId)
+        .eq('cashfree_refund_id', refundId)
+        .eq('payment_status', 'refund_pending');
+    } else if (status === 'FAILED') {
+      await supabase.from('orders')
+        .update({ payment_status: 'paid', cashfree_refund_status: status })
+        .eq('cashfree_order_id', orderId)
+        .eq('cashfree_refund_id', refundId)
+        .eq('payment_status', 'refund_pending');
+    } else {
+      await supabase.from('orders')
+        .update({ cashfree_refund_status: 'PENDING' })
+        .eq('cashfree_order_id', orderId)
+        .eq('cashfree_refund_id', refundId)
+        .eq('payment_status', 'refund_pending');
+    }
   }
 
-  const event = body.event;
-  const payload = body.payload;
+  async webhook(body: any, signature: string, timestamp: string, rawBody: Buffer) {
+    const secret = process.env.CASHFREE_CLIENT_SECRET;
+    if (!secret || !signature || !timestamp || !rawBody) {
+      throw new BadRequestException('Cashfree webhook signature is missing');
+    }
 
-  // Validate event envelopes before accessing nested entities.
-  if (
-    ['payment.captured', 'payment.failed', 'refund.processed', 'refund.failed'].includes(event) &&
-    (!payload || typeof payload !== 'object')
-  ) {
-    throw new BadRequestException('Invalid webhook payload');
-  }
+    const expected = crypto.createHmac('sha256', secret)
+      .update(timestamp + rawBody.toString('utf8'))
+      .digest('base64');
+    const expectedBuffer = Buffer.from(expected);
+    const receivedBuffer = Buffer.from(signature);
+    if (
+      expectedBuffer.length !== receivedBuffer.length ||
+      !crypto.timingSafeEqual(expectedBuffer, receivedBuffer)
+    ) {
+      throw new BadRequestException('Invalid Cashfree webhook signature');
+    }
 
-  if (
-    ['payment.captured', 'payment.failed'].includes(event) &&
-    (!payload.payment?.entity ||
-      typeof payload.payment.entity.id !== 'string' ||
-      typeof payload.payment.entity.order_id !== 'string')
-  ) {
-    throw new BadRequestException('Invalid payment webhook entity');
-  }
+    if (!body || typeof body.type !== 'string' || !body.data || typeof body.data !== 'object') {
+      throw new BadRequestException('Invalid Cashfree webhook payload');
+    }
 
-  if (
-    ['refund.processed', 'refund.failed'].includes(event) &&
-    (!payload.refund?.entity ||
-      typeof payload.refund.entity.payment_id !== 'string')
-  ) {
-    throw new BadRequestException('Invalid refund webhook entity');
-  }
+    const eventType = body.type;
+    const data = body.data;
 
-  // existing webhook logic...
-
-
-    if (event === 'payment.captured') {
-      const payment = body.payload.payment.entity;
-
-      const { data: attempt } = await supabase
-        .from('payment_attempts')
+    if (eventType === 'PAYMENT_SUCCESS_WEBHOOK') {
+      const orderId = data.order?.order_id;
+      if (typeof orderId !== 'string') throw new BadRequestException('Invalid Cashfree order event');
+      const { data: attempt } = await supabase.from('payment_attempts')
         .select('*')
-        .eq('razorpay_order_id', payment.order_id)
+        .eq('cashfree_order_id', orderId)
+        .eq('payment_provider', 'cashfree')
         .maybeSingle();
-
-      if (attempt && payment.status === 'captured') {
-        try {
-          this.assertCapturedPaymentMatchesAttempt(payment, attempt);
-          await this.createOrderFromAttempt(attempt, payment.id, null);
-        } catch (e) {
-          console.error('Webhook order creation failed:', e);
-        }
+      if (attempt && !attempt.order_id) {
+        const payment = await this.getSuccessfulCashfreePayment(orderId, attempt);
+        if (payment) await this.createOrderFromCashfreeAttempt(attempt, String(payment.cf_payment_id));
       }
-    }
-
-    if (event === 'payment.failed') {
-      const payment = body.payload.payment.entity;
-
-      await supabase
-        .from('payment_attempts')
-        .update({ status: 'failed' })
-        .eq('razorpay_order_id', payment.order_id)
-        .eq('status', 'created');
-    }
-
-    if (event === 'refund.processed') {
-      const refund = body.payload.refund.entity;
-
-      // Only finalize an order currently awaiting refund. This prevents a
-      // stale/duplicate refund webhook from changing unrelated order states.
-      await supabase
-        .from('orders')
-        .update({ payment_status: 'refunded' })
-        .eq('razorpay_payment_id', refund.payment_id)
-        .eq('payment_status', 'refund_pending');
-    }
-
-    if (event === 'refund.failed') {
-      const refund = body.payload.refund.entity;
-
-      await supabase
-        .from('orders')
-        .update({ payment_status: 'paid' })
-        .eq('razorpay_payment_id', refund.payment_id)
-        .eq('payment_status', 'refund_pending');
+    } else if (eventType === 'PAYMENT_FAILED_WEBHOOK') {
+      const orderId = data.order?.order_id;
+      if (typeof orderId === 'string') {
+        await supabase.from('payment_attempts')
+          .update({ status: 'failed' })
+          .eq('cashfree_order_id', orderId)
+          .eq('payment_provider', 'cashfree')
+          .eq('status', 'created')
+          .is('order_id', null);
+      }
+    } else if (eventType === 'REFUND_STATUS_WEBHOOK') {
+      const orderId = data.refund?.order_id;
+      const refundId = data.refund?.refund_id;
+      const status = String(data.refund?.refund_status ?? '').toUpperCase();
+      if (typeof orderId === 'string' && typeof refundId === 'string') {
+        await this.applyCashfreeRefundStatus(orderId, refundId, status);
+      }
     }
 
     return { success: true };
   }
-    // ============================================================
-  // INTERNAL: Create the real order from a verified payment
-  // attempt. Called by BOTH the client verify() endpoint and
-  // the webhook — each does its OWN signature check before
-  // calling this, so this method itself does not re-verify.
-  //
-  // Idempotent: safe to call twice for the same attempt.
-  // ============================================================
 
-  private async createOrderFromAttempt(
-    attempt: any,
-    razorpayPaymentId: string,
-    signature: string | null,
-  ) {
-    const { data, error } = await supabase.rpc('create_paid_order_from_attempt', {
+  private cashfreeEnvironment(): 'SANDBOX' | 'PRODUCTION' {
+    return process.env.CASHFREE_ENVIRONMENT?.toUpperCase() === 'PRODUCTION'
+      ? 'PRODUCTION'
+      : 'SANDBOX';
+  }
+
+  private cashfreeBaseUrl(): string {
+    return this.cashfreeEnvironment() === 'PRODUCTION'
+      ? 'https://api.cashfree.com/pg'
+      : 'https://sandbox.cashfree.com/pg';
+  }
+
+  private cashfreeHeaders(idempotencyKey?: string) {
+    const clientId = process.env.CASHFREE_CLIENT_ID;
+    const clientSecret = process.env.CASHFREE_CLIENT_SECRET;
+    if (!clientId || !clientSecret) {
+      throw new BadRequestException('Cashfree credentials are not configured');
+    }
+    return {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      'x-api-version': process.env.CASHFREE_API_VERSION ?? '2025-01-01',
+      'x-client-id': clientId,
+      'x-client-secret': clientSecret,
+      ...(idempotencyKey ? { 'x-idempotency-key': idempotencyKey } : {}),
+    };
+  }
+
+  private async createOrderFromCashfreeAttempt(attempt: any, cashfreePaymentId: string) {
+    const { data, error } = await supabase.rpc('create_paid_order_from_cashfree_attempt', {
       p_attempt_id: attempt.id,
-      p_payment_id: razorpayPaymentId,
-      p_signature: signature,
+      p_payment_id: cashfreePaymentId,
     });
 
     if (error || !data?.order) {
-      throw new BadRequestException(
-        error?.message ?? 'Atomic order conversion failed',
-      );
+      throw new BadRequestException(error?.message ?? 'Atomic Cashfree order conversion failed');
     }
 
     const order = data.order;
@@ -821,4 +725,5 @@ async webhook(
       },
     };
   }
+
 }
