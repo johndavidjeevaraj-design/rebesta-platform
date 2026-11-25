@@ -150,7 +150,7 @@ async rejectRestaurant(id: string) {
   }
 
   if (!data) {
-    throw new ConflictException(`${entity} status changed or transition is not allowed`);
+    throw new ConflictException('Restaurant status changed or transition is not allowed');
   }
 
   return {
@@ -176,7 +176,7 @@ async blockRestaurant(id: string) {
   }
 
   if (!data) {
-    throw new ConflictException(`${entity} status changed or transition is not allowed`);
+    throw new ConflictException('Restaurant status changed or transition is not allowed');
   }
 
   return {
@@ -202,7 +202,7 @@ async unblockRestaurant(id: string) {
   }
 
   if (!data) {
-    throw new ConflictException(`${entity} status changed or transition is not allowed`);
+    throw new ConflictException('Restaurant status changed or transition is not allowed');
   }
 
   return {
