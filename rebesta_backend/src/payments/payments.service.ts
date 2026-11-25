@@ -662,10 +662,13 @@ async webhook(
     if (event === 'refund.processed') {
       const refund = body.payload.refund.entity;
 
+      // Only finalize an order currently awaiting refund. This prevents a
+      // stale/duplicate refund webhook from changing unrelated order states.
       await supabase
         .from('orders')
         .update({ payment_status: 'refunded' })
-        .eq('razorpay_payment_id', refund.payment_id);
+        .eq('razorpay_payment_id', refund.payment_id)
+        .eq('payment_status', 'refund_pending');
     }
 
     if (event === 'refund.failed') {
