@@ -31,14 +31,7 @@ export class AddressesController {
     @Body() dto: CreateAddressDto,
   ) {
       
-     console.log('========== ADDRESS AUTH ==========');
-  console.log('req.user:', req.user);
-  console.log('customerId:', req.user?.customerId);
-  console.log('sub/id:', req.user?.id);
-  console.log('==================================');
-
-
-    return this.service.create(
+     return this.service.create(
       req.user.customerId,
       dto,
     );
@@ -73,7 +66,7 @@ export class AddressesController {
       longitude: number;
     },
   ) {
-    return this.service.update(id, dto);
+    return this.service.update(req.user.customerId, id, dto);
   }
 
   // ============================================================
@@ -86,6 +79,6 @@ export class AddressesController {
     @Req() req: any,
     @Param('id') id: string,
   ) {
-    return this.service.remove(id);
+    return this.service.remove(req.user.customerId, id);
   }
 }
