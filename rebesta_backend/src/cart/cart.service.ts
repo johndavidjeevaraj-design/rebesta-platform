@@ -528,96 +528,61 @@ if (addressId) {
     itemId: string,
     quantity: number,
   ) {
-
-
-    const { data: cartItem, error: findError } =
-      await supabase
-        .from('cart_items')
-        .select(`
-          id,
-          cart_id,
-          carts (
-            customer_id
-          )
-        `)
-        .eq(
-          'id',
-          itemId,
-        )
-        .single();
-
-
-
+    const { data: cartItem, error: findError } = await supabase
+      .from('cart_items')
+      .select(`
+        id,
+        cart_id,
+        menu_item_id,
+        carts ( customer_id )
+      `)
+      .eq('id', itemId)
+      .single();
 
     if (findError || !cartItem) {
-      throw new Error(
-        'Cart item not found',
-      );
+      throw new Error('Cart item not found');
     }
 
+    const cart = Array.isArray(cartItem.carts)
+      ? cartItem.carts[0]
+      : cartItem.carts;
 
-
-
-    const cart =
-      Array.isArray(cartItem.carts)
-        ? cartItem.carts[0]
-        : cartItem.carts;
-
-
-
-
-    if (
-      cart.customer_id !== customerId
-    ) {
-
-      throw new Error(
-        'Unauthorized cart access',
-      );
-
+    if (!cart || cart.customer_id !== customerId) {
+      throw new Error('Unauthorized cart access');
     }
 
+    // Refresh price from the authoritative menu record when quantity changes.
+    const { data: menuItem, error: menuError } = await supabase
+      .from('menu_items')
+      .select('price, is_available')
+      .eq('id', cartItem.menu_item_id)
+      .maybeSingle();
 
+    if (menuError || !menuItem) {
+      throw new Error('Unable to retrieve menu item');
+    }
+    if (!menuItem.is_available) {
+      throw new Error('This menu item is currently unavailable');
+    }
 
-
-    const { 
-      data, 
-      error 
-    } =  await supabase
-        .from('cart_items')
-        .update({
-
-          quantity,
-
-        })
-        .eq(
-          'id',
-          itemId,
-        )
-        .select()
-        .single();
-
-
-
+    const { data, error } = await supabase
+      .from('cart_items')
+      .update({ quantity, price: menuItem.price })
+      .eq('id', itemId)
+      .select()
+      .single();
 
     if (error) {
       throw new Error('Unable to update cart item');
     }
 
-
-
-
     return {
-
       success: true,
-
-      message:
-        'Cart quantity updated',
-
+      message: 'Cart quantity updated',
       item: data,
-
     };
-
   }
+
 async removeCartItem(
   customerId: string,
   itemId: string,
