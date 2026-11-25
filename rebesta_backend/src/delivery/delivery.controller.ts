@@ -140,6 +140,7 @@ export class DeliveryController {
   }
 
 @Post('location')
+@Throttle({ default: { limit: 30, ttl: 60000 } })
 @UseGuards(DeliveryJwtGuard)
 updateLocation(
   @Req() req,
