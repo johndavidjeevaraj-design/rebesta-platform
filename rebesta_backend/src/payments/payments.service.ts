@@ -122,6 +122,13 @@ export class PaymentsService {
       const quantity = Number(item.quantity ?? 0);
       const price = Number(menuItem.price ?? 0);
 
+      if (!Number.isSafeInteger(quantity) || quantity <= 0) {
+        throw new BadRequestException('Invalid cart quantity');
+      }
+      if (!Number.isFinite(price) || price < 0) {
+        throw new BadRequestException('Invalid menu price');
+      }
+
       snapshot.push({
         menuItemId: menuItem.id,
         quantity,
@@ -248,7 +255,7 @@ const totalAmount =
   finalDeliveryFee -
   discount;
 
-if (totalAmount <= 0) {
+if (!Number.isFinite(totalAmount) || totalAmount <= 0 || !Number.isSafeInteger(Math.round(totalAmount * 100))) {
   throw new BadRequestException(
     'Invalid order amount',
   );
@@ -677,7 +684,7 @@ async webhook(
         .eq('razorpay_order_id', payment.order_id)
         .maybeSingle();
 
-      if (attempt) {
+      if (attempt && payment.status === 'captured') {
         await this.createOrderFromAttempt(attempt, payment.id, null).catch(
           (e) => console.error('Webhook order creation failed:', e),
         );
