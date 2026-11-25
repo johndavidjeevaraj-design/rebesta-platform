@@ -286,3 +286,10 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 - [x] Partner OTP send/verify now suppress upstream diagnostic details and normalize provider transport/response failures.
 - [x] Invalid OTP uses a generic authorization response.
 - [ ] Validate provider failure paths and login flows in staging; tests not executed.
+
+
+## Delivery availability endpoint hardening (2026-11-25)
+- [x] Going online now requires account status `approved` and KYC status `verified`.
+- [x] Availability endpoint response selects only explicit partner fields instead of returning the complete database row.
+- [x] Client-facing database failure response no longer forwards raw update error details.
+- [ ] Confirm approval/status values and behavior in staging; tests not executed.
