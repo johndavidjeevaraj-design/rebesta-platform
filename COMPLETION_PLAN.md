@@ -603,3 +603,9 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 - [x] Review deletion now checks the Supabase delete result and scopes deletion by review ID and customer ID, rather than treating an unchecked delete as success.
 - [!] Rating recomputation is still read-aggregate-write and can race under concurrent review mutations. No tests or runtime verification performed.
 - Commits: ef3fa2f386ebdf0ea74df1910135d90d6935c8ae; 12505ecacb84a512f321229d2b6a621ab7e60445.
+
+
+## Legacy checkout partner notification safeguard (2026-11-25)
+- [x] Removed partner Socket.IO and FCM notifications from the legacy checkout endpoint that creates orders with payment_status pending. Partner notifications are emitted from the verified Cashfree paid-order conversion path instead.
+- [!] Legacy checkout remains a pending/unpaid order creation path and its lifecycle, pricing, and integration should still be reviewed/retired or guarded. Static review only; tests not run.
+- Commit: 2b72f6a2cb8748e8ebb449ffcc44eabd98346736.
