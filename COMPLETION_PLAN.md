@@ -590,3 +590,9 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 - [x] Customer address CRUD service now replaces raw Supabase error throws with generic operation-specific errors for create, read, update, and delete, reducing exposure of provider/database error payloads.
 - [!] API ownership filters on update/delete remain in place; behavior for missing records and downstream exception mapping has not been runtime tested.
 - Commit: ebba20aec72cf50a2650136f1abc7dac89152b52.
+
+
+## Cashfree webhook/refund follow-up review (2026-11-25)
+- [x] Reviewed payment webhook signature validation: uses HMAC-SHA256 over timestamp plus raw request body and timing-safe signature comparison; validates required signature inputs and payload structure.
+- [x] Reviewed refund flow: claims paid-order state into refund_pending with a conditional update and refund ID before provider request; uses provider lookup before creation and idempotency key on refund creation; outcome uncertainty remains pending reconciliation.
+- [!] No live Cashfree webhook/refund tests or staging verification were performed. Review is static only; replay, out-of-order event, and provider-state coverage remain required.
