@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ForbiddenException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PartnerSignupDto } from './dto/partner-signup.dto';
 import { PartnerLoginDto } from './dto/partner-login.dto';
@@ -15,7 +15,7 @@ export class PartnerAuthService {
   async signup(_dto: PartnerSignupDto): Promise<never> {
     // Public self-service signup must not accept a client-chosen restaurant ID.
     // Partner accounts will be provisioned through an authenticated admin invite.
-    throw new Error('Partner self-registration is disabled. Contact platform support for an invitation.');
+    throw new ForbiddenException('Partner self-registration is disabled. Contact platform support for an invitation.');
   }
 
   async login(dto: PartnerLoginDto) {
