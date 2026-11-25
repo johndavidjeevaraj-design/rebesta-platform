@@ -30,3 +30,26 @@ where offer.id = ranked.id
 create unique index if not exists idx_delivery_offers_one_pending_per_order
   on public.delivery_offers(order_id)
   where status = 'pending';
+
+-- Do not overload a rider with simultaneous pending offers for different
+-- orders. Keep the oldest live offer and supersede later duplicates.
+with ranked_partner_offers as (
+  select
+    id,
+    row_number() over (
+      partition by delivery_partner_id
+      order by offered_at asc, created_at asc, id asc
+    ) as position
+  from public.delivery_offers
+  where status = 'pending'
+)
+update public.delivery_offers as offer
+set status = 'superseded',
+    responded_at = coalesce(offer.responded_at, now())
+from ranked_partner_offers as ranked
+where offer.id = ranked.id
+  and ranked.position > 1;
+
+create unique index if not exists idx_delivery_offers_one_pending_per_partner
+  on public.delivery_offers(delivery_partner_id)
+  where status = 'pending';
