@@ -2,7 +2,7 @@ import { IsString, Matches, MaxLength, MinLength } from 'class-validator';
 
 export class CustomerCompleteProfileDto {
   @IsString()
-  @Matches(/^[6-9]\\d{9}$/)
+  @Matches(/^[6-9]\d{9}$/)
   mobile!: string;
 
   @IsString()
