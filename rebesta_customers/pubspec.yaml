@@ -22,7 +22,7 @@ dependencies:
   geocoding: ^4.0.0
   dio: ^5.8.0+1
   flutter_svg: ^2.0.10+1
-  razorpay_flutter: ^1.4.0
+  flutter_cashfree_pg_sdk: ^2.7.0+55
   
   # Feature dependencies - safe to modify
   cached_network_image: ^3.3.1
