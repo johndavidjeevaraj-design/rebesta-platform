@@ -236,8 +236,14 @@ class AuthService {
 
   Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
-  
-    await prefs.clear();
+
+    // Remove session identity only. Preserve unrelated state such as
+    // pending payment reconciliation, cart and customer preferences.
+    await prefs.remove("token");
+    await prefs.remove("customerId");
+    await prefs.remove("customerName");
+    await prefs.remove("customerEmail");
+    lastVerificationToken = null;
   }
 
   // ============================================================
