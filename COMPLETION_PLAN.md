@@ -206,3 +206,12 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 - [ ] Add socket integration tests for assigned rider, unassigned rider, wrong rider, invalid coordinates, malformed payload, and inactive order states; run backend tests/build on latest head.
 - [ ] Socket CORS wildcard and shared-key admin socket authentication remain follow-up security issues; origin policy and admin identity/permissions need environment and client-contract verification before safely changing them.
 - No UI, migration or deployment changes; PR remains open/draft.
+
+
+## Rider GPS data minimization and socket contract check (2026-11-25)
+- [x] Inspected rider Flutter socket service and GPS service: the current GPS publisher sends location updates through the authenticated REST endpoint, not the gateway's `rider_location` Socket.IO event. Thus the socket event's rider-location broadcast is not presently the client publisher contract.
+- [x] Removed rider GPS coordinate and full response/error-body debug logging from the Flutter GPS publisher; location values and provider response bodies should not be emitted to routine debug logs.
+- [ ] Validate REST location endpoint ownership/active-order scoping, rate/accuracy constraints, and customer tracking contract in runtime/staging; not yet established by this file-level review.
+- [ ] Validate socket status names against DB schema/client tracking contract and add integration tests. Gateway rider-location handler should not be treated as end-to-end GPS tracking until a client contract uses it.
+- [ ] Available-orders endpoint still exposes customer name and full delivery address/coordinates to authenticated riders before KYC/offer eligibility; needs a verified privacy-minimized app contract before changing response.
+- No UI/design changes, DB migration, deployment, or test execution in this pass.
