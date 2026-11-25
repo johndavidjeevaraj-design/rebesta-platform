@@ -502,3 +502,11 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 - [x] Removed tracking screen diagnostic logging of tracking responses and rider/location/order data.
 - [!] Reconnection lifecycle, payment UI callback interruption behavior, and authorization/room-join enforcement still need end-to-end validation. Flutter analysis/build/tests not run.
 - No UI changes, migration, deployment or merge.
+
+
+## Mobile reconnect and error handling follow-up (2026-11-25)
+- [x] Reconstructed the customer live delivery socket service after a log-removal edit exposed malformed callback syntax; reconnect enabled and customer-room rejoin occurs on each socket connect, while event payloads remain order-filtered.
+- [x] Customer tracking API failures now display a generic message instead of propagating raw exception details into the screen error state.
+- [!] Confirm socket server enforces authenticated customer identity for room joins, and run socket reconnection/order-event integration tests. Flutter analysis/build not run.
+- [!] CI is PR/main-targeted and Flutter analyze remains non-blocking; Flutter tests are present, but release Android artifact/signing verification is not configured in the reviewed CI file.
+- No UI/design changes, deployment, merge or migrations.
