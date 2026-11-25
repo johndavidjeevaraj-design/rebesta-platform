@@ -981,6 +981,9 @@ export class DeliveryService {
     let weekCount = 0;
 
     for (const row of rows) {
+      if (row.status === 'reversed') {
+        continue;
+      }
       const amount = Number(row.amount ?? 0);
 
       const createdAt = row.created_at
