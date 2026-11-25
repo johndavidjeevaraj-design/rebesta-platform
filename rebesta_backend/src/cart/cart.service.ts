@@ -18,12 +18,12 @@ async addToCart(
   customerId: string,
   dto: AddCartItemDto,
 ) {
-  console.log('================================');
-  console.log('🛒 ADD TO CART');
-  console.log('Customer ID:', customerId);
-  console.log('DTO:', dto);
-  console.log('Menu Item ID:', dto.menuItemId);
-  console.log('================================');
+  
+  
+  
+  
+  
+  
 
   // ============================================================
   // 1. FIND MENU ITEM
@@ -38,8 +38,8 @@ async addToCart(
     .eq('id', dto.menuItemId)
     .maybeSingle();
 
-  console.log('MENU LOOKUP RESULT:', menuItem);
-  console.log('MENU LOOKUP ERROR:', menuError);
+  
+  
 
   if (menuError) {
     throw new Error(
@@ -59,23 +59,19 @@ async addToCart(
     );
   }
 
-  console.log(
-    '✅ MENU ITEM FOUND:',
-    menuItem.name,
-  );
+  if (!menuItem.restaurant_partner_id) {
+    throw new Error('Menu item is not linked to a restaurant');
+  }
 
-  console.log(
-    '🏪 RESTAURANT PARTNER:',
-    menuItem.restaurant_partner_id,
-  );
+  
+
+  
 
   // ============================================================
   // 2. FIND CART FOR THIS CUSTOMER + THIS RESTAURANT
   // ============================================================
 
-  console.log(
-    '🔎 LOOKING FOR CUSTOMER CART...',
-  );
+  
 
   const {
     data: carts,
@@ -93,15 +89,9 @@ async addToCart(
     })
     .limit(1);
 
-  console.log(
-    'CUSTOMER CART:',
-    carts,
-  );
+  
 
-  console.log(
-    'CUSTOMER CART ERROR:',
-    cartLookupError,
-  );
+  
 
   if (cartLookupError) {
     throw new Error(
@@ -123,9 +113,7 @@ async addToCart(
   // ============================================================
 
   if (!cart) {
-    console.log(
-      '🆕 NO CART FOUND — CREATING CART',
-    );
+    
 
     const {
       data: newCart,
@@ -148,15 +136,9 @@ async addToCart(
 
     cart = newCart;
 
-    console.log(
-      '✅ NEW CART CREATED:',
-      cart.id,
-    );
+    
   } else {
-    console.log(
-      '✅ EXISTING CART FOUND:',
-      cart.id,
-    );
+    
   }
 
   // ============================================================
@@ -184,13 +166,15 @@ async addToCart(
   // ============================================================
 
   if (existingItem) {
-    console.log(
-      '🔄 ITEM ALREADY IN CART',
-    );
+    
 
     const newQuantity =
       Number(existingItem.quantity) +
       Number(dto.quantity);
+
+    if (!Number.isSafeInteger(newQuantity) || newQuantity > 99) {
+      throw new Error('A maximum of 99 units per menu item is allowed');
+    }
 
     const {
       data,
@@ -210,10 +194,7 @@ async addToCart(
       );
     }
 
-    console.log(
-      '✅ CART ITEM UPDATED:',
-      data,
-    );
+    
 
     return {
       success: true,
@@ -226,9 +207,7 @@ async addToCart(
   // 7. ADD NEW ITEM
   // ============================================================
 
-  console.log(
-    '➕ ADDING NEW ITEM TO CART',
-  );
+  
 
  const {
   data,
@@ -250,10 +229,7 @@ async addToCart(
     );
   }
 
-  console.log(
-    '✅ ITEM ADDED:',
-    data,
-  );
+  
 
   return {
     success: true,
@@ -292,14 +268,11 @@ async getCart(
   restaurantPartnerId?: string,
   addressId? : string,
 ) {
-  console.log('================================');
-  console.log('🛒 GET CART');
-  console.log('Customer ID:', customerId);
-  console.log(
-    'Restaurant Partner ID:',
-    restaurantPartnerId ?? 'ALL',
-  );
-  console.log('================================');
+  
+  
+  
+  
+  
 
   // ============================================================
   // BUILD CART QUERY
@@ -375,9 +348,7 @@ async getCart(
   // ============================================================
 
   if (!carts || carts.length === 0) {
-    console.log(
-      'ℹ️ NO CART FOUND',
-    );
+    
 
     return {
       success: true,
@@ -407,15 +378,9 @@ async getCart(
 
   const cart = carts[0];
 
-  console.log(
-    '✅ CART FOUND:',
-    cart.id,
-  );
+  
 
-  console.log(
-    '🏪 RESTAURANT:',
-    cart.restaurant_partner_id,
-  );
+  
 
   // ============================================================
   // CART ITEMS
