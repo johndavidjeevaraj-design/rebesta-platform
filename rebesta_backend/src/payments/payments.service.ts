@@ -640,6 +640,32 @@ async webhook(
   }
 
   const event = body.event;
+  const payload = body.payload;
+
+  // Validate event envelopes before accessing nested entities.
+  if (
+    ['payment.captured', 'payment.failed', 'refund.processed', 'refund.failed'].includes(event) &&
+    (!payload || typeof payload !== 'object')
+  ) {
+    throw new BadRequestException('Invalid webhook payload');
+  }
+
+  if (
+    ['payment.captured', 'payment.failed'].includes(event) &&
+    (!payload.payment?.entity ||
+      typeof payload.payment.entity.id !== 'string' ||
+      typeof payload.payment.entity.order_id !== 'string')
+  ) {
+    throw new BadRequestException('Invalid payment webhook entity');
+  }
+
+  if (
+    ['refund.processed', 'refund.failed'].includes(event) &&
+    (!payload.refund?.entity ||
+      typeof payload.refund.entity.payment_id !== 'string')
+  ) {
+    throw new BadRequestException('Invalid refund webhook entity');
+  }
 
   // existing webhook logic...
 
