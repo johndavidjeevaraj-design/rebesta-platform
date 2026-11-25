@@ -50,6 +50,9 @@ Benchmark: core functional capabilities of major food delivery platforms; not co
 - [x] Added partner-authenticated inventory read/update endpoints (`GET /inventory/partner`, `PATCH /inventory/:menuItemId/stock`) with integer bounds and restaurant ownership scoping.
 - [x] Restaurant acceptance now uses a database transaction to lock the order and tracked menu rows, validate availability/stock, deduct stock, and accept the order atomically. Concurrent acceptances cannot oversell tracked quantities.
 - [ ] Apply `20261125200000_atomic_restaurant_stock_acceptance.sql` in staging before deploying the updated backend; verify tracked and untracked items, insufficient stock, concurrent acceptance, and COD/online payment paths.
+- [x] Admin rider earnings now read actual `delivery_earnings`/wallet balances instead of estimating earnings as a fixed ₹40 multiplied by delivered orders or summing customer order value.
+- [x] Added an audited, idempotent manual payout settlement RPC and admin endpoint. It settles pending earning rows, records a unique payout reference, and updates rider wallet/pending-payout balances atomically. This records a bank transfer after an administrator has completed it; it does not initiate a bank transfer.
+- [ ] Apply `20261125210000_atomic_delivery_payout_settlement.sql` in staging; test repeated payout references, concurrent payout requests, empty balances, and wallet reconciliation.
 - [x] Dispatch now also prevents a rider from holding simultaneous pending offers for different orders, with candidate filtering plus a database unique index and retry-on-conflict.
 - [x] Removed delivery-app debug logging of full order/customer response payloads where reviewed.
 - [x] Updated the delivery-completion migration to provision `delivery_earnings` and the rider wallet/counter columns before creating the OTP completion RPC.
