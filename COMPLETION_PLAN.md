@@ -535,3 +535,13 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 - [!] Legacy customer SocketService is not used by the reviewed tracking screen and lacks JWT handshake auth; its room join is server-denied unless a valid authenticated socket context exists. Confirm no other app feature relies on this legacy service before removal.
 - [!] Shared admin socket room uses a static shared API key in handshake, not a scoped admin identity/session; remains a security redesign item.
 - No UI change, migration, merge or deployment. Runtime socket tests were not run.
+
+
+## Customer session and socket follow-up audit (2026-11-25)
+- [ ] JWT storage remains in plaintext SharedPreferences (`token`). The dependency list has no secure-storage package; migration requires dependency/lockfile resolution and Android/iOS platform review before implementation.
+- [x] Customer tracking screen uses `DeliverySocketService`, which supplies JWT via Socket.IO auth handshake, re-joins customer room on connect/reconnect, and filters tracking events by order ID.
+- [ ] Legacy `SocketService` has no JWT auth handshake and emits `join_customer` with a caller-supplied customer ID. Server room authorization rejects unauthenticated identity, but the service should be retired only after complete call-site tracing; it has not been proven unused.
+- [ ] Session expiry (`Session.expire`) still removes token and identity keys from SharedPreferences; migrate expiry cleanup to the eventual secure-storage abstraction.
+- [x] REST rider-location controller path passes authenticated delivery-partner identity to service. Service persists coordinates and emits customer-room location events for assigned active orders; tracking client filters by order ID. No throttling/rate limiting specific to GPS updates was verified in this pass.
+- [ ] Add explicit rider-location throttling/abuse controls, while preserving normal GPS cadence and assignment validation.
+- [ ] Secure-storage implementation and legacy socket call-site tracing are pending; no code changes or dependency resolution were performed in this audit pass.
