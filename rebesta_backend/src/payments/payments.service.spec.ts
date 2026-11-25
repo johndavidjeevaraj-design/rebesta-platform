@@ -1,5 +1,5 @@
 import * as crypto from 'crypto';
-import { isCashfreePaymentMatch, isCashfreeWebhookSignatureValid } from './payments.service';
+import { cashfreeRefundPaymentStatus, isCashfreePaymentMatch, isCashfreeWebhookSignatureValid } from './payments.service';
 
 describe('isCashfreePaymentMatch', () => {
   const attempt = {
@@ -84,5 +84,19 @@ describe('isCashfreeWebhookSignatureValid', () => {
     expect(
       isCashfreeWebhookSignatureValid('invalid', timestamp, rawBody, secret),
     ).toBe(false);
+  });
+});
+
+
+describe('cashfreeRefundPaymentStatus', () => {
+  it.each([
+    ['SUCCESS', 'refunded'],
+    ['FAILED', 'paid'],
+    ['CANCELLED', 'paid'],
+    ['PENDING', 'refund_pending'],
+    ['ONHOLD', 'refund_pending'],
+    ['UNKNOWN', 'refund_pending'],
+  ])('maps provider refund status %s safely', (providerStatus, expected) => {
+    expect(cashfreeRefundPaymentStatus(providerStatus)).toBe(expected);
   });
 });
