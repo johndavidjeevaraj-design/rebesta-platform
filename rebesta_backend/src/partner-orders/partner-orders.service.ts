@@ -39,11 +39,6 @@ export class PartnerOrdersService {
   restaurantPartnerId: string,
 ) {
 
-  console.log('========================================');
-  console.log('GET PARTNER ORDERS');
-  console.log('Restaurant Partner ID:', restaurantPartnerId);
-  console.log('========================================');
-
   const { data: orders, error } =
     await supabase
       .from('orders')
@@ -86,15 +81,8 @@ export class PartnerOrdersService {
         },
       );
 
-  console.log('========================================');
-  console.log('PARTNER ORDERS RESULT');
-  console.log('Supabase Error:', error);
-  console.log('Orders Count:', orders?.length ?? 0);
-  console.log('Orders fetched:', orders?.length ?? 0);
-  console.log('========================================');
-
   if (error) {
-    throw new Error(error.message);
+    throw new BadRequestException('Unable to retrieve restaurant orders');
   }
 
   const formattedOrders = (orders ?? []).map(
@@ -137,8 +125,6 @@ export class PartnerOrdersService {
       ),
     }),
   );
-
-  console.log('FORMATTED ORDERS COUNT:', formattedOrders.length);
 
   return {
     success: true,
@@ -246,9 +232,7 @@ async updateStatus(
     !allowed.includes(newStatus)
   ) {
 
-    throw new Error(
-      `Cannot change order from "${order.order_status}" to "${newStatus}"`,
-    );
+    throw new BadRequestException('Invalid order status transition');
 
   }
 
@@ -292,9 +276,7 @@ async updateStatus(
   }
 
   if (error || !data) {
-    throw new BadRequestException(
-      error?.message ?? 'Order status changed concurrently; refresh and retry',
-    );
+    throw new BadRequestException('Order status update failed; refresh and retry');
   }
 
         // Live Socket Update
@@ -317,11 +299,6 @@ try {
     },
   );
 
-  console.log(
-    'Socket order status update sent:',
-    orderId,
-    newStatus,
-  );
 
   // ============================================================
   // NEW ORDER BROADCAST
@@ -392,14 +369,9 @@ if (title) {
       deepLink: `/orders/${order.id}`,
     });
 
-    console.log(
-      'Customer notification created successfully',
-    );
+
   } catch (notificationError) {
-    console.error(
-      'Customer notification failed:',
-      notificationError,
-    );
+    console.warn('Customer notification delivery failed');
   }
 
   try {
@@ -414,14 +386,9 @@ if (title) {
       },
     );
 
-    console.log(
-      'Customer FCM notification sent successfully',
-    );
+
   } catch (fcmError) {
-    console.error(
-      'Customer FCM notification failed:',
-      fcmError,
-    );
+    console.warn('Customer push delivery failed');
   }
 }
 
@@ -493,7 +460,7 @@ async getOrderById(
       .single();
 
   if (error || !order) {
-    throw new Error('Order not found');
+    throw new BadRequestException('Order not found');
   }
 
   const customer = Array.isArray(order.customers)
