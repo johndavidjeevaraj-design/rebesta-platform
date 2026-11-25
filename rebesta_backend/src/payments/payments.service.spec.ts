@@ -10,7 +10,7 @@ describe('isCashfreePaymentMatch', () => {
   const payment = {
     order_id: 'rb_order_123',
     payment_status: 'SUCCESS',
-    payment_currency: 'INR',
+    order_currency: 'INR',
     order_amount: 349.5,
     payment_amount: 349.5,
     cf_payment_id: 123456789,
@@ -23,7 +23,7 @@ describe('isCashfreePaymentMatch', () => {
   it.each([
     [{ ...payment, order_id: 'another-order' }, 'wrong order'],
     [{ ...payment, payment_status: 'PENDING' }, 'pending payment'],
-    [{ ...payment, payment_currency: 'USD' }, 'wrong currency'],
+    [{ ...payment, order_currency: 'USD' }, 'wrong currency'],
     [{ ...payment, order_amount: 349 }, 'provider order amount mismatch'],
     [{ ...payment, payment_amount: 300 }, 'captured payment amount mismatch'],
     [{ ...payment, cf_payment_id: null }, 'missing provider payment ID'],
