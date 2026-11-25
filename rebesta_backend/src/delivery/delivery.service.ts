@@ -59,27 +59,16 @@ export class DeliveryService {
     // mid-offer. (Fails open if the offers table is missing.)
     // ============================================================
 
-    let pool = data ?? [];
-
-    try {
-      const { data: pendingOffers } = await supabase
-        .from('delivery_offers')
-        .select('order_id')
-        .eq('status', 'pending')
-        .gt('expires_at', new Date().toISOString());
-
-      if (pendingOffers && pendingOffers.length > 0) {
-        const offeredOrderIds = new Set(
-          pendingOffers.map((o) => o.order_id as string),
-        );
-
-        pool = pool.filter(
-          (o) => !offeredOrderIds.has(o.id as string),
-        );
-      }
-    } catch (e) {
-      console.error('Offer pool filter skipped:', e);
+    const { data: pendingOffers, error: offersError } = await supabase
+      .from('delivery_offers')
+      .select('order_id')
+      .eq('status', 'pending')
+      .gt('expires_at', new Date().toISOString());
+    if (offersError) {
+      throw new BadRequestException('Unable to safely load delivery offers');
     }
+    const offeredOrderIds = new Set((pendingOffers ?? []).map((o) => o.order_id as string));
+    const pool = (data ?? []).filter((o) => !offeredOrderIds.has(o.id as string));
 
     return {
       success: true,
