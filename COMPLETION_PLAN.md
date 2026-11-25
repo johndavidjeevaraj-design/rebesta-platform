@@ -596,3 +596,10 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 - [x] Reviewed payment webhook signature validation: uses HMAC-SHA256 over timestamp plus raw request body and timing-safe signature comparison; validates required signature inputs and payload structure.
 - [x] Reviewed refund flow: claims paid-order state into refund_pending with a conditional update and refund ID before provider request; uses provider lookup before creation and idempotency key on refund creation; outcome uncertainty remains pending reconciliation.
 - [!] No live Cashfree webhook/refund tests or staging verification were performed. Review is static only; replay, out-of-order event, and provider-state coverage remain required.
+
+
+## Review API error handling (2026-11-25)
+- [x] Sanitized provider/database error messages returned by review retrieval, submission, update and rating calculation paths.
+- [x] Review deletion now checks the Supabase delete result and scopes deletion by review ID and customer ID, rather than treating an unchecked delete as success.
+- [!] Rating recomputation is still read-aggregate-write and can race under concurrent review mutations. No tests or runtime verification performed.
+- Commits: ef3fa2f386ebdf0ea74df1910135d90d6935c8ae; 12505ecacb84a512f321229d2b6a621ab7e60445.
