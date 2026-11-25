@@ -1,4 +1,4 @@
-import { Injectable, ForbiddenException } from '@nestjs/common';
+import { Injectable, ForbiddenException, BadGatewayException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PartnerSignupDto } from './dto/partner-signup.dto';
 import { PartnerLoginDto } from './dto/partner-login.dto';
@@ -100,11 +100,15 @@ async sendOtp(mobile: string) {
   }
 
   const url = `https://2factor.in/API/V1/${apiKey}/SMS/${phone}/AUTOGEN/REBESTA`;
-  const response = await fetch(url);
-  const data = await response.json();
-
-  if (!response.ok || data.Status !== 'Success' || !data.Details) {
-    throw new Error(data.Details?.toString() ?? 'Failed to send OTP');
+  let data: any;
+  try {
+    const response = await fetch(url);
+    data = await response.json();
+    if (!response.ok || data.Status !== 'Success' || !data.Details) {
+      throw new Error('provider rejected request');
+    }
+  } catch {
+    throw new BadGatewayException('Unable to send verification code. Please try again.');
   }
 
   const challengeToken = await this.jwtService.signAsync(
@@ -151,11 +155,16 @@ async verifyOtp(
   }
 
   const url = `https://2factor.in/API/V1/${apiKey}/SMS/VERIFY/${encodeURIComponent(challenge.providerSessionId)}/${encodeURIComponent(otp)}`;
-  const response = await fetch(url);
-  const data = await response.json();
+  let data: any;
+  try {
+    const response = await fetch(url);
+    data = await response.json();
+  } catch {
+    throw new BadGatewayException('OTP verification service is temporarily unavailable. Please try again.');
+  }
 
-  if (!response.ok || data.Status !== 'Success') {
-    throw new Error(data.Details?.toString() ?? 'Invalid OTP');
+  if (!data || data.Status !== 'Success') {
+    throw new UnauthorizedException('Invalid or expired OTP');
   }
 
   const { data: user, error } = await supabase
