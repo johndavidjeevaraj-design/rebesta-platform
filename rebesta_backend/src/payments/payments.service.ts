@@ -524,46 +524,73 @@ return this.createOrderFromAttempt(
     if (error || !order) {
       throw new BadRequestException('Order not found');
     }
-
     if (order.payment_status === 'refunded') {
       throw new BadRequestException('Order has already been refunded');
     }
-
     if (order.payment_status !== 'paid') {
-      throw new BadRequestException(
-        'Only paid orders can be refunded',
-      );
+      throw new BadRequestException('Only paid orders can be refunded');
     }
-
     if (!order.razorpay_payment_id) {
       throw new BadRequestException('Payment not found');
     }
 
-    // Do not mark the order refunded until the provider confirms the refund.
-    await this.razorpay.payments.refund(
-      order.razorpay_payment_id,
-      {},
-    );
-
-    const { data: updatedOrder, error: updateError } = await supabase
+    // Atomically claim the refund operation to prevent concurrent duplicate calls.
+    const { data: claimed, error: claimError } = await supabase
       .from('orders')
-      .update({ payment_status: 'refunded' })
+      .update({ payment_status: 'refund_pending' })
       .eq('id', orderId)
       .eq('payment_status', 'paid')
       .select('id')
       .maybeSingle();
 
+    if (claimError || !claimed) {
+      throw new BadRequestException(
+        'Refund is already being processed or order state changed',
+      );
+    }
+
+    let providerRefund: any;
+    try {
+      providerRefund = await this.razorpay.payments.refund(
+        order.razorpay_payment_id,
+        {},
+      );
+    } catch (providerError) {
+      // Restore only our claimed state. If this fails, leave a visible
+      // refund_pending state for manual/provider reconciliation.
+      const { error: restoreError } = await supabase
+        .from('orders')
+        .update({ payment_status: 'paid' })
+        .eq('id', orderId)
+        .eq('payment_status', 'refund_pending');
+      if (restoreError) {
+        throw new BadRequestException(
+          'Refund request failed and local state restoration failed; reconcile this order',
+        );
+      }
+      throw new BadRequestException('Razorpay refund request failed');
+    }
+
+    const { data: updatedOrder, error: updateError } = await supabase
+      .from('orders')
+      .update({ payment_status: 'refunded' })
+      .eq('id', orderId)
+      .eq('payment_status', 'refund_pending')
+      .select('id')
+      .maybeSingle();
+
     if (updateError || !updatedOrder) {
-      // Provider refund succeeded but local state may not have updated.
-      // Keep this explicit for reconciliation rather than reporting success.
       throw new BadRequestException(
         'Refund was accepted by Razorpay but order status update failed. Reconcile this order before retrying.',
       );
     }
 
-    return { success: true, message: 'Refund processed successfully' };
+    return {
+      success: true,
+      message: 'Refund processed successfully',
+      refundId: providerRefund?.id ?? null,
+    };
   }
-
   // ============================================================
   // WEBHOOK (server-side safety net)
   // ============================================================
