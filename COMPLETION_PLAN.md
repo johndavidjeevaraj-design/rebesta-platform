@@ -545,3 +545,10 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 - [x] REST rider-location controller path passes authenticated delivery-partner identity to service. Service persists coordinates and emits customer-room location events for assigned active orders; tracking client filters by order ID. No throttling/rate limiting specific to GPS updates was verified in this pass.
 - [ ] Add explicit rider-location throttling/abuse controls, while preserving normal GPS cadence and assignment validation.
 - [ ] Secure-storage implementation and legacy socket call-site tracing are pending; no code changes or dependency resolution were performed in this audit pass.
+
+
+## Legacy customer socket hardening (2026-11-25)
+- [x] Legacy SocketService now reads session token/customer identity from stored session, attaches JWT in Socket.IO handshake, avoids connecting without session credentials, and re-joins its verified customer room on reconnect.
+- [x] Legacy joinCustomer validates the supplied ID against the locally stored identity before requesting the room. Backend remains responsible for authoritative JWT/room authorization.
+- [!] Full call-site tracing remains incomplete; this is hardening, not proof the legacy service can be retired. Flutter analysis/tests and runtime socket tests were not executed.
+- Commit: 832a751daf4ac44d96d525e34c587a6165a6ed70. No UI changes, migrations, merge or deployment.
