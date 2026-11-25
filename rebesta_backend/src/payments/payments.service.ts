@@ -381,11 +381,10 @@ if (!Number.isFinite(totalAmount) || totalAmount <= 0 || !Number.isSafeInteger(M
         .update({ status: 'failed' })
         .eq('id', attempt.id)
         .eq('status', 'created');
-      const providerMessage = providerError?.response?.data?.message;
+      // Avoid returning upstream provider details to the client; they may
+      // contain internal diagnostic information. Keep a generic response.
       throw new BadRequestException(
-        typeof providerMessage === 'string'
-          ? `Cashfree order creation failed: ${providerMessage}`
-          : 'Cashfree order creation failed. Please try again.',
+        'Cashfree order creation failed. Please try again.',
       );
     }
   }
