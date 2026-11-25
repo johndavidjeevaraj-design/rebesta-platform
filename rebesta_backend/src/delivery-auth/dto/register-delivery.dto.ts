@@ -1,25 +1,30 @@
-import {
-  IsEmail,
-  IsNotEmpty,
-  MinLength,
-} from 'class-validator';
+import { IsEmail, IsNotEmpty, IsString, MinLength, MaxLength, Matches } from 'class-validator';
 
 export class RegisterDeliveryDto {
-
+  @IsString()
   @IsNotEmpty()
+  @MaxLength(100)
   name: string;
 
   @IsEmail()
+  @MaxLength(254)
   email: string;
 
-  @IsNotEmpty()
+  @Matches(/^\\+?[0-9]{10,15}$/)
   mobile: string;
 
-  @MinLength(6)
+  @IsString()
+  @MinLength(8)
+  @MaxLength(72)
   password: string;
 
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(40)
   vehicleType: string;
 
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(30)
   vehicleNumber: string;
-
 }
