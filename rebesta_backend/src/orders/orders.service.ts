@@ -92,103 +92,52 @@ for (const item of cartItems) {
 }
 
     // ==========================================================
-    // GET DELIVERY ADDRESS WITH COORDINATES
-    // ==========================================================
+    const isPickup = dto.orderType === 'pickup';
+    let address: { id: string; latitude: number | null; longitude: number | null } | null = null;
 
-    const {
-      data: address,
-      error: addressError,
-    } = await supabase
-      .from('addresses')
-      .select('id, latitude, longitude')
-      .eq('id', dto.addressId)
-      .eq('user_id', customerId)
-      .single();
+    if (!isPickup) {
+      if (!dto.addressId) {
+        throw new Error('Delivery address is required');
+      }
 
-    if (addressError || !address) {
-      throw new Error(
-        'Invalid delivery address',
-      );
+      const { data, error: addressError } = await supabase
+        .from('addresses')
+        .select('id, latitude, longitude')
+        .eq('id', dto.addressId)
+        .eq('user_id', customerId)
+        .maybeSingle();
+
+      if (addressError || !data) {
+        throw new Error('Invalid delivery address');
+      }
+      address = data;
     }
 
-    // ==========================================================
-    // GET RESTAURANT COORDINATES
-    //
-    // NOTE: coordinates live on the `restaurants` table
-    // (keyed by restaurant_partner_id), not `restaurant_partners`.
-    // ==========================================================
+    let deliveryFee = 0;
 
-    const {
-      data: restaurant,
-      error: restaurantLookupError,
-    } = await supabase
-      .from('restaurants')
-      .select('latitude, longitude')
-      .eq('restaurant_partner_id', dto.restaurantPartnerId)
-      .maybeSingle();
+    if (!isPickup) {
+      const { data: restaurant, error: restaurantLookupError } = await supabase
+        .from('restaurants')
+        .select('latitude, longitude')
+        .eq('restaurant_partner_id', dto.restaurantPartnerId)
+        .maybeSingle();
 
-    if (restaurantLookupError) {
-      throw new Error(restaurantLookupError.message);
+      if (restaurantLookupError) {
+        throw new Error(restaurantLookupError.message);
+      }
+
+      const feeResult = await this.mapsService.calculateOrderDeliveryFee({
+        restaurantLat: restaurant?.latitude != null ? Number(restaurant.latitude) : null,
+        restaurantLng: restaurant?.longitude != null ? Number(restaurant.longitude) : null,
+        addressLat: address?.latitude != null ? Number(address.latitude) : null,
+        addressLng: address?.longitude != null ? Number(address.longitude) : null,
+        subtotal,
+        orderType: 'delivery',
+        includeWeather: true,
+      });
+      deliveryFee = Number(feeResult.fee ?? 0);
     }
 
-// ==========================================================
-// CALCULATE DELIVERY FEE
-//
-// ONE fee engine for COD + online + cart estimates.
-//
-// Real road distance via ORS
-// → straight-line fallback
-// → base fee when coordinates are unavailable.
-//
-// The MapsService also handles:
-// - included distance
-// - per-km pricing
-// - peak surcharge
-// - small-order surcharge
-// - free delivery threshold
-// - maximum fee
-// ==========================================================
-
-const feeResult =
-  await this.mapsService.calculateOrderDeliveryFee({
-    restaurantLat:
-      restaurant?.latitude != null
-        ? Number(restaurant.latitude)
-        : null,
-
-    restaurantLng:
-      restaurant?.longitude != null
-        ? Number(restaurant.longitude)
-        : null,
-
-    addressLat:
-      address?.latitude != null
-        ? Number(address.latitude)
-        : null,
-
-    addressLng:
-      address?.longitude != null
-        ? Number(address.longitude)
-        : null,
-
-    subtotal,
-
-    orderType: 'delivery',
-
-    includeWeather: true,
-  });
-
-const deliveryFee = feeResult.fee;
-
-console.log('====================================');
-console.log('💰 COD DELIVERY FEE');
-console.log('Subtotal:', subtotal);
-console.log('Distance:', feeResult.distanceKm, 'km');
-console.log('Delivery Fee:', deliveryFee);
-console.log('Breakdown:', feeResult.breakdown);
-console.log('====================================');
-
-    // ==========================================================
     // COUPON
     // ==========================================================
 
@@ -259,7 +208,9 @@ const totalAmount =
           cart.restaurant_partner_id,
 
         address_id:
-          dto.addressId,
+          isPickup ? null : dto.addressId,
+
+        order_type: isPickup ? 'pickup' : 'delivery',
 
         discount_amount:
           discount,
