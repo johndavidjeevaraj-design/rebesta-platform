@@ -472,11 +472,7 @@ export class DeliveryService {
       throw new BadRequestException('Order not found');
     }
 
-    if (
-      order.order_status === 'delivered' ||
-      order.order_status === 'picked_up' ||
-      order.order_status === 'arrived_at_customer'
-    ) {
+    if (!isRiderCancellationAllowed(order.order_status)) {
       throw new BadRequestException('Order cannot be cancelled at this stage');
     }
 
@@ -492,7 +488,6 @@ export class DeliveryService {
       .in('order_status', [
         'accepted_for_delivery',
         'arrived_at_restaurant',
-        'out_for_delivery',
       ])
       .select()
       .maybeSingle();
@@ -1137,4 +1132,10 @@ export class DeliveryService {
       orders: data ?? [],
     };
   }
+}
+
+// Riders may unassign only before collecting the food. Once the order
+// is picked up, the delivery must be completed or handled by operations.
+export function isRiderCancellationAllowed(orderStatus: string): boolean {
+  return ['accepted_for_delivery', 'arrived_at_restaurant'].includes(orderStatus);
 }
