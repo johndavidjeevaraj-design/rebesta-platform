@@ -7,6 +7,7 @@ import { AdminService } from './admin.service';
 import { Body, Param, Patch } from '@nestjs/common';
 import { AdminGuard } from './admin.guard';
 import { RejectDeliveryKycDto } from './dto/reject-delivery-kyc.dto';
+import { SettleDeliveryPayoutDto } from './dto/settle-delivery-payout.dto';
 
 // Every admin route requires the x-admin-key header
 @UseGuards(AdminGuard)
@@ -168,6 +169,18 @@ unblockDeliveryPartner(
   @Param('id') id: string,
 ) {
   return this.adminService.unblockDeliveryPartner(id);
+}
+
+// Record a completed manual bank transfer and settle all pending rider earnings.
+@Patch('delivery-partners/:id/payout')
+settleDeliveryPayout(
+  @Param('id') id: string,
+  @Body() dto: SettleDeliveryPayoutDto,
+) {
+  return this.adminService.settleDeliveryPayout(
+    id,
+    dto.payoutReference,
+  );
 }
 // ==========================
 // All Orders
