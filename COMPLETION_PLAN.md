@@ -199,3 +199,10 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 - Admin socket joining uses direct shared-key comparison and has no individual identity/role session. The shared static key approach is a temporary boundary; require server-side access control and key rotation review.
 - Socket gateway CORS currently uses wildcard origin; it should be constrained to the approved app/web origins, coordinated with connection auth and client deployment.
 - Findings recorded; realtime contract/runtime tests unavailable here, so no socket payload or access behavior changed in this pass.
+
+
+## Socket rider-location remediation (2026-11-25)
+- [x] Rider location socket handler now validates order ID and finite latitude/longitude ranges, looks up an order assigned to the authenticated rider in an active delivery state, and emits only server-derived order/rider identifiers plus validated coordinates and timestamp. Arbitrary payload relay is removed.
+- [ ] Add socket integration tests for assigned rider, unassigned rider, wrong rider, invalid coordinates, malformed payload, and inactive order states; run backend tests/build on latest head.
+- [ ] Socket CORS wildcard and shared-key admin socket authentication remain follow-up security issues; origin policy and admin identity/permissions need environment and client-contract verification before safely changing them.
+- No UI, migration or deployment changes; PR remains open/draft.
