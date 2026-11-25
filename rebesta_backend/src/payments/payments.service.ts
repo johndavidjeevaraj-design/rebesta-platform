@@ -507,7 +507,7 @@ if (!Number.isFinite(totalAmount) || totalAmount <= 0 || !Number.isSafeInteger(M
   async refund(orderId: string) {
     const { data: order, error } = await supabase
       .from('orders')
-      .select('id, payment_status, total_amount, cashfree_order_id, cashfree_payment_id, cashfree_refund_id')
+      .select('id, payment_status, total_amount, razorpay_order_id, cashfree_order_id, cashfree_payment_id, cashfree_refund_id')
       .eq('id', orderId)
       .maybeSingle();
 
@@ -516,6 +516,9 @@ if (!Number.isFinite(totalAmount) || totalAmount <= 0 || !Number.isSafeInteger(M
       return { success: true, message: 'Order has already been refunded' };
     }
     if (!order.cashfree_order_id || !order.cashfree_payment_id) {
+      if (order.razorpay_order_id) {
+        throw new BadRequestException('This is a historical Razorpay payment. Refund it through the original Razorpay dashboard; Cashfree cannot refund it.');
+      }
       throw new BadRequestException('This order does not have a Cashfree payment');
     }
 
