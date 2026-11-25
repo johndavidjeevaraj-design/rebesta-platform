@@ -398,3 +398,13 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 - [ ] Validate forwarded IP / trust-proxy configuration with actual ingress; don't trust arbitrary X-Forwarded-For. Staging multi-instance throttle and fault-injection tests pending.
 - [ ] Build/test, CI run, container scan and deployment verification not executed.
 - No UI changes, deployment, merge or migrations.
+
+
+## Cache design and read-path review (2026-11-25)
+- Inspected menu, restaurant, category and banner read services/modules.
+- Candidate cache boundaries: public restaurant discovery/detail, public restaurant menu, customer menu filtering, category list, active banner list. Use short TTLs and cache version/key namespaces.
+- Cache must not bypass restaurant approval/open-state checks or menu availability; cached menu/restaurant data is discovery-only. Checkout and payment must continue fresh authoritative validations and not consume cached price/stock/availability for authorization or financial decisions.
+- Partner mutation operations (menu create/update/delete/availability toggle; store profile changes; banner admin CRUD) need coordinated invalidation or bounded TTL. Cache writes must be bypassed on errors and use safe serialization.
+- Current code uses Supabase query service directly; Redis client/cache provider is not present in inspected modules. Adding a Redis dependency without choosing/confirming managed Redis endpoint, deployment configuration, secrets, network access, and health/failure behavior would risk breaking availability. No code changes to cache paths in this pass.
+- Recommended first implementation: Redis-backed injectable cache provider with fail-open reads/writes (DB remains source of truth), scoped key namespaces, TTL, no caching of personalized/favorite/financial/order/cart/auth data, cache invalidation after successful writes, and bounded TTL fallback if invalidation fails. Add unit tests and integration validation before rollout.
+- Redis infrastructure, credentials, connection health, CI verification, staging cache invalidation/consistency tests remain pending. No deployment or runtime tests performed.
