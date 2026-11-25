@@ -347,3 +347,15 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 - [!] Reconcile and verify provider fetches are not broadly caught/sanitized at all points; inspect exception handling and test provider outages, malformed payloads, conflicting payment/refund events, and webhook replay.
 - [ ] Sandbox tests for concurrent refund calls, provider timeout after refund creation, duplicate/out-of-order webhook delivery, amount mismatch, partial payments, multiple SUCCESS payments, and reconciliation races. Not executed.
 - No UI changes, deployment, merge or migrations.
+
+
+## Customer auth/session audit (2026-11-25; runtime verification pending)
+- [x] Customer OTP challenge JWT binds purpose, phone number and provider session; short-lived. OTP verification checks token, phone binding and provider result.
+- [x] New-customer profile completion proof is purpose/phone-bound and short-lived; checks existing account and relies on mobile uniqueness to protect races.
+- [x] Signup via legacy password route disabled; profile update is JWT-guarded and name-only.
+- [x] Customer JWT strategy validates role and matching sub/customerId, expiry, and startup JWT secret length.
+- [x] Sanitized profile-query error details.
+- [!] Legacy email/password login remains available for historical customers; ensure nullable/legacy passwords and account status are handled, and decide whether to retire it. No account-status/disabled-user lookup in JWT validation identified in reviewed files.
+- [!] OTP verify/send and profile completion rely on global in-memory throttling (distributed rate limiting is still pending); confirm provider-session reuse behavior and resend/verification abuse limits under staging.
+- [ ] Verify mobile-number normalization/uniqueness, OTP replay, token replay/expiry, blocked account behavior, legacy password account compatibility, profile mutation DTO validation, and duplicate profile creation under concurrency. Tests not executed.
+- No UI changes, migrations, deployment or merge.
