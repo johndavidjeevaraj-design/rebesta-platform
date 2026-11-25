@@ -72,7 +72,7 @@ export class PartnerOrdersService {
   console.log('PARTNER ORDERS RESULT');
   console.log('Supabase Error:', error);
   console.log('Orders Count:', orders?.length ?? 0);
-  console.log('Orders:', JSON.stringify(orders, null, 2));
+  console.log('Orders fetched:', orders?.length ?? 0);
   console.log('========================================');
 
   if (error) {
