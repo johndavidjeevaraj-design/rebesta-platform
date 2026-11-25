@@ -981,7 +981,7 @@ export class DeliveryService {
     let weekCount = 0;
 
     for (const row of rows) {
-      if (row.status === 'reversed') {
+      if (!isEarningIncludedInSummary(row.status)) {
         continue;
       }
       const amount = Number(row.amount ?? 0);
@@ -1092,4 +1092,9 @@ export class DeliveryService {
 // is picked up, the delivery must be completed or handled by operations.
 export function isRiderCancellationAllowed(orderStatus: string): boolean {
   return ['accepted_for_delivery', 'arrived_at_restaurant'].includes(orderStatus);
+}
+
+
+export function isEarningIncludedInSummary(status: string): boolean {
+  return status !== 'reversed';
 }
