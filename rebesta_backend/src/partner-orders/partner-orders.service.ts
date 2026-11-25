@@ -241,24 +241,36 @@ async updateStatus(
 
   // Update status
 
-  const { data, error } =
-    await supabase
+  let data: any;
+  let error: any;
+
+  if (newStatus === 'accepted') {
+    // Stock validation, stock deduction and status transition happen in one
+    // database transaction. This prevents two restaurants/orders from
+    // consuming the same remaining stock concurrently.
+    const result = await supabase.rpc('accept_restaurant_order', {
+      p_order_id: orderId,
+      p_partner_id: restaurantPartnerId,
+    });
+    error = result.error;
+    data = result.data?.order ?? null;
+  } else {
+    const result = await supabase
       .from('orders')
-      .update({
-
-        order_status:
-          newStatus,
-
-      })
+      .update({ order_status: newStatus })
       .eq('id', orderId)
       .eq('restaurant_partner_id', restaurantPartnerId)
       .eq('order_status', order.order_status)
       .select()
       .single();
-
+    data = result.data;
+    error = result.error;
+  }
 
   if (error || !data) {
-    throw new Error(error?.message ?? 'Order status changed concurrently; refresh and retry');
+    throw new BadRequestException(
+      error?.message ?? 'Order status changed concurrently; refresh and retry',
+    );
   }
 
         // Live Socket Update
