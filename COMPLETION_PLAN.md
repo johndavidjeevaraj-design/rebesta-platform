@@ -258,3 +258,9 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 - [x] Removed tracking endpoint logs that printed customer destination/address, rider identity/location, route coordinates, ETA details, and provider error details that could carry tracking context.
 - [ ] Review remaining backend logs for PII, credentials, provider payloads, OTPs and precise GPS; structured logging/redaction and staging verification remain pending.
 - No UI changes, migrations, deployment or test execution.
+
+
+## Payment notification logging review (2026-11-25)
+- [x] Reduced severity of best-effort socket/FCM notification failures after atomic order conversion from error to warning; these notification failures must not be mistaken for payment/order-conversion failures.
+- [ ] Adopt structured, redacted logs and correlation IDs; review remaining logs repository-wide and validate log retention/permissions.
+- [ ] Validate webhook and payment retry/concurrency behavior in sandbox; code review alone is not runtime verification.
