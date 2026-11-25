@@ -249,10 +249,11 @@ if (dto.couponCode) {
   appliedCoupon = offerResult.coupon;
 }
 
-const totalAmount =
+const totalAmount = Number((
   subtotal +
   finalDeliveryFee -
-  discount;
+  discount
+).toFixed(2));
 
 if (!Number.isFinite(totalAmount) || totalAmount <= 0 || !Number.isSafeInteger(Math.round(totalAmount * 100))) {
   throw new BadRequestException(
