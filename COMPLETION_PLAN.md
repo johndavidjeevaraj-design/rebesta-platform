@@ -469,3 +469,13 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 - [x] Notification service's customer-read, mark-read and delete paths now return sanitized generic DB failure messages (previously returned raw error.message). Commit: f0ebaafa.
 - [ ] Add tests for malformed/magic-byte mismatches, oversized files at route and service layers, cross-partner KYC path access, signed URL expiry/access, storage outage, and notification ownership enforcement. Tests/build not executed.
 - No UI changes, migrations, merge or deployment.
+
+
+## Cart API error/privacy hardening (2026-11-25)
+- [x] Replaced customer-facing cart service errors that interpolated database/provider diagnostics or menu item identifiers with generic messages; removed cart-fetch raw error logging.
+- [x] Add/update quantity DTOs enforce integer quantities from 1 through 99.
+- [!] Add-to-cart remains a multi-query flow (menu availability lookup, cart lookup/create, item lookup, then insert/update); concurrent requests may duplicate cart creation or race quantity increments without DB-level constraints/atomic RPC.
+- [!] Cart-item price is stored from the menu lookup at add time; cart display and legacy checkout use stored cart item prices, and legacy checkout does not revalidate authoritative prices/availability. Cashfree checkout separately performs validation; client routing and legacy checkout retirement remain unverified.
+- [!] Cart update/remove authorization is checked by reading cart ownership before mutation; concurrent delete/update and ownership policy should be covered by DB constraints/RLS plus tests.
+- [ ] Verify unique constraints for customer/restaurant cart and cart/menu item, implement atomic upsert/increment if absent, and test concurrency/price freshness/ownership. Tests/build not executed.
+- No UI changes, deployment, merge or migrations.
