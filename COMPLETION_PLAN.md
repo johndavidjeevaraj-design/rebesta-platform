@@ -486,3 +486,11 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 - [!] Cart reads may still expose stored snapshot prices; cart quantity update endpoint does not refresh price from authoritative menu lookup. Legacy checkout remains unsuitable as an authoritative pricing path until verified/disabled.
 - [!] Atomic cart creation/item increment protections remain unresolved; implementing DB RPC/constraints requires migration/schema verification and staging tests, not available in this pass.
 - No migrations, deployment, merge, UI change. Build/test execution unavailable.
+
+
+## Customer mobile privacy/recovery audit (2026-11-25)
+- [x] Removed payment reconciliation debug output that included provider order identifiers, full reconciliation responses, exception details, and stack traces. Pending payment is retained when reconciliation throws, allowing later retry.
+- [x] Removed customer live-delivery socket debug output that logged customer identifiers, order IDs, delivery location payloads, order status payloads, and socket errors.
+- [!] Tracking-screen HTTP response logging, checkout/order-service response logs, auth/session lifecycle, socket rejoin authorization, and interruption/recovery behavior still need review. No runtime verification was performed.
+- [!] Android release build currently uses debug signing in its release build type and placeholder application ID `com.example.rebesta_customers`; Play Store release configuration/signing and manifest privacy/permissions review remain outstanding.
+- No UI changes, migration, deployment, merge. Flutter build/test execution unavailable.
