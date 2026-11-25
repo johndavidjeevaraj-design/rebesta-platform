@@ -93,7 +93,8 @@ export class DispatchService implements OnModuleInit, OnModuleDestroy {
         }
       },
       SWEEP_INTERVAL_MS,
-    );  }
+    );
+  }
 
   onModuleDestroy() {
     if (this.sweepTimer) {
