@@ -83,11 +83,6 @@ class DeliveryLocationService {
       locationSettings: locationSettings,
     ).listen(
       (Position position) {
-        debugPrint(
-          '📍 GPS POSITION: '
-          '${position.latitude}, ${position.longitude}',
-        );
-
         _sendLocation(
           position.latitude,
           position.longitude,
@@ -132,15 +127,6 @@ class DeliveryLocationService {
     double longitude,
   ) async {
     try {
-      debugPrint('=================================');
-      debugPrint('📍 SENDING DELIVERY LOCATION');
-      debugPrint('LATITUDE: $latitude');
-      debugPrint('LONGITUDE: $longitude');
-      debugPrint(
-        'POST: ${ApiConstants.updateLocation}',
-      );
-      debugPrint('=================================');
-
       final options =
           await DeliveryApiClient.authOptions();
 
@@ -169,10 +155,6 @@ class DeliveryLocationService {
         '${e.response?.statusCode}',
       );
 
-      debugPrint(
-        'LOCATION RESPONSE: '
-        '${e.response?.data}',
-      );
     } catch (e) {
       debugPrint(
         '❌ LOCATION ERROR: $e',
