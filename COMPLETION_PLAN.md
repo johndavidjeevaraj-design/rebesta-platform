@@ -46,6 +46,10 @@ Benchmark: core functional capabilities of major food delivery platforms; not co
 - [x] Online payment attempts now persist `order_type`; a follow-up migration carries it into the paid order so online pickup remains pickup instead of silently defaulting to delivery. Legacy attempts are backfilled from the prior checkout contract (null address means pickup); new attempts default to delivery.
 - [x] Restaurant acceptance now blocks pending/failed Razorpay-backed orders while preserving legitimate COD acceptance; unit tests cover COD, captured online, unpaid online, and already-accepted states.
 - [ ] Apply `20261125190000_preserve_paid_order_type.sql` in staging before deploying the updated payment service; verify pickup and delivery conversion end-to-end.
+- [x] Added optional `menu_items.stock_quantity` tracking; `NULL` preserves unlimited/untracked behavior for existing dishes.
+- [x] Added partner-authenticated inventory read/update endpoints (`GET /inventory/partner`, `PATCH /inventory/:menuItemId/stock`) with integer bounds and restaurant ownership scoping.
+- [x] Restaurant acceptance now uses a database transaction to lock the order and tracked menu rows, validate availability/stock, deduct stock, and accept the order atomically. Concurrent acceptances cannot oversell tracked quantities.
+- [ ] Apply `20261125200000_atomic_restaurant_stock_acceptance.sql` in staging before deploying the updated backend; verify tracked and untracked items, insufficient stock, concurrent acceptance, and COD/online payment paths.
 - [x] Dispatch now also prevents a rider from holding simultaneous pending offers for different orders, with candidate filtering plus a database unique index and retry-on-conflict.
 - [x] Removed delivery-app debug logging of full order/customer response payloads where reviewed.
 - [x] Updated the delivery-completion migration to provision `delivery_earnings` and the rider wallet/counter columns before creating the OTP completion RPC.
