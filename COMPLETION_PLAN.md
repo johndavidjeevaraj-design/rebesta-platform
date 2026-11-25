@@ -617,3 +617,11 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 - [!] Coupon application still accepts a client-supplied subtotal and restaurant ID for a preview response; it is not an authoritative checkout calculation. Legacy checkout currently ignores coupon discounts. Do not treat preview output as a payable amount until checkout recalculates from authoritative cart/menu/fee data and records usage atomically.
 - Static source edits only; tests not run. No migration, deployment or merge.
 - Commits: `80f90ec8` (DTO validation), `080aeac4` (error sanitization).
+
+
+## Cashfree uncertain order-creation recovery (2026-11-25)
+- [x] The create-checkout-payment catch path no longer marks a local payment attempt `failed` merely because the provider request timed out, returned an unexpected response, or the payment-session persistence step failed. These outcomes do not prove Cashfree did not create the order.
+- [x] The local attempt remains in its reconcilable `created` state with its Cashfree order ID and persisted idempotency key, allowing provider-state reconciliation rather than falsely terminalizing an uncertain transaction.
+- [!] The endpoint still does not return the attempt/order ID in its error response, so customer-facing recovery UX needs a safe way to retrieve the active attempt. Do not tell customers to immediately create a second payment attempt. Add an authenticated active-attempt lookup/retry flow and test timeout-after-provider-success and DB-session-write failure before release.
+- Static source edit only; tests and live Cashfree replay not run. No migration, deployment or merge.
+- Commit: `00b54660`.
