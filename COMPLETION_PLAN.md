@@ -559,3 +559,10 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 - [x] Location DTO constrains latitude/longitude to valid numeric geographic ranges (reviewed).
 - [!] Throttler storage is in-memory per backend instance per earlier infrastructure audit; limits are not shared across replicas and restart-reset behavior remains. GPS throttling is route/IP-context based according to current throttler configuration, not proven per rider identity. Validate cadence with rider-app telemetry/runtime tests and multi-instance setup before release.
 - Commit: e5b75cae8d2f9bc2b3e4cf4de333309a5af01d61. No UI changes, migration, deployment or merge.
+
+
+## Rider GPS client privacy follow-up (2026-11-25)
+- [x] Removed rider location-update HTTP success response and payload logging, including response bodies, from the delivery location service. Failed GPS sends no longer log provider exception details or response payloads.
+- [!] GPS stream remains high-accuracy with a 10-metre distance filter; actual cadence, background behavior, connectivity recovery and throttle compatibility require device/runtime testing. Stream errors are intentionally silent in this pass.
+- [ ] Verify location-service lifecycle, duplicate subscription prevention, GPS cadence under real devices, and delivery location throttling against backend limits with tests/telemetry.
+- Commit: 129f052ae4644e6a2753f7e53bee10bb7a034f93. No UI changes, migrations, merge or deployment.
