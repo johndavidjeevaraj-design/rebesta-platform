@@ -12,6 +12,10 @@ import { CustomerAuthService } from './customer-auth.service';
 import { CustomerJwtGuard } from './customer-jwt.guard';
 import { CustomerSignupDto } from './dto/customer-signup.dto';
 import { CustomerLoginDto } from './dto/customer-login.dto';
+import { CustomerSendOtpDto } from './dto/customer-send-otp.dto';
+import { CustomerVerifyOtpDto } from './dto/customer-verify-otp.dto';
+import { CustomerUpdateProfileDto } from './dto/customer-update-profile.dto';
+import { CustomerCompleteProfileDto } from './dto/customer-complete-profile.dto';
 import { UseGuards, Req } from '@nestjs/common';
 
 
@@ -95,44 +99,40 @@ profile(@Req() req) {
 @Patch('profile')
 updateProfile(
   @Req() req,
-  @Body('name') name: string,
+  @Body() dto: CustomerUpdateProfileDto,
 ) {
   return this.customerAuthService.updateProfile(
     req.user.customerId,
-    name,
+    dto.name,
   );
 }
 
 @Throttle({ default: { limit: 3, ttl: 60000 } })
 @Post('send-otp')
 sendOtp(
-  @Body('mobile') mobile: string,
+  @Body() dto: CustomerSendOtpDto,
 ) {
-  return this.customerAuthService.sendOtp(mobile);
+  return this.customerAuthService.sendOtp(dto.mobile);
 }
 @Throttle({ default: { limit: 10, ttl: 60000 } })
 @Post('verify-otp')
 verifyOtp(
-  @Body('mobile') mobile: string,
-  @Body('otp') otp: string,
-  @Body('sessionId') sessionId: string,
+  @Body() dto: CustomerVerifyOtpDto,
 ) {
   return this.customerAuthService.verifyOtp(
-    mobile,
-    otp,
-    sessionId,
+    dto.mobile,
+    dto.otp,
+    dto.sessionId,
   );
 }
 @Post('complete-profile')
 completeProfile(
-  @Body('mobile') mobile: string,
-  @Body('name') name: string,
-  @Body('verificationToken') verificationToken: string,
+  @Body() dto: CustomerCompleteProfileDto,
 ) {
   return this.customerAuthService.completeProfile(
-    mobile,
-    name,
-    verificationToken,
+    dto.mobile,
+    dto.name,
+    dto.verificationToken,
   );
 }
 }
