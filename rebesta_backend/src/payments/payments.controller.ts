@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Get,
   Param,
   Post,
   Req,
@@ -33,6 +34,15 @@ export class PaymentsController {
     return this.paymentsService.createCheckoutPayment(
       req.user.customerId,
       dto,
+    );
+  }
+
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @Get('active-attempt')
+  @UseGuards(CustomerJwtGuard)
+  getActivePaymentAttempt(@Req() req) {
+    return this.paymentsService.getActivePaymentAttempt(
+      req.user.customerId,
     );
   }
 
