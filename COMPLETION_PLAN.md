@@ -384,3 +384,17 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 - [!] Supabase client uses service-role key; privileged API access therefore depends heavily on backend guards, secrets, and endpoint authorization. Key must never appear in client builds or logs.
 - [ ] Live SQL verification: all public tables RLS enabled; policies reviewed; anon/authenticated privileges absent; function execute grants scoped; storage bucket permissions audited; tests using direct anon REST requests. Not executed.
 - No migration applied, deployment, merge or UI change.
+
+
+## Infrastructure, CI/CD and resilience audit (2026-11-25; code-level)
+- [x] Global Nest throttling is configured at 100 requests/60 seconds; controller-specific tighter limits exist for sensitive OTP routes.
+- [!] Global throttler currently uses default in-memory storage: not shared across replicas, resets on restart, and can be bypassed through multiple instances. Distributed store and reliable client-IP handling behind proxy are pending.
+- [x] CORS uses explicit allowlist; global validation pipe transforms, whitelists and rejects unknown DTO properties.
+- [x] CI backend job installs locked dependencies, verifies Jest setup, builds, runs tests; lint currently continue-on-error. Flutter matrix installs, analyzes and tests; analyze currently continue-on-error.
+- [x] Dockerfile multi-stage Node 22 Alpine build/runtime, production-only dependencies, non-root node user, build output only in runtime.
+- [!] CI currently targets pushes/PRs to main; the active PR branch is not automatically included in this workflow trigger unless merged/targeted accordingly. CI execution on PR #27 is not verified.
+- [!] No cache layer, reverse-proxy config, load balancer, API gateway, orchestrator, service-discovery or circuit-breaker implementation found in inspected backend/repo paths. These are deployment architecture choices, not blindly added to code.
+- [!] Docker runtime hardening remains: pin base images/digests, add healthcheck, drop capabilities/read-only filesystem where practical, non-root already present, review secrets/environment handling, and image scanning.
+- [ ] Validate forwarded IP / trust-proxy configuration with actual ingress; don't trust arbitrary X-Forwarded-For. Staging multi-instance throttle and fault-injection tests pending.
+- [ ] Build/test, CI run, container scan and deployment verification not executed.
+- No UI changes, deployment, merge or migrations.
