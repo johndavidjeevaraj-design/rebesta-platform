@@ -87,11 +87,7 @@ export class PartnerAuthController {
 @UseGuards(JwtAuthGuard)
 async getProfile(@Request() req) {
 
-  console.log('========================================');
-  console.log('PARTNER PROFILE REQUEST');
-  console.log('REQ.USER:', req.user);
-  console.log('PARTNER USER ID:', req.user.id);
-  console.log('========================================');
+  // Authenticated profile request; avoid logging identity/token context.
 
   return this.partnerAuthService.getCurrentPartner(
     req.user.id,
