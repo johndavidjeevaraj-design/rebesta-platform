@@ -1,6 +1,11 @@
 -- Cashfree PG migration for the food-delivery platform.
 -- Keep Razorpay identifiers for historical attempts while all new checkout
 -- attempts are explicitly marked as Cashfree.
+-- Legacy Razorpay order IDs remain populated for old attempts, but must be
+-- nullable so new Cashfree attempts can use their provider-specific columns.
+ALTER TABLE public.payment_attempts
+  ALTER COLUMN razorpay_order_id DROP NOT NULL;
+
 ALTER TABLE public.payment_attempts
   ADD COLUMN IF NOT EXISTS payment_provider text NOT NULL DEFAULT 'razorpay',
   ADD COLUMN IF NOT EXISTS cashfree_order_id text,
