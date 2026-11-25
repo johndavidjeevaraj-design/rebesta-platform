@@ -244,3 +244,11 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 - [x] KYC-verified riders only can join the shared delivery feed socket room; the room join now checks server-side rider KYC.
 - [x] Shared fallback broadcasts expose only coarse destination area and placeholder customer name, removing street/landmark/coordinates and personal name.
 - [ ] Validate rider-app payload compatibility and feed-room join behavior in staging; tests not run in this environment.
+
+
+## Payment/database RPC audit checkpoint (2026-11-25)
+- [x] Inspected Cashfree paid-order conversion SQL: locks payment_attempt row FOR UPDATE, validates provider and order-type/address invariants, creates order/items and updates attempt/cart in one transaction, service_role-only execute grant.
+- [x] Inspected delivery acceptance RPC: order row FOR UPDATE, checks ready/unassigned state, validates pending-offer recipient and rider's other live offer, updates assignment and settles offers in same transaction; service_role-only execute grant.
+- [x] Inspected restaurant acceptance RPC: row locks order and menu stock, payment guard for Razorpay/Cashfree, decrements inventory and transitions order atomically; service_role-only execute grant.
+- [!] Public-schema RLS lockdown migration revokes anon/authenticated table/sequence privileges broadly. This is intentionally high-impact and requires staging smoke-tests for every mobile/backend workflow before application; no migrations executed.
+- [ ] Review actual deployment grants, RPC security-definer ownership/search_path, idempotency behavior under concurrency and staging race tests; runtime verification not available here.
