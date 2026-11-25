@@ -32,102 +32,16 @@ export class CustomerAuthService {
   // CUSTOMER SIGNUP
   // ===============================
 
-  async signup(
-    dto: CustomerSignupDto,
-  ) {
-
-
-    const { data: existingCustomer } =
-      await supabase
-        .from('customers')
-        .select('id')
-        .or(
-      `email.eq.${dto.email},mobile.eq.${dto.mobile}`,
-        )
-        .maybeSingle();
-
-
-
-    if (existingCustomer) {
-
-      throw new Error(
-        'Email or number already registered',
-      );
-
-    }
-
-
-
-    const hashedPassword =
-      await bcrypt.hash(
-        dto.password,
-        10,
-      );
-
-
-
-    const { data, error } =
-      await supabase
-        .from('customers')
-        .insert({
-
-          name:
-            dto.name,
-
-          email:
-            dto.email,
-
-          mobile:
-            dto.mobile,
-
-          password:
-            hashedPassword,
-
-        })
-        .select()
-        .single();
-
-
-
-    if (error) {
-
-      throw new Error(
-        error.message,
-      );
-
-    }
-
-
-
-    return {
-
-      success: true,
-
-      customer: {
-
-        id:
-          data.id,
-
-        name:
-          data.name,
-
-        email:
-          data.email,
-
-        mobile:
-          data.mobile,
-
-      },
-
-    };
-
+  async signup(_dto: CustomerSignupDto): Promise<never> {
+    // Account creation must use the OTP-verified mobile flow. The legacy
+    // email/password endpoint allowed registering somebody else's number.
+    throw new Error('Password signup is disabled. Use mobile OTP verification.');
   }
 
-
-
-
-
   // ===============================
+  // CUSTOMER LOGIN
+
+    // ===============================
   // CUSTOMER LOGIN
   // ===============================
 
@@ -228,109 +142,89 @@ export class CustomerAuthService {
   }
 
   async sendOtp(mobile: string) {
-  const apiKey = process.env.TWO_FACTOR_API_KEY;
-  
-  
-  console.log(
-  '2Factor key loaded:',
-  !!process.env.TWO_FACTOR_API_KEY,
-);
-  if (!apiKey) {
-    throw new Error('TWO_FACTOR_API_KEY is not configured');
+    const apiKey = process.env.TWO_FACTOR_API_KEY;
+    if (!apiKey) throw new Error('TWO_FACTOR_API_KEY is not configured');
+
+    const cleanMobile = mobile?.replace(/\D/g, '').slice(-10);
+    if (!cleanMobile || cleanMobile.length !== 10) {
+      throw new Error('Invalid mobile number');
+    }
+
+    const url = `https://2factor.in/API/V1/${apiKey}/SMS/+91${cleanMobile}/AUTOGEN/OTP1`;
+    const response = await firstValueFrom(this.httpService.get(url));
+    const result = response.data;
+
+    if (!result || result.Status !== 'Success' || !result.Details) {
+      throw new Error(result?.Details?.toString() ?? 'Unable to send OTP');
+    }
+
+    // Sign the provider session together with the destination number. A raw
+    // provider session supplied by a client must never be reusable for a
+    // different phone number.
+    const challengeToken = await this.jwtService.signAsync(
+      {
+        purpose: 'customer_otp_challenge',
+        mobile: cleanMobile,
+        providerSessionId: result.Details,
+      },
+      { secret: process.env.JWT_SECRET, expiresIn: '5m' },
+    );
+
+    return { Status: 'Success', Details: challengeToken };
   }
 
-  const phoneNumber = mobile.startsWith('+')
-    ? mobile
-    : `+91${mobile}`;
-
-  const url =
-    `https://2factor.in/API/V1/${apiKey}/SMS/${phoneNumber}/AUTOGEN/OTP1`;
-
-  const response = await firstValueFrom(
-    this.httpService.get(url),
-  );
-
-  return response.data;
-}
 async verifyOtp(
   mobile: string,
   otp: string,
   sessionId: string,
 ) {
   const apiKey = process.env.TWO_FACTOR_API_KEY;
-
-  if (!apiKey) {
-    throw new Error('TWO_FACTOR_API_KEY is not configured');
-  }
-
+  if (!apiKey) throw new Error('TWO_FACTOR_API_KEY is not configured');
   if (!mobile || !otp || !sessionId) {
-    throw new Error(
-      'Mobile, OTP and sessionId are required',
-    );
+    throw new Error('Mobile, OTP and sessionId are required');
   }
 
-  // Always store mobile as 10 digits
-  const cleanMobile = mobile
-      .replace(/\D/g, '')
-      .slice(-10);
+  const cleanMobile = mobile.replace(/\D/g, '').slice(-10);
+  if (cleanMobile.length !== 10) throw new Error('Invalid mobile number');
 
-  if (cleanMobile.length !== 10) {
-    throw new Error('Invalid mobile number');
+  let challenge: { purpose?: string; mobile?: string; providerSessionId?: string };
+  try {
+    challenge = await this.jwtService.verifyAsync(sessionId, {
+      secret: process.env.JWT_SECRET,
+    });
+  } catch {
+    throw new Error('OTP session expired or invalid; request a new code');
   }
 
-  // Verify OTP with 2Factor
-  const url =
-      `https://2factor.in/API/V1/${apiKey}/SMS/VERIFY/${sessionId}/${otp}`;
+  if (
+    challenge?.purpose !== 'customer_otp_challenge' ||
+    challenge.mobile !== cleanMobile ||
+    !challenge.providerSessionId
+  ) {
+    throw new Error('OTP session does not match this mobile number');
+  }
 
-  const response = await firstValueFrom(
-    this.httpService.get(url),
-  );
-
+  const url = `https://2factor.in/API/V1/${apiKey}/SMS/VERIFY/${encodeURIComponent(challenge.providerSessionId)}/${encodeURIComponent(otp)}`;
+  const response = await firstValueFrom(this.httpService.get(url));
   const result = response.data;
 
-  // Do not log OTP provider responses or verification data.
-  
-  if (
-    !result ||
-    result.Status !== 'Success'
-  ) {
-    throw new Error(
-      result?.Details || 'Invalid OTP',
-    );
+  if (!result || result.Status !== 'Success') {
+    throw new Error(result?.Details || 'Invalid OTP');
   }
 
-  // =====================================
-  // OTP VERIFIED
-  // Now check whether customer exists
-  // =====================================
+  const { data: customer, error } = await supabase
+    .from('customers')
+    .select('id, name, email, mobile')
+    .eq('mobile', cleanMobile)
+    .maybeSingle();
 
-  const { data: customer, error } =
-    await supabase
-      .from('customers')
-      .select('*')
-      .eq('mobile', cleanMobile)
-      .maybeSingle();
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  // =====================================
-  // NEW CUSTOMER
-  // =====================================
+  if (error) throw new Error('Unable to verify customer account');
 
   if (!customer) {
     const verificationToken = await this.jwtService.signAsync(
-      {
-        purpose: 'customer_profile_completion',
-        mobile: cleanMobile,
-      },
-      {
-        secret: process.env.JWT_SECRET,
-        expiresIn: '5m',
-      },
+      { purpose: 'customer_profile_completion', mobile: cleanMobile },
+      { secret: process.env.JWT_SECRET, expiresIn: '5m' },
     );
-
     return {
       success: true,
       verified: true,
@@ -340,31 +234,19 @@ async verifyOtp(
     };
   }
 
-  // =====================================
-  // EXISTING CUSTOMER
-  // =====================================
-
-  const payload = {
+  const token = await this.jwtService.signAsync({
     sub: customer.id,
     customerId: customer.id,
     email: customer.email,
     role: 'customer',
-  };
-
-  const token =
-    await this.jwtService.signAsync(payload);
+  });
 
   return {
     success: true,
     verified: true,
     isNewCustomer: false,
     token,
-    customer: {
-      id: customer.id,
-      name: customer.name,
-      email: customer.email,
-      mobile: customer.mobile,
-    },
+    customer,
   };
 }
   // ===============================
