@@ -23,13 +23,7 @@ Future<String?> _getToken() async {
 
   final token = prefs.getString('token');
 
-  debugPrint('================================');
-  debugPrint('🔐 ORDER AUTH TOKEN');
-  debugPrint('Token exists: ${token != null && token.isNotEmpty}');
-  debugPrint(
-    'Token preview: ${token == null ? 'NULL' : '${token.substring(0, token.length > 20 ? 20 : token.length)}...'}',
-  );
-  debugPrint('================================');
+  // Never log bearer tokens or token prefixes.
 
   return token;
 }
@@ -57,9 +51,11 @@ Future<Map<String, dynamic>> checkout({
   required String restaurantPartnerId,
   String? couponCode,
   bool wallet = false,
+  String orderType = 'delivery',
 }) async {
   final data = {
     'restaurantPartnerId': restaurantPartnerId,
+    'orderType': orderType,
     if (addressId != null && addressId.isNotEmpty)
       'addressId': addressId,   // only include when delivery address exists
     if (couponCode != null && couponCode.isNotEmpty)

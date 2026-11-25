@@ -1,10 +1,22 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { supabase } from '../supabase';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationTemplates } from '../notifications/notification.templates';
 import { SocketGateway } from '../socket/socket.gateway';
 import { FcmService } from '../fcm/fcm.service';
 import { DispatchService } from '../dispatch/dispatch.service';
+
+export function canAcceptRestaurantOrder(order: {
+  order_status: string;
+  payment_status: string | null;
+  razorpay_order_id: string | null;
+}): boolean {
+  return !(
+    order.order_status === 'pending' &&
+    Boolean(order.razorpay_order_id) &&
+    order.payment_status !== 'paid'
+  );
+}
 
 @Injectable()
 export class PartnerOrdersService {
@@ -72,7 +84,7 @@ export class PartnerOrdersService {
   console.log('PARTNER ORDERS RESULT');
   console.log('Supabase Error:', error);
   console.log('Orders Count:', orders?.length ?? 0);
-  console.log('Orders:', JSON.stringify(orders, null, 2));
+  console.log('Orders fetched:', orders?.length ?? 0);
   console.log('========================================');
 
   if (error) {
@@ -150,6 +162,8 @@ async updateStatus(
         id,
         customer_id,
         order_status,
+        payment_status,
+        razorpay_order_id,
         restaurant_partner_id
       `)
       .eq('id', orderId)
@@ -165,6 +179,15 @@ async updateStatus(
       'Order not found',
     );
 
+  }
+
+  // Online orders are created only after Razorpay capture. Never let a
+  // pending/failed online payment enter restaurant preparation. COD orders
+  // have no Razorpay order ID and may legitimately remain payment-pending.
+  if (!canAcceptRestaurantOrder(order)) {
+    throw new BadRequestException(
+      'Online payment must be confirmed before accepting this order',
+    );
   }
 
   // Allowed state transitions
@@ -218,26 +241,36 @@ async updateStatus(
 
   // Update status
 
-  const { data, error } =
-    await supabase
+  let data: any;
+  let error: any;
+
+  if (newStatus === 'accepted') {
+    // Stock validation, stock deduction and status transition happen in one
+    // database transaction. This prevents two restaurants/orders from
+    // consuming the same remaining stock concurrently.
+    const result = await supabase.rpc('accept_restaurant_order', {
+      p_order_id: orderId,
+      p_partner_id: restaurantPartnerId,
+    });
+    error = result.error;
+    data = result.data?.order ?? null;
+  } else {
+    const result = await supabase
       .from('orders')
-      .update({
-
-        order_status:
-          newStatus,
-
-      })
+      .update({ order_status: newStatus })
       .eq('id', orderId)
+      .eq('restaurant_partner_id', restaurantPartnerId)
+      .eq('order_status', order.order_status)
       .select()
       .single();
+    data = result.data;
+    error = result.error;
+  }
 
-
-  if (error) {
-
-    throw new Error(
-      error.message,
+  if (error || !data) {
+    throw new BadRequestException(
+      error?.message ?? 'Order status changed concurrently; refresh and retry',
     );
-
   }
 
         // Live Socket Update

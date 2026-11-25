@@ -33,6 +33,7 @@ import { CouponsModule } from './coupons/coupons.module';
 import { BannersModule } from './banners/banners.module';
 import { SettingsModule } from './settings/settings.module';
 import { SupportModule } from './support/support.module';
+import { InventoryModule } from './inventory/inventory.module';
 import { ConfigModule } from '@nestjs/config';
 
 @Module({
@@ -69,7 +70,8 @@ import { ConfigModule } from '@nestjs/config';
     SocketModule,
     BannersModule,
     SettingsModule,
-    SupportModule
+    SupportModule,
+    InventoryModule,
   ],
   controllers: [AppController],
   providers: [

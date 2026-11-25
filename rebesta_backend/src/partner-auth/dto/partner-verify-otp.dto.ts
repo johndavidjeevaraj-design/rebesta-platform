@@ -1,6 +1,7 @@
 import {
   IsString,
   Matches,
+  MaxLength,
 } from 'class-validator';
 
 export class PartnerVerifyOtpDto {
@@ -18,5 +19,6 @@ export class PartnerVerifyOtpDto {
   otp!: string;
 
   @IsString()
+  @MaxLength(4096)
   sessionId!: string;
 }

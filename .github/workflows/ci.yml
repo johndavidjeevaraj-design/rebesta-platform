@@ -31,7 +31,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: rebesta_backend/package-lock.json
 
@@ -108,9 +108,9 @@ jobs:
           echo "=== Running backend tests ==="
           npm test -- --runInBand
 
-      - name: Lint
-        run: npm run lint
+      - name: Lint (baseline; remediation tracked separately)
         continue-on-error: true
+        run: npx eslint "{src,apps,libs,test}/**/*.ts"
 
   # ------------------------------------------------------------------
   # Flutter apps - one job per app, run in parallel
@@ -150,9 +150,9 @@ jobs:
       - name: Install packages
         run: flutter pub get
 
-      - name: Analyze
-        run: flutter analyze
+      - name: Analyze (baseline; remediation tracked separately)
         continue-on-error: true
+        run: flutter analyze
 
       - name: Test
         run: flutter test

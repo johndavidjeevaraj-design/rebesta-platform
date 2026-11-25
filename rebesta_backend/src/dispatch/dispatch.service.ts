@@ -84,10 +84,13 @@ export class DispatchService implements OnModuleInit, OnModuleDestroy {
     // lost. This sweep claims expired offers straight from the DB.
 
     this.sweepTimer = setInterval(
-      () => {
-        this.sweepExpiredOffers().catch((error) => {
-          this.logger.error(`Offer sweep failed: ${error}`);
-        });
+      async () => {
+        try {
+          await this.sweepExpiredOffers();
+          await this.sweepReadyOrders();
+        } catch (error) {
+          this.logger.error(`Dispatch recovery sweep failed: ${error}`);
+        }
       },
       SWEEP_INTERVAL_MS,
     );
@@ -147,10 +150,7 @@ export class DispatchService implements OnModuleInit, OnModuleDestroy {
         .single();
 
       if (orderError || !order) {
-        this.logger.warn(
-          `Dispatch skipped - order not found: ${orderId}`,
-        );
-        return false;
+        throw new Error(`Dispatch order lookup failed: ${orderError?.message ?? 'order missing'}`);
       }
 
       if (
@@ -158,6 +158,23 @@ export class DispatchService implements OnModuleInit, OnModuleDestroy {
         order.delivery_partner_id
       ) {
         return false;
+      }
+
+      // A scheduled retry or duplicate ready-event must not skip ahead
+      // while a rider still has a live offer for this order.
+      const { data: activeOffers, error: activeOffersError } = await supabase
+        .from('delivery_offers')
+        .select('id')
+        .eq('order_id', orderId)
+        .eq('status', 'pending')
+        .gt('expires_at', new Date().toISOString())
+        .limit(1);
+
+      if (activeOffersError) {
+        throw new Error(`Active offer lookup failed: ${activeOffersError.message}`);
+      }
+      if (activeOffers?.length) {
+        return true;
       }
 
       // --------------------------------------------------------
@@ -178,15 +195,14 @@ export class DispatchService implements OnModuleInit, OnModuleDestroy {
           .eq('is_online', true)
           .eq('kyc_status', 'verified');
 
-      if (partnersError || !partners || partners.length === 0) {
-        return false;
-      }
+      if (partnersError) throw new Error(`Rider lookup failed: ${partnersError.message}`);
+      if (!partners || partners.length === 0) return false;
 
       // --------------------------------------------------------
       // 3. Riders already busy with an active delivery
       // --------------------------------------------------------
 
-      const { data: busyOrders } = await supabase
+      const { data: busyOrders, error: busyError } = await supabase
         .from('orders')
         .select('delivery_partner_id')
         .not('delivery_partner_id', 'is', null)
@@ -198,10 +214,27 @@ export class DispatchService implements OnModuleInit, OnModuleDestroy {
           'arrived_at_customer',
         ]);
 
+      if (busyError) throw new Error(`Busy rider lookup failed: ${busyError.message}`);
       const busyIds = new Set(
         (busyOrders ?? []).map(
           (o) => o.delivery_partner_id as string,
         ),
+      );
+
+      // A rider may hold only one live personal offer at a time. The
+      // database index is the final concurrency guard; this query avoids
+      // selecting a rider already holding another order's offer.
+      const { data: pendingRiderOffers, error: pendingRiderOffersError } = await supabase
+        .from('delivery_offers')
+        .select('delivery_partner_id')
+        .eq('status', 'pending')
+        .gt('expires_at', new Date().toISOString());
+
+      if (pendingRiderOffersError) {
+        throw new Error(`Pending rider offers lookup failed: ${pendingRiderOffersError.message}`);
+      }
+      const pendingOfferRiderIds = new Set(
+        (pendingRiderOffers ?? []).map((offer) => offer.delivery_partner_id as string),
       );
 
       // --------------------------------------------------------
@@ -209,11 +242,12 @@ export class DispatchService implements OnModuleInit, OnModuleDestroy {
       // (pending / accepted / declined / expired / superseded)
       // --------------------------------------------------------
 
-      const { data: priorOffers } = await supabase
+      const { data: priorOffers, error: priorOffersError } = await supabase
         .from('delivery_offers')
         .select('delivery_partner_id')
         .eq('order_id', orderId);
 
+      if (priorOffersError) throw new Error(`Prior offers lookup failed: ${priorOffersError.message}`);
       const offeredIds = new Set(
         (priorOffers ?? []).map(
           (o) => o.delivery_partner_id as string,
@@ -227,11 +261,12 @@ export class DispatchService implements OnModuleInit, OnModuleDestroy {
       const startOfDay = new Date();
       startOfDay.setHours(0, 0, 0, 0);
 
-      const { data: todaysOffers } = await supabase
+      const { data: todaysOffers, error: todaysOffersError } = await supabase
         .from('delivery_offers')
         .select('delivery_partner_id')
         .gte('offered_at', startOfDay.toISOString());
 
+      if (todaysOffersError) throw new Error(`Daily offers lookup failed: ${todaysOffersError.message}`);
       const offerCounts = new Map<string, number>();
 
       for (const o of todaysOffers ?? []) {
@@ -255,6 +290,7 @@ export class DispatchService implements OnModuleInit, OnModuleDestroy {
           (p) =>
             p.id &&
             !busyIds.has(p.id) &&
+            !pendingOfferRiderIds.has(p.id) &&
             !offeredIds.has(p.id),
         )
         .map((p) => ({
@@ -309,11 +345,58 @@ export class DispatchService implements OnModuleInit, OnModuleDestroy {
         .select()
         .single();
 
+      if (offerError?.code === '23505' &&
+          offerError.message?.includes('idx_delivery_offers_one_pending_per_order')) {
+        // Another concurrent dispatcher already owns the single active
+        // offer slot for this order. Treat it as handled so callers do
+        // not fall back to an unrestricted rider broadcast.
+        this.logger.warn(`Order ${orderId} already has an active rider offer`);
+        return true;
+      }
+
+      if (offerError?.code === '23505' &&
+          offerError.message?.includes('idx_delivery_offers_one_pending_per_partner')) {
+        // The selected rider was claimed by another concurrent order.
+        // Re-run candidate selection; the new pending-offer query will
+        // exclude that rider and choose the next eligible candidate.
+        return this.dispatchOrder(orderId);
+      }
+
       if (offerError || !offer) {
-        this.logger.error(
-          `Could not create delivery offer: ${offerError?.message}`,
-        );
-        return false;
+        // Infrastructure/schema errors must fail closed. Returning false
+        // would make callers broadcast the order to every connected rider.
+        throw new Error(`Could not create delivery offer: ${offerError?.message ?? 'offer missing'}`);
+      }
+
+      // Re-check after inserting: a rider may have accepted the order
+      // between candidate selection and this offer insert. Never notify a
+      // rider about an order that has already left the ready/unassigned state.
+      const { data: currentOrder, error: currentOrderError } = await supabase
+        .from('orders')
+        .select('order_status, delivery_partner_id')
+        .eq('id', orderId)
+        .maybeSingle();
+
+      if (currentOrderError) {
+        await supabase
+          .from('delivery_offers')
+          .update({ status: 'superseded', responded_at: new Date().toISOString() })
+          .eq('id', offer.id)
+          .eq('status', 'pending');
+        throw new Error(`Post-offer order verification failed: ${currentOrderError.message}`);
+      }
+
+      if (
+        !currentOrder ||
+        currentOrder.order_status !== 'ready' ||
+        currentOrder.delivery_partner_id
+      ) {
+        await supabase
+          .from('delivery_offers')
+          .update({ status: 'superseded', responded_at: new Date().toISOString() })
+          .eq('id', offer.id)
+          .eq('status', 'pending');
+        return true;
       }
 
       // --------------------------------------------------------
@@ -355,10 +438,9 @@ export class DispatchService implements OnModuleInit, OnModuleDestroy {
 
       return true;
     } catch (error) {
-      // Fail open - the caller falls back to broadcasting.
-
+      // Fail closed on infrastructure errors; callers must not broadcast an unrestricted feed.
       this.logger.error(`Dispatch failed: ${error}`);
-      return false;
+      throw error;
     }
   }
 
@@ -370,12 +452,13 @@ export class DispatchService implements OnModuleInit, OnModuleDestroy {
     orderId: string,
   ): Promise<void> {
     try {
-      const { data: order } = await supabase
+      const { data: order, error: orderError } = await supabase
         .from('orders')
         .select(`
           id,
           total_amount,
           order_status,
+          delivery_partner_id,
           created_at,
 
           customers(
@@ -396,7 +479,28 @@ export class DispatchService implements OnModuleInit, OnModuleDestroy {
         .eq('id', orderId)
         .single();
 
-      if (!order) {
+      if (orderError || !order) {
+        if (orderError) throw new Error(orderError.message);
+        return;
+      }
+
+      // A stale fallback must never re-publish an order already assigned
+      // or currently held by a personal rider offer.
+      if (order.order_status !== 'ready' || order.delivery_partner_id) {
+        return;
+      }
+
+      const { data: activeOffers, error: activeOffersError } = await supabase
+        .from('delivery_offers')
+        .select('id')
+        .eq('order_id', orderId)
+        .eq('status', 'pending')
+        .limit(1);
+
+      if (activeOffersError) {
+        throw new Error(activeOffersError.message);
+      }
+      if (activeOffers?.length) {
         return;
       }
 
@@ -448,8 +552,36 @@ export class DispatchService implements OnModuleInit, OnModuleDestroy {
       offer.order_id,
     );
 
-    if (!dispatched) {
-      await this.broadcastOrderToFeed(offer.order_id);
+    // Leave the order eligible for a later dispatch retry.
+  }
+
+  // ============================================================
+  // RECOVERY: retry ready, unassigned orders after process restarts
+  // or transient dispatch failures. Personal offers remain protected
+  // by the active-offer check and the database unique index.
+  // ============================================================
+
+  async sweepReadyOrders(): Promise<void> {
+    const { data: orders, error } = await supabase
+      .from('orders')
+      .select('id')
+      .eq('order_status', 'ready')
+      .is('delivery_partner_id', null)
+      .order('created_at', { ascending: true })
+      .limit(25);
+
+    if (error) {
+      throw new Error(`Ready-order recovery lookup failed: ${error.message}`);
+    }
+
+    for (const order of orders ?? []) {
+      try {
+        await this.dispatchOrder(order.id);
+      } catch (dispatchError) {
+        this.logger.error(
+          `Ready-order recovery failed for ${order.id}: ${dispatchError}`,
+        );
+      }
     }
   }
 
@@ -488,11 +620,7 @@ export class DispatchService implements OnModuleInit, OnModuleDestroy {
         offer.order_id,
       );
 
-      if (!dispatched) {
-        await this.broadcastOrderToFeed(
-          offer.order_id,
-        );
-      }
+      // Leave the order eligible for a later dispatch retry.
     }
   }
 }

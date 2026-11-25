@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { supabase } from '../supabase';
 import { StorageService } from '../storage/storage.service';
 import { PaymentsService } from '../payments/payments.service';
@@ -300,6 +300,10 @@ async getDeliveryPartners() {
       current_longitude,
       rating,
       total_deliveries,
+      wallet_balance,
+      total_earnings,
+      pending_payout,
+      completed_deliveries,
       created_at
     `)
     .order('created_at', {
@@ -325,26 +329,12 @@ async getDeliveryPartners() {
       .eq('delivery_partner_id', partner.id)
       .in('order_status', [
         'accepted',
+        'accepted_for_delivery',
         'picked_up',
         'out_for_delivery',
       ])
       .maybeSingle();
 
-    // Completed Orders
-    const { data: completedOrders } = await supabase
-      .from('orders')
-      .select(`
-        total_amount
-      `)
-      .eq('delivery_partner_id', partner.id)
-      .eq('order_status', 'delivered');
-
-    const completedCount =
-      completedOrders?.length ?? 0;
-
-    // Example earning calculation (₹40 per completed delivery)
-    const totalEarnings =
-      completedCount * 40;
 
     result.push({
 
@@ -380,9 +370,13 @@ async getDeliveryPartners() {
         partner.total_deliveries,
 
       totalCompletedOrders:
-        completedCount,
+        partner.completed_deliveries ?? 0,
 
-      totalEarnings,
+      walletBalance: Number(partner.wallet_balance ?? 0),
+
+      pendingPayout: Number(partner.pending_payout ?? 0),
+
+      totalEarnings: Number(partner.total_earnings ?? 0),
 
       activeOrder,
 
@@ -430,6 +424,25 @@ async getDeliveryPartner(id: string) {
       ascending: false,
     });
 
+  const { data: earnings, error: earningsError } = await supabase
+    .from('delivery_earnings')
+    .select('amount, status')
+    .eq('delivery_partner_id', id);
+
+  if (earningsError) {
+    throw new Error(earningsError.message);
+  }
+
+  const lifetimeEarnings = (earnings ?? []).reduce(
+    (sum, earning) => earning.status !== 'reversed'
+      ? sum + Number(earning.amount)
+      : sum,
+    0,
+  );
+  const pendingPayout = (earnings ?? [])
+    .filter((earning) => earning.status === 'pending')
+    .reduce((sum, earning) => sum + Number(earning.amount), 0);
+
   return {
 
     success: true,
@@ -454,18 +467,18 @@ async getDeliveryPartner(id: string) {
       activeOrders:
         orders?.filter(o =>
           [
-            'assigned',
+            'accepted_for_delivery',
             'picked_up',
             'out_for_delivery',
+            'arrived_at_customer',
           ].includes(o.order_status),
         ).length ?? 0,
 
-      totalEarnings:
-        orders?.reduce(
-          (sum, o) =>
-            sum + Number(o.total_amount),
-          0,
-        ) ?? 0,
+      totalEarnings: lifetimeEarnings,
+
+      pendingPayout,
+
+      walletBalance: Number(partner.wallet_balance ?? 0),
 
     },
 
@@ -526,6 +539,26 @@ async rejectDeliveryPartner(id: string) {
 
   };
 
+}
+
+
+async settleDeliveryPayout(id: string, payoutReference: string) {
+  const { data, error } = await supabase.rpc('settle_delivery_payout', {
+    p_partner_id: id,
+    p_payout_reference: payoutReference,
+  });
+
+  if (error || !data?.payout) {
+    throw new ConflictException(
+      error?.message ?? 'Payout settlement failed',
+    );
+  }
+
+  return {
+    success: true,
+    alreadyProcessed: data.already_processed === true,
+    payout: data.payout,
+  };
 }
 
 // ============================================================
@@ -964,18 +997,48 @@ async getOrder(id: string) {
 // Cancel Order
 // ==========================
 async cancelOrder(id: string) {
+  // Admin cancellation is deliberately limited to orders that have not
+  // entered restaurant preparation/dispatch. Paid orders must be refunded
+  // through the provider-backed refund flow before they can be cancelled.
+  const { data: currentOrder, error: lookupError } = await supabase
+    .from('orders')
+    .select('id, order_status, payment_status')
+    .eq('id', id)
+    .maybeSingle();
 
+  if (lookupError) {
+    throw new Error(lookupError.message);
+  }
+
+  if (!currentOrder) {
+    throw new NotFoundException('Order not found');
+  }
+
+  if (!isAdminCancellableOrder(currentOrder.order_status, currentOrder.payment_status)) {
+    throw new ConflictException(
+      'Only pending orders with no outstanding payment can be cancelled. Refund paid orders first and do not cancel orders already accepted by the restaurant.',
+    );
+  }
+
+  // Re-check both states in the UPDATE so a concurrent restaurant/payment
+  // transition cannot be overwritten by this admin action.
   const { data, error } = await supabase
     .from('orders')
-    .update({
-      order_status: 'cancelled',
-    })
+    .update({ order_status: 'cancelled' })
     .eq('id', id)
+    .eq('order_status', 'pending')
+    .in('payment_status', ['pending', 'failed', 'refunded'])
     .select()
-    .single();
+    .maybeSingle();
 
   if (error) {
     throw new Error(error.message);
+  }
+
+  if (!data) {
+    throw new ConflictException(
+      'Order state changed while cancellation was being processed. Refresh and review the order.',
+    );
   }
 
   return {
@@ -983,7 +1046,6 @@ async cancelOrder(id: string) {
     message: 'Order cancelled successfully',
     order: data,
   };
-
 }
 // ==========================
 // Refund Order
@@ -1153,4 +1215,16 @@ orders?.forEach(order => {
   };
 
 }
+}
+
+// Keep admin cancellation conservative: payment must be settled as unpaid,
+// failed, or already refunded, and the restaurant must not have accepted it.
+export function isAdminCancellableOrder(
+  orderStatus: string,
+  paymentStatus: string,
+): boolean {
+  return (
+    orderStatus === 'pending' &&
+    ['pending', 'failed', 'refunded'].includes(paymentStatus)
+  );
 }

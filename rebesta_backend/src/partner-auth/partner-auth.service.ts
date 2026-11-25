@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ForbiddenException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PartnerSignupDto } from './dto/partner-signup.dto';
 import { PartnerLoginDto } from './dto/partner-login.dto';
@@ -12,106 +12,11 @@ export class PartnerAuthService {
     private readonly jwtService: JwtService,
   ) {}
 
-  async signup(dto: PartnerSignupDto) {
-
-  const email = dto.email.trim().toLowerCase();
-  const mobile = dto.mobile.replace(/\D/g, '');
-
-  if (mobile.length !== 10) {
-    return {
-      success: false,
-      message: 'Enter a valid 10 digit mobile number',
-    };
+  async signup(_dto: PartnerSignupDto): Promise<never> {
+    // Public self-service signup must not accept a client-chosen restaurant ID.
+    // Partner accounts will be provisioned through an authenticated admin invite.
+    throw new ForbiddenException('Partner self-registration is disabled. Contact platform support for an invitation.');
   }
-
-  // ============================================================
-  // CHECK EMAIL
-  // ============================================================
-
-  const { data: existingEmail } = await supabase
-    .from('partner_users')
-    .select('id')
-    .eq('email', email)
-    .maybeSingle();
-
-  if (existingEmail) {
-    return {
-      success: false,
-      message: 'Email already registered',
-    };
-  }
-
-  // ============================================================
-  // CHECK MOBILE
-  // ============================================================
-
-  const { data: existingMobile } = await supabase
-    .from('partner_users')
-    .select('id')
-    .eq('mobile', mobile)
-    .maybeSingle();
-
-  if (existingMobile) {
-    return {
-      success: false,
-      message: 'Mobile number already registered',
-    };
-  }
-
-  // ============================================================
-  // HASH PASSWORD
-  // ============================================================
-
-  const hashedPassword = await bcrypt.hash(
-    dto.password,
-    10,
-  );
-
-  // ============================================================
-  // CREATE PARTNER
-  // ============================================================
-
-  const { data, error } = await supabase
-    .from('partner_users')
-    .insert([
-      {
-        restaurant_partner_id:
-          dto.restaurantPartnerId,
-
-        name: dto.name,
-
-        email,
-
-        mobile,
-
-        password: hashedPassword,
-      },
-    ])
-    .select()
-    .single();
-
-  if (error) {
-    return {
-      success: false,
-      message: error.message,
-    };
-  }
-
-  return {
-    success: true,
-    message: 'Partner account created successfully',
-
-    data: {
-      id: data.id,
-      restaurantPartnerId:
-        data.restaurant_partner_id,
-      name: data.name,
-      email: data.email,
-      mobile: data.mobile,
-    },
-  };
-}
-
 
   async login(dto: PartnerLoginDto) {
 
@@ -177,98 +82,43 @@ export class PartnerAuthService {
 // ============================================================
 
 async sendOtp(mobile: string) {
-
   const apiKey = process.env.TWO_FACTOR_API_KEY;
+  if (!apiKey) throw new Error('TWO_FACTOR_API_KEY is not configured');
 
-  if (!apiKey) {
-    throw new Error(
-      'TWO_FACTOR_API_KEY is not configured',
-    );
-  }
+  const phone = mobile?.replace(/\D/g, '').slice(-10);
+  if (!phone || phone.length !== 10) throw new Error('Enter a valid 10 digit mobile number');
 
-  const phone = mobile.replace(/\D/g, '');
-
-  if (phone.length !== 10) {
-    throw new Error(
-      'Enter a valid 10 digit mobile number',
-    );
-  }
-
-  // ==========================================================
-  // CHECK PARTNER ACCOUNT FIRST
-  // ==========================================================
-
-  const {
-    data: user,
-    error,
-  } = await supabase
+  const { data: user, error } = await supabase
     .from('partner_users')
-    .select(`
-      id,
-      restaurant_partner_id,
-      name,
-      email,
-      mobile
-    `)
+    .select('id')
     .eq('mobile', phone)
     .maybeSingle();
 
-  if (error) {
-    throw new Error(
-      error.message,
-    );
-  }
-
+  if (error) throw new Error('Unable to verify partner account');
   if (!user) {
-    return {
-      success: false,
-      registered: false,
-      message:
-        'No partner account found with this mobile number.',
-    };
+    return { success: false, registered: false, message: 'No partner account found with this mobile number.' };
   }
 
-  // ==========================================================
-  // SEND OTP
-  // ==========================================================
-
-  const url =
-    `https://2factor.in/API/V1/${apiKey}/SMS/` +
-    `${phone}/AUTOGEN/REBESTA`;
-
-  console.log('========================================');
-  console.log('PARTNER SEND OTP');
-  console.log('Partner:', user.id);
-  console.log('Mobile:', phone);
-  console.log('========================================');
-
+  const url = `https://2factor.in/API/V1/${apiKey}/SMS/${phone}/AUTOGEN/REBESTA`;
   const response = await fetch(url);
-
   const data = await response.json();
 
-  console.log(
-    '2Factor Partner OTP Response:',
-    data,
-  );
-
-  if (data.Status !== 'Success') {
-    throw new Error(
-      data.Details?.toString() ??
-        'Failed to send OTP',
-    );
+  if (!response.ok || data.Status !== 'Success' || !data.Details) {
+    throw new Error(data.Details?.toString() ?? 'Failed to send OTP');
   }
+
+  const challengeToken = await this.jwtService.signAsync(
+    { purpose: 'partner_otp_challenge', mobile: phone, providerSessionId: data.Details },
+    { secret: process.env.JWT_SECRET, expiresIn: '5m' },
+  );
 
   return {
     success: true,
     registered: true,
     message: 'OTP sent successfully',
-    sessionId: data.Details,
+    sessionId: challengeToken,
   };
 }
-
-// ============================================================
-// VERIFY PARTNER OTP
-// ============================================================
 
 async verifyOtp(
   mobile: string,
@@ -276,107 +126,64 @@ async verifyOtp(
   sessionId: string,
 ) {
   const apiKey = process.env.TWO_FACTOR_API_KEY;
+  if (!apiKey) throw new Error('TWO_FACTOR_API_KEY is not configured');
 
-  if (!apiKey) {
-    throw new Error(
-      'TWO_FACTOR_API_KEY is not configured',
-    );
+  const phone = mobile?.replace(/\D/g, '').slice(-10);
+  if (!phone || phone.length !== 10 || !otp || !sessionId) {
+    throw new Error('Valid mobile number, OTP and session are required');
   }
 
-  const phone = mobile.replace(/\D/g, '');
+  let challenge: { purpose?: string; mobile?: string; providerSessionId?: string };
+  try {
+    challenge = await this.jwtService.verifyAsync(sessionId, {
+      secret: process.env.JWT_SECRET,
+    });
+  } catch {
+    throw new Error('OTP session expired or invalid; request a new code');
+  }
 
-  const url =
-    `https://2factor.in/API/V1/${apiKey}/SMS/VERIFY/` +
-    `${sessionId}/${otp}`;
+  if (
+    challenge?.purpose !== 'partner_otp_challenge' ||
+    challenge.mobile !== phone ||
+    !challenge.providerSessionId
+  ) {
+    throw new Error('OTP session does not match this mobile number');
+  }
 
-  console.log('========================================');
-  console.log('PARTNER VERIFY OTP');
-  console.log('Mobile:', phone);
-  console.log('Session:', sessionId);
-  console.log('========================================');
-
+  const url = `https://2factor.in/API/V1/${apiKey}/SMS/VERIFY/${encodeURIComponent(challenge.providerSessionId)}/${encodeURIComponent(otp)}`;
   const response = await fetch(url);
-
   const data = await response.json();
 
-  console.log(
-    '2Factor Partner Verify Response:',
-    data,
-  );
-
-  if (data.Status !== 'Success') {
-    throw new Error(
-      data.Details?.toString() ??
-        'Invalid OTP',
-    );
+  if (!response.ok || data.Status !== 'Success') {
+    throw new Error(data.Details?.toString() ?? 'Invalid OTP');
   }
 
-  // ==========================================================
-  // FIND PARTNER USER
-  // ==========================================================
+  const { data: user, error } = await supabase
+    .from('partner_users')
+    .select('id, restaurant_partner_id, name, email, mobile')
+    .eq('mobile', phone)
+    .maybeSingle();
 
- const normalizedPhone = mobile.replace(/\D/g, '');
+  if (error) throw new Error('Unable to verify partner account');
+  if (!user) {
+    return { success: false, registered: false, message: 'No partner account found with this mobile number.' };
+  }
 
-console.log('========================================');
-console.log('FIND PARTNER AFTER OTP');
-console.log('Original mobile:', mobile);
-console.log('Normalized mobile:', normalizedPhone);
-console.log('========================================');
-
-const { data: user, error } = await supabase
-  .from('partner_users')
-  .select(`
-    id,
-    restaurant_partner_id,
-    name,
-    email,
-    mobile
-  `)
-  .eq('mobile', normalizedPhone)
-  .maybeSingle();
-
-if (error) {
-  console.error('PARTNER LOOKUP ERROR:', error);
-
-  throw new Error(
-    `Partner lookup failed: ${error.message}`,
-  );
-}
-
-if (!user) {
-  return {
-    success: false,
-    registered: false,
-    message:
-      'No partner account found with this mobile number.',
-  };
-}
-
-  // ==========================================================
-  // CREATE JWT
-  // ==========================================================
-
-  const payload = {
+  const token = await this.jwtService.signAsync({
     sub: user.id,
-    restaurantPartnerId:
-      user.restaurant_partner_id,
+    restaurantPartnerId: user.restaurant_partner_id,
     email: user.email,
     role: 'partner',
-  };
-
-  const token =
-    this.jwtService.sign(payload);
+  });
 
   return {
     success: true,
     registered: true,
     message: 'Login successful',
     access_token: token,
-
     partner: {
       id: user.id,
-      restaurantPartnerId:
-        user.restaurant_partner_id,
+      restaurantPartnerId: user.restaurant_partner_id,
       name: user.name,
       email: user.email,
       mobile: user.mobile,
@@ -385,10 +192,7 @@ if (!user) {
 }
 
 async getCurrentPartner(userId: string) {
-  console.log('========================================');
-  console.log('GET CURRENT PARTNER');
-  console.log('User ID:', userId);
-  console.log('========================================');
+  // Profile retrieval without logging identifiers.
 
   const { data: user, error } = await supabase
     .from('partner_users')
@@ -457,18 +261,7 @@ async getCurrentPartner(userId: string) {
     restaurant = restaurantData;
   }
 
-  console.log('========================================');
-  console.log('PARTNER PROFILE SUCCESS');
-  console.log('Partner:', user.name);
-  console.log(
-    'Restaurant Partner ID:',
-    user.restaurant_partner_id,
-  );
-  console.log(
-    'Restaurant:',
-    restaurant?.restaurant_name,
-  );
-  console.log('========================================');
+  // Profile data is intentionally not written to logs.
 
   return {
     success: true,

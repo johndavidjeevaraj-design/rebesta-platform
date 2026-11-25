@@ -59,27 +59,16 @@ export class DeliveryService {
     // mid-offer. (Fails open if the offers table is missing.)
     // ============================================================
 
-    let pool = data ?? [];
-
-    try {
-      const { data: pendingOffers } = await supabase
-        .from('delivery_offers')
-        .select('order_id')
-        .eq('status', 'pending')
-        .gt('expires_at', new Date().toISOString());
-
-      if (pendingOffers && pendingOffers.length > 0) {
-        const offeredOrderIds = new Set(
-          pendingOffers.map((o) => o.order_id as string),
-        );
-
-        pool = pool.filter(
-          (o) => !offeredOrderIds.has(o.id as string),
-        );
-      }
-    } catch (e) {
-      console.error('Offer pool filter skipped:', e);
+    const { data: pendingOffers, error: offersError } = await supabase
+      .from('delivery_offers')
+      .select('order_id')
+      .eq('status', 'pending')
+      .gt('expires_at', new Date().toISOString());
+    if (offersError) {
+      throw new BadRequestException('Unable to safely load delivery offers');
     }
+    const offeredOrderIds = new Set((pendingOffers ?? []).map((o) => o.order_id as string));
+    const pool = (data ?? []).filter((o) => !offeredOrderIds.has(o.id as string));
 
     return {
       success: true,
@@ -179,80 +168,21 @@ export class DeliveryService {
       );
     }
 
-    const { data: order, error: findError } = await supabase
-      .from('orders')
-      .select(`
-        id,
-        customer_id,
-        order_status,
-        delivery_partner_id
-      `)
-      .eq('id', orderId)
-      .single();
+    const { data: acceptedResult, error: acceptError } = await supabase.rpc(
+      'accept_delivery_order',
+      {
+        p_order_id: orderId,
+        p_partner_id: deliveryPartnerId,
+      },
+    );
 
-    if (findError || !order) {
-      throw new BadRequestException('Order not found');
-    }
-
-    if (order.order_status !== 'ready') {
-      throw new BadRequestException('Order is not ready');
-    }
-
-    if (order.delivery_partner_id) {
-      throw new BadRequestException('Order already accepted');
-    }
-
-    // ============================================================
-    // SWIGGY-STYLE FAIRNESS: while this order is being offered
-    // to a specific rider, nobody else may grab it.
-    // (Fails open if the offers table is not set up yet.)
-    // ============================================================
-
-    try {
-      const { data: activeOffers } = await supabase
-        .from('delivery_offers')
-        .select('delivery_partner_id')
-        .eq('order_id', orderId)
-        .eq('status', 'pending')
-        .gt('expires_at', new Date().toISOString());
-
-      if (activeOffers && activeOffers.length > 0) {
-        const mine = activeOffers.some(
-          (o) => o.delivery_partner_id === deliveryPartnerId,
-        );
-
-        if (!mine) {
-          throw new BadRequestException(
-            'This order is currently offered to another delivery partner',
-          );
-        }
-      }
-    } catch (e) {
-      if (e instanceof BadRequestException) throw e;
-      console.error('Offer fairness check skipped:', e);
-    }
-
-    const { data, error } = await supabase
-      .from('orders')
-      .update({
-        delivery_partner_id: deliveryPartnerId,
-        assigned_at: new Date().toISOString(),
-        order_status: 'accepted_for_delivery',
-      })
-      .eq('id', orderId)
-      .is('delivery_partner_id', null)
-      .select()
-      .single();
-
-    if (error) {
-      throw new BadRequestException(error.message);
-    }
-
-    if (!data) {
+    if (acceptError || !acceptedResult?.order) {
       throw new BadRequestException(
-        'Order was accepted by another delivery partner',
+        acceptError?.message ?? 'Order could not be accepted',
       );
     }
+
+    const data = acceptedResult.order;
 
     this.socketGateway.sendOrderUpdate(
       orderId,
@@ -368,11 +298,15 @@ export class DeliveryService {
       })
       .eq('id', orderId)
       .eq('delivery_partner_id', deliveryPartnerId)
+      .eq('order_status', 'accepted_for_delivery')
       .select()
-      .single();
+      .maybeSingle();
 
     if (updateError) {
       throw new BadRequestException(updateError.message);
+    }
+    if (!data) {
+      throw new BadRequestException('Order status changed concurrently; refresh and retry');
     }
 
     this.socketGateway.sendOrderUpdate(orderId, 'arrived_at_restaurant');
@@ -489,11 +423,7 @@ export class DeliveryService {
       throw new BadRequestException('Order not found');
     }
 
-    if (
-      order.order_status === 'delivered' ||
-      order.order_status === 'picked_up' ||
-      order.order_status === 'arrived_at_customer'
-    ) {
+    if (!isRiderCancellationAllowed(order.order_status)) {
       throw new BadRequestException('Order cannot be cancelled at this stage');
     }
 
@@ -506,11 +436,18 @@ export class DeliveryService {
       })
       .eq('id', orderId)
       .eq('delivery_partner_id', deliveryPartnerId)
+      .in('order_status', [
+        'accepted_for_delivery',
+        'arrived_at_restaurant',
+      ])
       .select()
-      .single();
+      .maybeSingle();
 
     if (updateError) {
       throw new BadRequestException(updateError.message);
+    }
+    if (!data) {
+      throw new BadRequestException('Order status changed concurrently; refresh and retry');
     }
 
     this.socketGateway.sendOrderUpdate(orderId, 'ready');
@@ -525,11 +462,8 @@ export class DeliveryService {
     const dispatched =
       await this.dispatchService.dispatchOrder(orderId);
 
-    if (!dispatched) {
-      await this.dispatchService.broadcastOrderToFeed(
-        orderId,
-      );
-    }
+    // No unrestricted rider broadcast: the order remains in the
+    // eligible pool and can be picked up by the dispatch retry/sweep.
 
     return {
       success: true,
@@ -592,151 +526,12 @@ export class DeliveryService {
   // ============================================================
 
   async completeDeliveryWithoutOtp(
-    orderId: string,
-    deliveryPartnerId: string,
+    _orderId: string,
+    _deliveryPartnerId: string,
   ) {
-    const { data: partner, error: partnerError } = await supabase
-      .from('delivery_partners')
-      .select('completed_deliveries')
-      .eq('id', deliveryPartnerId)
-      .single();
-
-    if (partnerError || !partner) {
-      throw new BadRequestException('Delivery partner not found');
-    }
-
-    if (Number(partner.completed_deliveries ?? 0) < 50) {
-      throw new BadRequestException(
-        'OTP verification is required for this delivery',
-      );
-    }
-
-    const { data: order, error } = await supabase
-      .from('orders')
-      .select(`id, customer_id, order_status, delivery_partner_id`)
-      .eq('id', orderId)
-      .eq('delivery_partner_id', deliveryPartnerId)
-      .single();
-
-    if (error || !order) {
-      throw new BadRequestException('Order not found');
-    }
-
-    if (order.order_status !== 'arrived_at_customer') {
-      throw new BadRequestException(
-        'Rider has not reached the customer location yet',
-      );
-    }
-
-    const { data: updatedOrder, error: updateError } = await supabase
-      .from('orders')
-      .update({
-        order_status: 'delivered',
-        delivered_at: new Date().toISOString(),
-        otp_verified: false,
-      })
-      .eq('id', orderId)
-      .eq('delivery_partner_id', deliveryPartnerId)
-      .eq('order_status', 'arrived_at_customer')
-      .select()
-      .single();
-
-    if (updateError) {
-      throw new BadRequestException(updateError.message);
-    }
-
-    if (!updatedOrder) {
-      throw new BadRequestException('Delivery could not be completed');
-    }
-
-    const earningAmount = 40;
-
-    const { data: existingEarning, error: earningCheckError } =
-      await supabase
-        .from('delivery_earnings')
-        .select('id, amount, status')
-        .eq('order_id', orderId)
-        .maybeSingle();
-
-    if (earningCheckError) {
-      throw new BadRequestException(
-        `Unable to check delivery earning: ${earningCheckError.message}`,
-      );
-    }
-
-    if (!existingEarning) {
-      const { error: earningInsertError } = await supabase
-        .from('delivery_earnings')
-        .insert({
-          delivery_partner_id: deliveryPartnerId,
-          order_id: orderId,
-          amount: earningAmount,
-          status: 'pending',
-        });
-
-      if (earningInsertError) {
-        throw new BadRequestException(
-          `Delivery completed, but earning creation failed: ${earningInsertError.message}`,
-        );
-      }
-
-      const { data: partnerWallet, error: partnerWalletError } =
-        await supabase
-          .from('delivery_partners')
-          .select(
-            `wallet_balance, total_earnings, pending_payout, completed_deliveries`,
-          )
-          .eq('id', deliveryPartnerId)
-          .single();
-
-      if (partnerWalletError || !partnerWallet) {
-        throw new BadRequestException(
-          'Delivery completed, but delivery partner wallet was not found',
-        );
-      }
-
-      const { error: walletError } = await supabase
-        .from('delivery_partners')
-        .update({
-          wallet_balance:
-            Number(partnerWallet.wallet_balance ?? 0) + earningAmount,
-          total_earnings:
-            Number(partnerWallet.total_earnings ?? 0) + earningAmount,
-          pending_payout:
-            Number(partnerWallet.pending_payout ?? 0) + earningAmount,
-          completed_deliveries:
-            Number(partnerWallet.completed_deliveries ?? 0) + 1,
-        })
-        .eq('id', deliveryPartnerId);
-
-      if (walletError) {
-        throw new BadRequestException(
-          `Delivery completed, but wallet update failed: ${walletError.message}`,
-        );
-      }
-    }
-
-    this.socketGateway.sendOrderUpdate(orderId, 'delivered');
-
-    this.notifyPartnerStatus(orderId, 'delivered');
-
-    if (updatedOrder.customer_id) {
-      this.socketGateway.emitToCustomer(
-        updatedOrder.customer_id,
-        'order_status',
-        { orderId: updatedOrder.id, status: 'delivered' },
-      );
-    }
-
-    return {
-      success: true,
-      message: 'Delivery completed successfully',
-      order: updatedOrder,
-      earning: {
-        amount: earningAmount,
-        status: existingEarning ? 'already_recorded' : 'pending',
-      },
-    };
+    throw new ForbiddenException(
+      'Delivery completion requires customer OTP verification',
+    );
   }
 
   // ============================================================
@@ -846,11 +641,15 @@ export class DeliveryService {
       })
       .eq('id', orderId)
       .eq('delivery_partner_id', deliveryPartnerId)
+      .eq('order_status', 'picked_up')
       .select()
-      .single();
+      .maybeSingle();
 
     if (updateError) {
       throw new BadRequestException(updateError.message);
+    }
+    if (!data) {
+      throw new BadRequestException('Order status changed concurrently; refresh and retry');
     }
 
     this.socketGateway.sendOrderUpdate(
@@ -886,193 +685,33 @@ export class DeliveryService {
     deliveryPartnerId: string,
     dto: VerifyDeliveryOtpDto,
   ) {
-    const { data: order, error } = await supabase
-      .from('orders')
-      .select(`
-        id,
-        customer_id,
-        order_status,
-        delivery_partner_id,
-        delivery_otp,
-        otp_verified,
-        delivered_at
-      `)
-      .eq('id', dto.orderId)
-      .eq('delivery_partner_id', deliveryPartnerId)
-      .single();
+    const { data, error } = await supabase.rpc('complete_delivery_with_otp', {
+      p_order_id: dto.orderId,
+      p_partner_id: deliveryPartnerId,
+      p_otp: String(dto.otp),
+      p_amount: 40,
+    });
 
-    if (error || !order) {
-      throw new BadRequestException('Order not found');
+    if (error || !data) {
+      throw new BadRequestException(error?.message ?? 'Delivery completion failed');
     }
 
-    if (
-      order.order_status === 'delivered' &&
-      order.otp_verified === true
-    ) {
-      return {
-        success: true,
-        message: 'Delivery already completed',
-        order,
-        earning: {
-          amount: 40,
-          status: 'already_recorded',
-        },
-      };
-    }
-
-    if (order.order_status !== 'arrived_at_customer') {
-      throw new BadRequestException(
-        `Order is not ready for OTP verification. Current status: ${order.order_status}`,
-      );
-    }
-
-    if (order.otp_verified) {
-      throw new BadRequestException('OTP already verified');
-    }
-
-    if (
-      String(order.delivery_otp) !==
-      String(dto.otp)
-    ) {
-      throw new BadRequestException('Invalid OTP');
-    }
-
-    const { data: updatedOrder, error: updateError } =
-      await supabase
-        .from('orders')
-        .update({
-          otp_verified: true,
-          order_status: 'delivered',
-          delivered_at: new Date().toISOString(),
-        })
-        .eq('id', dto.orderId)
-        .eq('delivery_partner_id', deliveryPartnerId)
-        .eq('order_status', 'arrived_at_customer')
-        .eq('otp_verified', false)
-        .select()
-        .single();
-
-    if (updateError) {
-      throw new BadRequestException(updateError.message);
-    }
-
-    if (!updatedOrder) {
-      throw new BadRequestException('Delivery could not be completed');
-    }
-
-    const earningAmount = 40;
-
-    const {
-      data: existingEarning,
-      error: earningCheckError,
-    } = await supabase
-      .from('delivery_earnings')
-      .select('id, amount, status')
-      .eq('order_id', dto.orderId)
-      .maybeSingle();
-
-    if (earningCheckError) {
-      throw new BadRequestException(
-        `Unable to check delivery earning: ${earningCheckError.message}`,
-      );
-    }
-
-    if (!existingEarning) {
-      const { error: earningInsertError } =
-        await supabase
-          .from('delivery_earnings')
-          .insert({
-            delivery_partner_id: deliveryPartnerId,
-            order_id: dto.orderId,
-            amount: earningAmount,
-            status: 'pending',
-          });
-
-      if (earningInsertError) {
-        throw new BadRequestException(
-          `Delivery completed, but earning creation failed: ${earningInsertError.message}`,
-        );
-      }
-    }
-
-    const {
-      data: partner,
-      error: partnerError,
-    } = await supabase
-      .from('delivery_partners')
-      .select(`
-        wallet_balance,
-        total_earnings,
-        pending_payout,
-        completed_deliveries
-      `)
-      .eq('id', deliveryPartnerId)
-      .single();
-
-    if (partnerError || !partner) {
-      throw new BadRequestException(
-        'Delivery completed, but delivery partner wallet was not found',
-      );
-    }
-
-    if (!existingEarning) {
-      const { error: walletError } =
-        await supabase
-          .from('delivery_partners')
-          .update({
-            wallet_balance:
-              Number(partner.wallet_balance ?? 0) +
-              earningAmount,
-
-            total_earnings:
-              Number(partner.total_earnings ?? 0) +
-              earningAmount,
-
-            pending_payout:
-              Number(partner.pending_payout ?? 0) +
-              earningAmount,
-
-            completed_deliveries:
-              Number(partner.completed_deliveries ?? 0) +
-              1,
-          })
-          .eq('id', deliveryPartnerId);
-
-      if (walletError) {
-        throw new BadRequestException(
-          `Delivery completed, but wallet update failed: ${walletError.message}`,
-        );
-      }
-    }
-
-    this.socketGateway.sendOrderUpdate(
-      dto.orderId,
-      'delivered',
-    );
-
+    const order = data.order;
+    const earning = data.earning;
+    this.socketGateway.sendOrderUpdate(dto.orderId, 'delivered');
     this.notifyPartnerStatus(dto.orderId, 'delivered');
-
-    if (updatedOrder.customer_id) {
-      this.socketGateway.emitToCustomer(
-        updatedOrder.customer_id,
-        'order_status',
-        {
-          orderId: updatedOrder.id,
-          status: 'delivered',
-        },
-      );
+    if (order?.customer_id) {
+      this.socketGateway.emitToCustomer(order.customer_id, 'order_status', {
+        orderId: order.id,
+        status: 'delivered',
+      });
     }
 
     return {
       success: true,
-      message: 'Delivery completed successfully',
-      order: updatedOrder,
-      earning: {
-        amount: earningAmount,
-        status: existingEarning
-          ? 'already_recorded'
-          : 'pending',
-      },
+      message: data.already_completed ? 'Delivery already completed' : 'Delivery completed successfully',
+      order,
+      earning: { amount: earning?.amount ?? 40, status: data.already_completed ? 'already_recorded' : 'pending' },
     };
   }
 
@@ -1444,4 +1083,10 @@ export class DeliveryService {
       orders: data ?? [],
     };
   }
+}
+
+// Riders may unassign only before collecting the food. Once the order
+// is picked up, the delivery must be completed or handled by operations.
+export function isRiderCancellationAllowed(orderStatus: string): boolean {
+  return ['accepted_for_delivery', 'arrived_at_restaurant'].includes(orderStatus);
 }

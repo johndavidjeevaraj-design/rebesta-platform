@@ -3,15 +3,21 @@ import {
   IsOptional,
   IsString,
   IsBoolean,
+  IsIn,
 } from 'class-validator';
 
 export class CreateOrderDto {
 
+  @IsOptional()
   @IsUUID()
-  addressId!: string;
+  addressId?: string;
 
   @IsUUID()
   restaurantPartnerId!: string;
+
+  @IsOptional()
+  @IsIn(['delivery', 'pickup'])
+  orderType?: 'delivery' | 'pickup';
 
   @IsOptional()
   @IsString()

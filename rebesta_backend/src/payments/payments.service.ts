@@ -104,7 +104,7 @@ export class PaymentsService {
     for (const item of cartItems) {
       const { data: menuItem, error: menuError } = await supabase
         .from('menu_items')
-        .select('id, price, is_available')
+        .select('id, price, is_available, restaurant_partner_id')
         .eq('id', item.menu_item_id)
         .single();
 
@@ -118,6 +118,10 @@ export class PaymentsService {
         throw new BadRequestException(
           'One or more items in your cart are currently unavailable',
         );
+      }
+
+      if (menuItem.restaurant_partner_id !== dto.restaurantPartnerId) {
+        throw new BadRequestException('Cart contains an item from another restaurant');
       }
 
       const quantity = Number(item.quantity ?? 0);
@@ -284,6 +288,7 @@ if (!Number.isFinite(totalAmount) || totalAmount <= 0 || !Number.isSafeInteger(M
         address_id: isPickup
         ? null
         : dto.addressId,
+        order_type: isPickup ? 'pickup' : 'delivery',
         subtotal,
         discount_amount: discount,
         delivery_fee: finalDeliveryFee,
@@ -342,6 +347,22 @@ if (!Number.isFinite(totalAmount) || totalAmount <= 0 || !Number.isSafeInteger(M
   // VERIFY PAYMENT (client-triggered path)
   // ============================================================
 
+  private assertCapturedPaymentMatchesAttempt(
+    payment: { order_id?: string; status?: string; amount?: string | number; currency?: string },
+    attempt: { razorpay_order_id: string; total_amount: number | string },
+  ) {
+    const expectedAmount = Math.round(Number(attempt.total_amount) * 100);
+    if (
+      payment.order_id !== attempt.razorpay_order_id ||
+      payment.status !== 'captured' ||
+      payment.currency !== 'INR' ||
+      !Number.isSafeInteger(expectedAmount) ||
+      Number(payment.amount) !== expectedAmount
+    ) {
+      throw new BadRequestException('Captured payment does not match the expected order amount and currency');
+    }
+  }
+
   async verifyPayment(
     customerId: string,
     dto: VerifyPaymentDto,
@@ -380,23 +401,7 @@ if (!Number.isFinite(totalAmount) || totalAmount <= 0 || !Number.isSafeInteger(M
 // PAYMENT MUST BELONG TO THIS RAZORPAY ORDER
 // ----------------------------------------------------------
 
-if (
-  razorpayPayment.order_id !== dto.razorpayOrderId
-) {
-  throw new BadRequestException(
-    'Payment does not belong to this order',
-  );
-}
-
-// ----------------------------------------------------------
-// PAYMENT MUST BE CAPTURED
-// ----------------------------------------------------------
-
-if (razorpayPayment.status !== 'captured') {
-  throw new BadRequestException(
-    `Payment is not captured: ${razorpayPayment.status}`,
-  );
-}
+this.assertCapturedPaymentMatchesAttempt(razorpayPayment, attempt);
 
 // ----------------------------------------------------------
 // VERIFY RAZORPAY CHECKOUT SIGNATURE
@@ -500,6 +505,7 @@ return this.createOrderFromAttempt(
       );
 
       if (capturedPayment) {
+        this.assertCapturedPaymentMatchesAttempt(capturedPayment, attempt);
         const result = await this.createOrderFromAttempt(
           attempt,
           capturedPayment.id,
@@ -683,9 +689,12 @@ async webhook(
         .maybeSingle();
 
       if (attempt && payment.status === 'captured') {
-        await this.createOrderFromAttempt(attempt, payment.id, null).catch(
-          (e) => console.error('Webhook order creation failed:', e),
-        );
+        try {
+          this.assertCapturedPaymentMatchesAttempt(payment, attempt);
+          await this.createOrderFromAttempt(attempt, payment.id, null);
+        } catch (e) {
+          console.error('Webhook order creation failed:', e);
+        }
       }
     }
 

@@ -8,10 +8,12 @@ import '../../home_screen/home_screen.dart';
 
 class NameScreen extends StatefulWidget {
   final String phone;
+  final String verificationToken;
 
   const NameScreen({
     super.key,
     required this.phone,
+    required this.verificationToken,
   });
 
   @override
@@ -189,6 +191,7 @@ void initState() {
       await authService.completeProfile(
         mobile: widget.phone,
         name: _nameController.text.trim(),
+        verificationToken: widget.verificationToken,
       );
 
       if (!mounted) return;

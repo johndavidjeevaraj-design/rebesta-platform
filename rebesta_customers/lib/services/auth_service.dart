@@ -5,6 +5,7 @@ import '../core/constants/api_constants.dart';
 import '../models/login_response.dart';
 
 class AuthService {
+  String? lastVerificationToken;
   final Dio _dio = Dio(
     BaseOptions(
       baseUrl: ApiConstants.baseUrl,
@@ -116,6 +117,11 @@ class AuthService {
     // NEW CUSTOMER
     // ==========================================================
 
+    lastVerificationToken = data["verificationToken"]?.toString();
+    if (lastVerificationToken == null || lastVerificationToken!.isEmpty) {
+      throw Exception("OTP verification proof was not returned");
+    }
+
     // OTP verified successfully.
     // Backend says customer doesn't exist.
     //
@@ -133,12 +139,14 @@ class AuthService {
   Future<LoginResponse> completeProfile({
     required String mobile,
     required String name,
+    required String verificationToken,
   }) async {
     final response = await _dio.post(
       "/customer-auth/complete-profile",
       data: {
         "mobile": mobile,
         "name": name,
+        "verificationToken": verificationToken,
       },
     );
 
