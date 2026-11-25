@@ -654,11 +654,16 @@ async approveDeliveryKyc(id: string) {
       kyc_rejection_reason: null,
     })
     .eq('id', id)
+    .eq('kyc_status', 'submitted')
     .select()
-    .single();
+    .maybeSingle();
 
   if (error) {
     throw new Error(error.message);
+  }
+
+  if (!data) {
+    throw new ConflictException('KYC submission is no longer pending or does not exist');
   }
 
   return {
@@ -678,11 +683,16 @@ async rejectDeliveryKyc(id: string, reason: string) {
         reason || 'Documents were not clear enough',
     })
     .eq('id', id)
+    .eq('kyc_status', 'submitted')
     .select()
-    .single();
+    .maybeSingle();
 
   if (error) {
     throw new Error(error.message);
+  }
+
+  if (!data) {
+    throw new ConflictException('KYC submission is no longer pending or does not exist');
   }
 
   return {
