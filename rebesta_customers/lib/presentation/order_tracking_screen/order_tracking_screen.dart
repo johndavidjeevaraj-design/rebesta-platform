@@ -126,21 +126,9 @@ class _OrderTrackingScreenState
     bool initialLoad = false,
   }) async {
     try {
-      debugPrint('================================');
-      debugPrint('📦 LOAD ORDER TRACKING');
-      debugPrint('Order ID: ${widget.orderId}');
-      debugPrint(
-        'Initial Load: $initialLoad',
-      );
-      debugPrint('================================');
-
       final response =
           await _orderService.trackOrder(
         widget.orderId,
-      );
-
-      debugPrint(
-        'TRACKING RESPONSE: $response',
       );
 
       if (!mounted) return;
@@ -172,16 +160,6 @@ class _OrderTrackingScreenState
             '',
       );
 
-      debugPrint('================================');
-      debugPrint('📍 RIDER LOCATION FROM API');
-      debugPrint(
-        'Latitude: $riderLatitude',
-      );
-      debugPrint(
-        'Longitude: $riderLongitude',
-      );
-      debugPrint('================================');
-
       // ========================================================
       // CURRENT STEP
       // ========================================================
@@ -190,19 +168,6 @@ class _OrderTrackingScreenState
           _getCurrentStep(
         tracking,
       );
-
-      debugPrint('================================');
-      debugPrint('📦 CURRENT ORDER STEP');
-      debugPrint(
-        'Status: ${tracking['status']}',
-      );
-      debugPrint(
-        'Step: $currentStep',
-      );
-      debugPrint(
-        'Label: ${_statusLabelForStep(currentStep)}',
-      );
-      debugPrint('================================');
 
       // ========================================================
       // ROAD ROUTE
@@ -216,19 +181,6 @@ class _OrderTrackingScreenState
           _decodeRouteGeometry(
         eta?['polyline'],
       );
-
-      debugPrint('================================');
-      debugPrint('🛣️ ROAD ROUTE');
-      debugPrint(
-        'Route points: ${routePoints.length}',
-      );
-      debugPrint(
-        'Distance: ${eta?['distance']} km',
-      );
-      debugPrint(
-        'Duration: ${eta?['duration']} minutes',
-      );
-      debugPrint('================================');
 
       // ========================================================
       // UPDATE UI
@@ -277,14 +229,6 @@ class _OrderTrackingScreenState
         _startRouteRefresh();
       }
     } catch (e, stackTrace) {
-      debugPrint('================================');
-      debugPrint('❌ TRACKING ERROR');
-      debugPrint('ERROR: $e');
-      debugPrint(
-        'STACK: $stackTrace',
-      );
-      debugPrint('================================');
-
       if (!mounted) return;
 
       setState(() {
@@ -356,10 +300,6 @@ class _OrderTrackingScreenState
 
         if (_currentStep >= 3 &&
             _currentStep < 4) {
-          debugPrint(
-            '🔄 Refreshing road route...',
-          );
-
           _loadTracking(
             initialLoad: false,
           );
@@ -374,23 +314,10 @@ class _OrderTrackingScreenState
 
   Future<void> _connectLiveLocation() async {
     try {
-      debugPrint('================================');
-      debugPrint(
-        '📡 CONNECT CUSTOMER LIVE SOCKET',
-      );
-      debugPrint(
-        'Order ID: ${widget.orderId}',
-      );
-      debugPrint('================================');
-
       await _deliverySocket.connect(
         orderId: widget.orderId,
         onStatusUpdate: (status) {
           if (!mounted) return;
-
-          debugPrint(
-            '📦 LIVE STATUS EVENT - refreshing tracking instantly',
-          );
 
           _loadTracking();
         },
@@ -405,26 +332,12 @@ class _OrderTrackingScreenState
               location['orderId']
                   ?.toString();
 
-          debugPrint('================================');
-          debugPrint(
-            '📍 LIVE DELIVERY LOCATION',
-          );
-          debugPrint(
-            'DATA: $location',
-          );
-          debugPrint('================================');
-
           // ======================================================
           // IGNORE OTHER ORDERS
           // ======================================================
 
           if (incomingOrderId !=
               widget.orderId) {
-            debugPrint(
-              '⚠️ Ignoring socket location for another order: '
-              '$incomingOrderId',
-            );
-
             return;
           }
 
@@ -452,26 +365,12 @@ class _OrderTrackingScreenState
 
           if (latitude == null ||
               longitude == null) {
-            debugPrint(
-              '⚠️ Invalid rider coordinates',
-            );
-
             return;
           }
 
           // ======================================================
           // LIVE RIDER
           // ======================================================
-
-          debugPrint(
-            '🚴 RIDER LOCATION: '
-            '$latitude, $longitude',
-          );
-
-          debugPrint(
-            '📦 Rider belongs to order: '
-            '$incomingOrderId',
-          );
 
           // ======================================================
           // UPDATE RIDER MARKER
@@ -505,10 +404,7 @@ class _OrderTrackingScreenState
         },
       );
     } catch (e) {
-      debugPrint(
-        '❌ LIVE LOCATION SOCKET ERROR: $e',
-      );
-    }
+      }
   }
 
   // ============================================================
@@ -704,10 +600,6 @@ class _OrderTrackingScreenState
             .toLowerCase()
             .trim();
 
-    debugPrint(
-      '📦 TRACKING STATUS: $status',
-    );
-
     switch (status) {
       // ========================================================
       // STEP 0
@@ -762,10 +654,6 @@ class _OrderTrackingScreenState
       // ========================================================
 
       default:
-        debugPrint(
-          '⚠️ UNKNOWN ORDER STATUS: $status',
-        );
-
         return 0;
     }
   }
@@ -1255,11 +1143,6 @@ SliverToBoxAdapter(
 
     final hasRoute =
         _routePoints.length >= 2;
-
-    debugPrint(
-      '🗺️ MAP ROUTE POINTS: '
-      '${_routePoints.length}',
-    );
 
     return Container(
       margin:
