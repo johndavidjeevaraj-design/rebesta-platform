@@ -305,3 +305,10 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 - [x] Sanitized database error details returned by rider order lifecycle transitions (arrival, pickup, cancellation/out-for-delivery guarded updates) to avoid leaking internal database diagnostics.
 - [x] Existing lifecycle transitions use rider/order-scoped and status-conditional updates; concurrent state change checks retained where present.
 - [ ] Validate lifecycle and retry behavior in staging; tests not executed.
+
+
+## Rider wallet and earnings response hardening (2026-11-25)
+- [x] Sanitized rider wallet and earnings database error responses.
+- [x] Sanitized delivery completion RPC failure responses to avoid exposing database/provider details.
+- [ ] Review completion RPC and ledger uniqueness/atomicity directly in database migrations; verify earnings aggregation completeness and configured payout rules.
+- [ ] Runtime validation and tests pending.
