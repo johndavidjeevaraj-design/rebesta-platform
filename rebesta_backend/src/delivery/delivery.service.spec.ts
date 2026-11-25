@@ -1,6 +1,6 @@
 
 import { Test, TestingModule } from '@nestjs/testing';
-import { DeliveryService, isRiderCancellationAllowed } from './delivery.service';
+import { DeliveryService, isEarningIncludedInSummary, isRiderCancellationAllowed } from './delivery.service';
 import { MapsService } from '../maps/maps.service';
 import { SocketGateway } from '../socket/socket.gateway';
 import { DispatchService } from '../dispatch/dispatch.service';
@@ -53,5 +53,16 @@ describe('isRiderCancellationAllowed', () => {
     'ready',
   ])('blocks cancellation at status %s', (status) => {
     expect(isRiderCancellationAllowed(status)).toBe(false);
+  });
+});
+
+
+describe('isEarningIncludedInSummary', () => {
+  it.each(['pending', 'paid'])('includes %s earnings', (status) => {
+    expect(isEarningIncludedInSummary(status)).toBe(true);
+  });
+
+  it('excludes reversed earnings', () => {
+    expect(isEarningIncludedInSummary('reversed')).toBe(false);
   });
 });
