@@ -61,7 +61,7 @@ export class PaymentsService {
 
     if (cartError) {
       throw new BadRequestException(
-        `Cart lookup failed: ${cartError.message}`,
+        'Unable to retrieve cart',
       );
     }
 
@@ -182,7 +182,7 @@ if (!isPickup) {
 
   if (restaurantError) {
     throw new BadRequestException(
-      `Restaurant lookup failed: ${restaurantError.message}`,
+      'Unable to retrieve restaurant details',
     );
   }
 
@@ -301,7 +301,7 @@ if (!Number.isFinite(totalAmount) || totalAmount <= 0 || !Number.isSafeInteger(M
       .single();
 
     if (insertError || !attempt) {
-      throw new BadRequestException(insertError?.message ?? 'Could not create payment attempt');
+      throw new BadRequestException('Could not create payment attempt');
     }
 
     try {
@@ -687,7 +687,7 @@ if (!Number.isFinite(totalAmount) || totalAmount <= 0 || !Number.isSafeInteger(M
     });
 
     if (error || !data?.order) {
-      throw new BadRequestException(error?.message ?? 'Atomic Cashfree order conversion failed');
+      throw new BadRequestException('Atomic Cashfree order conversion failed');
     }
 
     const order = data.order;
