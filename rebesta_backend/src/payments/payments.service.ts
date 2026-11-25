@@ -93,6 +93,7 @@ export class PaymentsService {
     // ----------------------------------------------------------
 
     const snapshot: Array<{
+      cartItemId: string;
       menuItemId: string;
       quantity: number;
       price: number;
@@ -122,7 +123,15 @@ export class PaymentsService {
       const quantity = Number(item.quantity ?? 0);
       const price = Number(menuItem.price ?? 0);
 
+      if (!Number.isSafeInteger(quantity) || quantity <= 0) {
+        throw new BadRequestException('Invalid cart quantity');
+      }
+      if (!Number.isFinite(price) || price < 0) {
+        throw new BadRequestException('Invalid menu price');
+      }
+
       snapshot.push({
+        cartItemId: item.id,
         menuItemId: menuItem.id,
         quantity,
         price,
@@ -248,7 +257,7 @@ const totalAmount =
   finalDeliveryFee -
   discount;
 
-if (totalAmount <= 0) {
+if (!Number.isFinite(totalAmount) || totalAmount <= 0 || !Number.isSafeInteger(Math.round(totalAmount * 100))) {
   throw new BadRequestException(
     'Invalid order amount',
   );
@@ -423,10 +432,8 @@ if (
     signatureBuffer,
   )
 ) {
-  await supabase
-    .from('payment_attempts')
-    .update({ status: 'failed' })
-    .eq('id', attempt.id);
+  // Do not poison the attempt on a client signature failure.
+  // A separately verified captured webhook/reconciliation can still recover it.
 
   throw new BadRequestException(
     'Invalid payment signature',
@@ -480,10 +487,6 @@ return this.createOrderFromAttempt(
       };
     }
 
-    if (attempt.status === 'failed') {
-      return { success: true, state: 'failed', order: null };
-    }
-
     // Ask Razorpay directly what actually happened to this order.
     const razorpayOrder = await this.razorpay.orders.fetch(razorpayOrderId);
 
@@ -517,28 +520,73 @@ return this.createOrderFromAttempt(
   async refund(orderId: string) {
     const { data: order, error } = await supabase
       .from('orders')
-      .select('*')
+      .select('id, payment_status, razorpay_payment_id')
       .eq('id', orderId)
       .single();
 
     if (error || !order) {
       throw new BadRequestException('Order not found');
     }
-
+    if (order.payment_status === 'refunded') {
+      throw new BadRequestException('Order has already been refunded');
+    }
+    if (order.payment_status !== 'paid') {
+      throw new BadRequestException('Only paid orders can be refunded');
+    }
     if (!order.razorpay_payment_id) {
       throw new BadRequestException('Payment not found');
     }
 
-    await this.razorpay.payments.refund(order.razorpay_payment_id, {});
+    // Atomically claim the refund operation to prevent concurrent duplicate calls.
+    const { data: claimed, error: claimError } = await supabase
+      .from('orders')
+      .update({ payment_status: 'refund_pending' })
+      .eq('id', orderId)
+      .eq('payment_status', 'paid')
+      .select('id')
+      .maybeSingle();
 
-    await supabase
+    if (claimError || !claimed) {
+      throw new BadRequestException(
+        'Refund is already being processed or order state changed',
+      );
+    }
+
+    let providerRefund: any;
+    try {
+      providerRefund = await this.razorpay.payments.refund(
+        order.razorpay_payment_id,
+        {},
+      );
+    } catch (providerError) {
+      // Network errors can be ambiguous: Razorpay may have accepted the refund
+      // before the response was lost. Keep refund_pending to block duplicate
+      // attempts until the provider state is reconciled or refund.failed arrives.
+      throw new BadRequestException(
+        'Refund outcome is uncertain. Order remains refund_pending; reconcile with Razorpay before retrying.',
+      );
+    }
+
+    const { data: updatedOrder, error: updateError } = await supabase
       .from('orders')
       .update({ payment_status: 'refunded' })
-      .eq('id', orderId);
+      .eq('id', orderId)
+      .eq('payment_status', 'refund_pending')
+      .select('id')
+      .maybeSingle();
 
-    return { success: true, message: 'Refund processed successfully' };
+    if (updateError || !updatedOrder) {
+      throw new BadRequestException(
+        'Refund was accepted by Razorpay but order status update failed. Reconcile this order before retrying.',
+      );
+    }
+
+    return {
+      success: true,
+      message: 'Refund processed successfully',
+      refundId: providerRefund?.id ?? null,
+    };
   }
-
   // ============================================================
   // WEBHOOK (server-side safety net)
   // ============================================================
@@ -548,16 +596,17 @@ async webhook(
   signature: string,
   rawBody: Buffer,
 ) {
-  if (!signature || !rawBody) {
+  const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
+  if (!signature || !rawBody || !webhookSecret) {
     throw new BadRequestException(
-      'Missing webhook signature',
+      'Webhook signature or secret is missing',
     );
   }
 
   const expectedSignature = crypto
     .createHmac(
       'sha256',
-      process.env.RAZORPAY_WEBHOOK_SECRET!,
+      webhookSecret,
     )
     .update(rawBody)
     .digest('hex');
@@ -584,7 +633,42 @@ async webhook(
     );
   }
 
+  if (
+    !body ||
+    typeof body !== 'object' ||
+    typeof body.event !== 'string' ||
+    body.event.length === 0
+  ) {
+    throw new BadRequestException('Invalid webhook payload');
+  }
+
   const event = body.event;
+  const payload = body.payload;
+
+  // Validate event envelopes before accessing nested entities.
+  if (
+    ['payment.captured', 'payment.failed', 'refund.processed', 'refund.failed'].includes(event) &&
+    (!payload || typeof payload !== 'object')
+  ) {
+    throw new BadRequestException('Invalid webhook payload');
+  }
+
+  if (
+    ['payment.captured', 'payment.failed'].includes(event) &&
+    (!payload.payment?.entity ||
+      typeof payload.payment.entity.id !== 'string' ||
+      typeof payload.payment.entity.order_id !== 'string')
+  ) {
+    throw new BadRequestException('Invalid payment webhook entity');
+  }
+
+  if (
+    ['refund.processed', 'refund.failed'].includes(event) &&
+    (!payload.refund?.entity ||
+      typeof payload.refund.entity.payment_id !== 'string')
+  ) {
+    throw new BadRequestException('Invalid refund webhook entity');
+  }
 
   // existing webhook logic...
 
@@ -598,7 +682,7 @@ async webhook(
         .eq('razorpay_order_id', payment.order_id)
         .maybeSingle();
 
-      if (attempt) {
+      if (attempt && payment.status === 'captured') {
         await this.createOrderFromAttempt(attempt, payment.id, null).catch(
           (e) => console.error('Webhook order creation failed:', e),
         );
@@ -611,16 +695,30 @@ async webhook(
       await supabase
         .from('payment_attempts')
         .update({ status: 'failed' })
-        .eq('razorpay_order_id', payment.order_id);
+        .eq('razorpay_order_id', payment.order_id)
+        .eq('status', 'created');
     }
 
     if (event === 'refund.processed') {
       const refund = body.payload.refund.entity;
 
+      // Only finalize an order currently awaiting refund. This prevents a
+      // stale/duplicate refund webhook from changing unrelated order states.
       await supabase
         .from('orders')
         .update({ payment_status: 'refunded' })
-        .eq('razorpay_payment_id', refund.payment_id);
+        .eq('razorpay_payment_id', refund.payment_id)
+        .eq('payment_status', 'refund_pending');
+    }
+
+    if (event === 'refund.failed') {
+      const refund = body.payload.refund.entity;
+
+      await supabase
+        .from('orders')
+        .update({ payment_status: 'paid' })
+        .eq('razorpay_payment_id', refund.payment_id)
+        .eq('payment_status', 'refund_pending');
     }
 
     return { success: true };
@@ -639,167 +737,50 @@ async webhook(
     razorpayPaymentId: string,
     signature: string | null,
   ) {
-    // Re-fetch attempt fresh to avoid a race between the two
-    // triggers (client verify + webhook) both passing the
-    // earlier idempotency check at nearly the same time.
+    const { data, error } = await supabase.rpc('create_paid_order_from_attempt', {
+      p_attempt_id: attempt.id,
+      p_payment_id: razorpayPaymentId,
+      p_signature: signature,
+    });
 
-    const { data: freshAttempt, error: freshError } = await supabase
-      .from('payment_attempts')
-      .select('*')
-      .eq('id', attempt.id)
-      .single();
-
-    if (freshError || !freshAttempt) {
-      throw new BadRequestException('Payment attempt not found');
-    }
-
-    if (freshAttempt.order_id) {
-      const { data: existingOrder } = await supabase
-        .from('orders')
-        .select('id, order_status, payment_status, total_amount')
-        .eq('id', freshAttempt.order_id)
-        .single();
-
-      return {
-        success: true,
-        message: 'Payment already verified',
-        order: existingOrder,
-      };
-    }
-
-    const deliveryOtp = Math.floor(
-      1000 + Math.random() * 9000,
-    ).toString();
-
-    const { data: order, error: orderError } = await supabase
-      .from('orders')
-      .insert({
-        customer_id: freshAttempt.customer_id,
-        restaurant_partner_id: freshAttempt.restaurant_partner_id,
-        address_id: freshAttempt.address_id,
-        discount_amount: freshAttempt.discount_amount,
-        delivery_fee: freshAttempt.delivery_fee,
-        total_amount: freshAttempt.total_amount,
-        payment_status: 'paid',
-        order_status: 'pending',
-        razorpay_order_id: freshAttempt.razorpay_order_id,
-        razorpay_payment_id: razorpayPaymentId,
-        razorpay_signature: signature,
-        payment_completed_at: new Date().toISOString(),
-        delivery_otp: deliveryOtp,
-        otp_verified: false,
-      })
-      .select()
-      .single();
-
-    if (orderError || !order) {
-      // Handle the rare race where two triggers both passed the
-      // idempotency check and both tried to insert. A unique
-      // constraint on orders.razorpay_order_id (add via SQL
-      // below) makes the second insert fail safely here.
-      const { data: raceOrder } = await supabase
-        .from('orders')
-        .select('id, order_status, payment_status, total_amount')
-        .eq('razorpay_order_id', freshAttempt.razorpay_order_id)
-        .maybeSingle();
-
-      if (raceOrder) {
-        return {
-          success: true,
-          message: 'Payment already verified',
-          order: raceOrder,
-        };
-      }
-
+    if (error || !data?.order) {
       throw new BadRequestException(
-        orderError?.message ?? 'Failed to create order',
+        error?.message ?? 'Atomic order conversion failed',
       );
     }
 
-    const snapshot = freshAttempt.cart_items_snapshot as Array<{
-      menuItemId: string;
-      quantity: number;
-      price: number;
-    }>;
-
-    const orderItems = snapshot.map((item) => ({
-      order_id: order.id,
-      menu_id: item.menuItemId,
-      quantity: item.quantity,
-      price: item.price,
-    }));
-
-    const { error: itemsError } = await supabase
-      .from('order_items')
-      .insert(orderItems);
-
-    if (itemsError) {
-      await supabase.from('orders').delete().eq('id', order.id);
-      throw new BadRequestException(itemsError.message);
-    }
-
-    await supabase
-      .from('payment_attempts')
-      .update({
-        status: 'success',
-        razorpay_payment_id: razorpayPaymentId,
-        razorpay_signature: signature,
-        order_id: order.id,
-      })
-      .eq('id', freshAttempt.id);
-
-    const { data: cart } = await supabase
-      .from('carts')
-      .select('id')
-      .eq('customer_id', freshAttempt.customer_id)
-      .eq('restaurant_partner_id', freshAttempt.restaurant_partner_id)
-      .maybeSingle();
-
-    if (cart) {
-      await supabase.from('cart_items').delete().eq('cart_id', cart.id);
-    }
-
-    try {
-      this.socketGateway.sendOrderUpdate(order.id, 'pending');
-    } catch (e) {
-      console.error('Order room status update failed:', e);
-    }
-
-    // ============================================================
-    // The restaurant app listens in the PARTNER room (it never
-    // joins order rooms). Payment success is the real
-    // "cook this order" signal for the restaurant.
-    // ============================================================
-
-    try {
-      this.socketGateway.emitToPartner(
-        freshAttempt.restaurant_partner_id,
-        'new-order',
-        {
+    const order = data.order;
+    if (data.created === true) {
+      try {
+        this.socketGateway.sendOrderUpdate(order.id, 'pending');
+      } catch (e) {
+        console.error('Order room status update failed:', e);
+      }
+      try {
+        this.socketGateway.emitToPartner(order.restaurant_partner_id, 'new-order', {
           orderId: order.id,
           status: order.order_status,
           paymentStatus: 'paid',
           totalAmount: order.total_amount,
-        },
-      );
-    } catch (e) {
-      console.error('Partner socket notification failed:', e);
-    }
-
-    try {
-      await this.fcmService.sendToPartner(
-        freshAttempt.restaurant_partner_id,
-        '🍽️ New Order!',
-        `You have a new order worth ₹${order.total_amount}`,
-        { orderId: order.id, screen: 'order_details' },
-      );
-    } catch (e) {
-      console.error('Partner FCM notification failed:', e);
+        });
+      } catch (e) {
+        console.error('Partner socket notification failed:', e);
+      }
+      try {
+        await this.fcmService.sendToPartner(
+          order.restaurant_partner_id,
+          '🍽️ New Order!',
+          `You have a new order worth ₹${order.total_amount}`,
+          { orderId: order.id, screen: 'order_details' },
+        );
+      } catch (e) {
+        console.error('Partner FCM notification failed:', e);
+      }
     }
 
     return {
       success: true,
-      message: 'Payment verified successfully',
+      message: data.created ? 'Payment verified successfully' : 'Payment already verified',
       order: {
         id: order.id,
         total: order.total_amount,

@@ -13,6 +13,7 @@ import { CreateCheckoutPaymentDto } from './dto/create-checkout-payment.dto';
 import { VerifyPaymentDto } from './dto/verify-payment.dto';
 
 import { CustomerJwtGuard } from '../customer-auth/customer-jwt.guard';
+import { AdminGuard } from '../admin/admin.guard';
 
 @Controller('payments')
 export class PaymentsController {
@@ -45,6 +46,7 @@ export class PaymentsController {
   }
 
   @Post('refund/:orderId')
+  @UseGuards(AdminGuard)
   refund(@Param('orderId') orderId: string) {
     return this.paymentsService.refund(orderId);
   }

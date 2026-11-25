@@ -5,21 +5,10 @@ import {
   Logger,
   UnauthorizedException,
 } from '@nestjs/common';
+import * as crypto from 'crypto';
 
-// ============================================================
-// ADMIN GUARD
-// ============================================================
-//
-// Protects every /admin/* route. Requests must carry the
-// admin API key in a header:
-//
-//   x-admin-key: <ADMIN_API_KEY from backend .env>
-//
-// FAILS CLOSED: if ADMIN_API_KEY is not configured the
-// guard rejects every request (never falls back to open).
-//
-// ============================================================
-
+// Fail closed when ADMIN_API_KEY is not configured. Compare keys using
+// constant-time comparison to avoid leaking match progress through timing.
 @Injectable()
 export class AdminGuard implements CanActivate {
   private readonly logger = new Logger('AdminGuard');
@@ -35,15 +24,26 @@ export class AdminGuard implements CanActivate {
 
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest();
-
     const provided = request.headers['x-admin-key'];
-
     const expected = process.env.ADMIN_API_KEY;
 
-    if (!expected || provided !== expected) {
-      throw new UnauthorizedException(
-        'Valid x-admin-key header required',
-      );
+    if (
+      typeof expected !== 'string' ||
+      expected.length === 0 ||
+      typeof provided !== 'string' ||
+      provided.length === 0
+    ) {
+      throw new UnauthorizedException('Valid x-admin-key header required');
+    }
+
+    const expectedBuffer = Buffer.from(expected, 'utf8');
+    const providedBuffer = Buffer.from(provided, 'utf8');
+
+    if (
+      expectedBuffer.length !== providedBuffer.length ||
+      !crypto.timingSafeEqual(expectedBuffer, providedBuffer)
+    ) {
+      throw new UnauthorizedException('Valid x-admin-key header required');
     }
 
     return true;
