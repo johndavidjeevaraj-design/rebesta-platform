@@ -36,7 +36,10 @@ import { supabase } from '../supabase';
 
 @WebSocketGateway({
   cors: {
-    origin: '*',
+    origin: (process.env.CORS_ALLOWED_ORIGINS ?? '')
+      .split(',')
+      .map((origin) => origin.trim())
+      .filter(Boolean),
   },
 })
 export class SocketGateway implements OnGatewayConnection {
