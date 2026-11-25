@@ -57,9 +57,11 @@ Future<Map<String, dynamic>> checkout({
   required String restaurantPartnerId,
   String? couponCode,
   bool wallet = false,
+  String orderType = 'delivery',
 }) async {
   final data = {
     'restaurantPartnerId': restaurantPartnerId,
+    'orderType': orderType,
     if (addressId != null && addressId.isNotEmpty)
       'addressId': addressId,   // only include when delivery address exists
     if (couponCode != null && couponCode.isNotEmpty)
