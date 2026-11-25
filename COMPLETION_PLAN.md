@@ -30,12 +30,12 @@ Benchmark: core functional capabilities of major food delivery platforms; not co
 - [x] Cart item quantities are bounded and checkout verifies menu items belong to the selected restaurant.
 - [x] Captured Razorpay payments are checked against the expected checkout amount, currency and order before order conversion (verify, reconcile and webhook paths).
 - [ ] Confirm OTP/session changes compile and pass tests on latest PR head.
-- [ ] Confirm all DTOs have validation decorators; empty DTO files and inline body types remain under review.
+- [ ] Confirm all DTOs have validation decorators; empty DTO files and inline body types remain under review.\n- [x] Admin delivery-KYC rejection now uses a validated DTO (non-empty reason, maximum 500 characters) with DTO unit tests.\n- [x] Delivery app completion now opens the OTP flow directly and no longer calls the legacy no-OTP completion endpoint.\n- [x] Removed delivery-app debug logging of full order/customer response payloads where reviewed.\n- [ ] Verify the delivery completion RPC against the live schema: `delivery_earnings` table and `delivery_partners` wallet/counter columns are referenced but are not created by repository migrations. Do not apply the migration until schema and grants are confirmed.
 - [ ] Verify all public tables, policies, storage policies and RPC grants against the live Supabase schema; repository SQL alone cannot establish live database state.
 - [ ] Replace temporary public partner signup block with authenticated admin-issued invitations and approval checks.
 
 ## Step 2 — Security and infrastructure
-- [ ] Explicit CORS allowlist and strict global DTO validation.
+- [x] Explicit CORS allowlist and strict global DTO validation.
 - [ ] Endpoint-specific throttling for OTP/auth, checkout, payment verification, refunds and support.
 - [ ] Secrets/config validation at startup; no secret leakage in logs.
 - [ ] Health/readiness endpoints and structured logging.
