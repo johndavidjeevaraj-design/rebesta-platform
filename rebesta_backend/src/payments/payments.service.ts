@@ -734,167 +734,50 @@ async webhook(
     razorpayPaymentId: string,
     signature: string | null,
   ) {
-    // Re-fetch attempt fresh to avoid a race between the two
-    // triggers (client verify + webhook) both passing the
-    // earlier idempotency check at nearly the same time.
+    const { data, error } = await supabase.rpc('create_paid_order_from_attempt', {
+      p_attempt_id: attempt.id,
+      p_payment_id: razorpayPaymentId,
+      p_signature: signature,
+    });
 
-    const { data: freshAttempt, error: freshError } = await supabase
-      .from('payment_attempts')
-      .select('*')
-      .eq('id', attempt.id)
-      .single();
-
-    if (freshError || !freshAttempt) {
-      throw new BadRequestException('Payment attempt not found');
-    }
-
-    if (freshAttempt.order_id) {
-      const { data: existingOrder } = await supabase
-        .from('orders')
-        .select('id, order_status, payment_status, total_amount')
-        .eq('id', freshAttempt.order_id)
-        .single();
-
-      return {
-        success: true,
-        message: 'Payment already verified',
-        order: existingOrder,
-      };
-    }
-
-    const deliveryOtp = Math.floor(
-      1000 + Math.random() * 9000,
-    ).toString();
-
-    const { data: order, error: orderError } = await supabase
-      .from('orders')
-      .insert({
-        customer_id: freshAttempt.customer_id,
-        restaurant_partner_id: freshAttempt.restaurant_partner_id,
-        address_id: freshAttempt.address_id,
-        discount_amount: freshAttempt.discount_amount,
-        delivery_fee: freshAttempt.delivery_fee,
-        total_amount: freshAttempt.total_amount,
-        payment_status: 'paid',
-        order_status: 'pending',
-        razorpay_order_id: freshAttempt.razorpay_order_id,
-        razorpay_payment_id: razorpayPaymentId,
-        razorpay_signature: signature,
-        payment_completed_at: new Date().toISOString(),
-        delivery_otp: deliveryOtp,
-        otp_verified: false,
-      })
-      .select()
-      .single();
-
-    if (orderError || !order) {
-      // Handle the rare race where two triggers both passed the
-      // idempotency check and both tried to insert. A unique
-      // constraint on orders.razorpay_order_id (add via SQL
-      // below) makes the second insert fail safely here.
-      const { data: raceOrder } = await supabase
-        .from('orders')
-        .select('id, order_status, payment_status, total_amount')
-        .eq('razorpay_order_id', freshAttempt.razorpay_order_id)
-        .maybeSingle();
-
-      if (raceOrder) {
-        return {
-          success: true,
-          message: 'Payment already verified',
-          order: raceOrder,
-        };
-      }
-
+    if (error || !data?.order) {
       throw new BadRequestException(
-        orderError?.message ?? 'Failed to create order',
+        error?.message ?? 'Atomic order conversion failed',
       );
     }
 
-    const snapshot = freshAttempt.cart_items_snapshot as Array<{
-      menuItemId: string;
-      quantity: number;
-      price: number;
-    }>;
-
-    const orderItems = snapshot.map((item) => ({
-      order_id: order.id,
-      menu_id: item.menuItemId,
-      quantity: item.quantity,
-      price: item.price,
-    }));
-
-    const { error: itemsError } = await supabase
-      .from('order_items')
-      .insert(orderItems);
-
-    if (itemsError) {
-      await supabase.from('orders').delete().eq('id', order.id);
-      throw new BadRequestException(itemsError.message);
-    }
-
-    await supabase
-      .from('payment_attempts')
-      .update({
-        status: 'success',
-        razorpay_payment_id: razorpayPaymentId,
-        razorpay_signature: signature,
-        order_id: order.id,
-      })
-      .eq('id', freshAttempt.id);
-
-    const { data: cart } = await supabase
-      .from('carts')
-      .select('id')
-      .eq('customer_id', freshAttempt.customer_id)
-      .eq('restaurant_partner_id', freshAttempt.restaurant_partner_id)
-      .maybeSingle();
-
-    if (cart) {
-      await supabase.from('cart_items').delete().eq('cart_id', cart.id);
-    }
-
-    try {
-      this.socketGateway.sendOrderUpdate(order.id, 'pending');
-    } catch (e) {
-      console.error('Order room status update failed:', e);
-    }
-
-    // ============================================================
-    // The restaurant app listens in the PARTNER room (it never
-    // joins order rooms). Payment success is the real
-    // "cook this order" signal for the restaurant.
-    // ============================================================
-
-    try {
-      this.socketGateway.emitToPartner(
-        freshAttempt.restaurant_partner_id,
-        'new-order',
-        {
+    const order = data.order;
+    if (data.created === true) {
+      try {
+        this.socketGateway.sendOrderUpdate(order.id, 'pending');
+      } catch (e) {
+        console.error('Order room status update failed:', e);
+      }
+      try {
+        this.socketGateway.emitToPartner(order.restaurant_partner_id, 'new-order', {
           orderId: order.id,
           status: order.order_status,
           paymentStatus: 'paid',
           totalAmount: order.total_amount,
-        },
-      );
-    } catch (e) {
-      console.error('Partner socket notification failed:', e);
-    }
-
-    try {
-      await this.fcmService.sendToPartner(
-        freshAttempt.restaurant_partner_id,
-        '🍽️ New Order!',
-        `You have a new order worth ₹${order.total_amount}`,
-        { orderId: order.id, screen: 'order_details' },
-      );
-    } catch (e) {
-      console.error('Partner FCM notification failed:', e);
+        });
+      } catch (e) {
+        console.error('Partner socket notification failed:', e);
+      }
+      try {
+        await this.fcmService.sendToPartner(
+          order.restaurant_partner_id,
+          '🍽️ New Order!',
+          `You have a new order worth ₹${order.total_amount}`,
+          { orderId: order.id, screen: 'order_details' },
+        );
+      } catch (e) {
+        console.error('Partner FCM notification failed:', e);
+      }
     }
 
     return {
       success: true,
-      message: 'Payment verified successfully',
+      message: data.created ? 'Payment verified successfully' : 'Payment already verified',
       order: {
         id: order.id,
         total: order.total_amount,
