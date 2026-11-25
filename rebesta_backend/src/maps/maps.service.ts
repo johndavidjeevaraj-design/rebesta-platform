@@ -566,6 +566,7 @@ distanceKm =
               'Content-Type':
                 'application/json',
             },
+            timeout: 8000,
           },
         );
 
