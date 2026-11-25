@@ -573,3 +573,9 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 - [!] The separately hardened legacy `SocketService` has no identified call site in the reviewed source tree/search. Search coverage is not runtime proof; avoid deleting it until a complete caller/build trace confirms it is unused.
 - [ ] Confirm callers using a full source search and Flutter analysis; then retire or consolidate the duplicate service safely.
 - [ ] Secure JWT storage migration remains blocked on dependency/platform/lockfile resolution and testing; don't perform partial storage migration.
+
+
+## Cart quantity price freshness (2026-11-25)
+- [x] Cart item quantity update now fetches the current menu item price and availability from the backend before updating the cart-item price snapshot. Unavailable items are rejected; ownership checks remain in place.
+- [!] This is not an atomic cart operation and does not eliminate races between menu changes and cart writes. Checkout remains responsible for authoritative pricing. Runtime/database tests have not been run.
+- Commit: 65d07438f259e68647caca4506872ac1597be8ea.
