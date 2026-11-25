@@ -252,3 +252,9 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 - [x] Inspected restaurant acceptance RPC: row locks order and menu stock, payment guard for Razorpay/Cashfree, decrements inventory and transitions order atomically; service_role-only execute grant.
 - [!] Public-schema RLS lockdown migration revokes anon/authenticated table/sequence privileges broadly. This is intentionally high-impact and requires staging smoke-tests for every mobile/backend workflow before application; no migrations executed.
 - [ ] Review actual deployment grants, RPC security-definer ownership/search_path, idempotency behavior under concurrency and staging race tests; runtime verification not available here.
+
+
+## Tracking endpoint log privacy follow-up (2026-11-25)
+- [x] Removed tracking endpoint logs that printed customer destination/address, rider identity/location, route coordinates, ETA details, and provider error details that could carry tracking context.
+- [ ] Review remaining backend logs for PII, credentials, provider payloads, OTPs and precise GPS; structured logging/redaction and staging verification remain pending.
+- No UI changes, migrations, deployment or test execution.
