@@ -6,6 +6,11 @@ import { SocketGateway } from '../socket/socket.gateway';
 import { FcmService } from '../fcm/fcm.service';
 import { DispatchService } from '../dispatch/dispatch.service';
 
+export function canCancelRestaurantOrder(order: { order_status: string; payment_status: string | null }): boolean {
+  return ['pending', 'failed', 'refunded'].includes(order.payment_status ?? '') &&
+    ['pending', 'accepted', 'preparing'].includes(order.order_status);
+}
+
 export function canAcceptRestaurantOrder(order: {
   order_status: string;
   payment_status: string | null;
@@ -190,6 +195,12 @@ async updateStatus(
     );
   }
 
+  if (newStatus === 'cancelled' && !canCancelRestaurantOrder(order)) {
+    throw new BadRequestException(
+      'This order cannot be cancelled in its current payment or preparation state. Refund paid orders through the admin refund flow first.',
+    );
+  }
+
   // Allowed state transitions
 
   const transitions: Record<string, string[]>  = {
@@ -253,7 +264,7 @@ async updateStatus(
     });
     error = result.error;
     data = result.data?.order ?? null;
-  } else if (newStatus === 'cancelled') {
+  } else if (newStatus === 'cancelled' && ['accepted', 'preparing'].includes(order.order_status)) {
     // Restore only stock consumed at acceptance, and only once.
     const result = await supabase.rpc('cancel_restaurant_order_and_restore_stock', {
       p_order_id: orderId,
