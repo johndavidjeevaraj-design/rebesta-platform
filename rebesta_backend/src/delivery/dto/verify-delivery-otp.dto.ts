@@ -1,11 +1,9 @@
-import { IsString } from 'class-validator';
+import { IsUUID, Matches } from 'class-validator';
 
 export class VerifyDeliveryOtpDto {
-
-  @IsString()
+  @IsUUID()
   orderId!: string;
 
-  @IsString()
+  @Matches(/^\\d{4,8}$/, { message: 'OTP must contain 4 to 8 digits' })
   otp!: string;
-
 }
