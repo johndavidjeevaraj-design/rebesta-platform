@@ -408,3 +408,15 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 - Current code uses Supabase query service directly; Redis client/cache provider is not present in inspected modules. Adding a Redis dependency without choosing/confirming managed Redis endpoint, deployment configuration, secrets, network access, and health/failure behavior would risk breaking availability. No code changes to cache paths in this pass.
 - Recommended first implementation: Redis-backed injectable cache provider with fail-open reads/writes (DB remains source of truth), scoped key namespaces, TTL, no caching of personalized/favorite/financial/order/cart/auth data, cache invalidation after successful writes, and bounded TTL fallback if invalidation fails. Add unit tests and integration validation before rollout.
 - Redis infrastructure, credentials, connection health, CI verification, staging cache invalidation/consistency tests remain pending. No deployment or runtime tests performed.
+
+
+## External-service resilience audit (2026-11-25)
+- [x] Weather lookup Open-Meteo has 3s timeout and fail-soft returns zero surcharge.
+- [x] Geocoder request has 5s timeout and returns null on failure.
+- [x] ORS route lookup had no request timeout despite fallback handling; added 8s timeout so failures/timeouts fall through to distance estimation. Commit: 2b849374.
+- [!] ORS route handler catches provider errors and returns straight-line estimate; checkout fee calculation should be reviewed for whether estimate is acceptable vs explicit fallback/fee policy and user disclosure.
+- [!] Axios Cashfree operations inspected have 15s timeouts; retry/reconciliation strategy remains domain-specific and should avoid duplicate financial actions. Refund IDempotency exists; other payment operation failure paths still need fault-injection testing.
+- [!] Notifications, Firebase/FCM, storage and remaining external dependencies require endpoint-by-endpoint timeout, retry/backoff, logging, and queue/delivery reliability audit. Firebase Admin initialization depends on file-based credential at runtime; verify deployment secret provisioning.
+- [ ] Circuit breaker and centralized retry/backoff not implemented. Do not apply generic automatic retries to payment/refund/order mutation operations without idempotency protections.
+- [ ] CI, unit tests, staging timeouts/provider outage/fault-injection, and live service checks not executed.
+- No UI changes, deployment, merge or migrations.
