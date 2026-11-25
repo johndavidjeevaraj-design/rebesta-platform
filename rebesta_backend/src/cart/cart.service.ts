@@ -183,6 +183,7 @@ async addToCart(
       .from('cart_items')
       .update({
         quantity: newQuantity,
+        price: menuItem.price,
       })
       .eq('id', existingItem.id)
       .select()
