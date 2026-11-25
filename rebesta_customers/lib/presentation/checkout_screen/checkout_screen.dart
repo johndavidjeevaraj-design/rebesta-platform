@@ -711,6 +711,31 @@ Future<void> _changeQuantity(int index, int delta) async {
     setState(() => _processingPayment = true);
 
     try {
+      // Never start a second charge while a previous Cashfree attempt is
+      // unresolved. First reconcile the saved attempt with Cashfree.
+      final pendingCashfreeOrder = await _paymentService.getPendingPayment();
+      if (pendingCashfreeOrder != null && pendingCashfreeOrder.isNotEmpty) {
+        final pendingResult = await _paymentService.reconcilePayment(pendingCashfreeOrder);
+        final pendingOrder = pendingResult['order'];
+        final pendingOrderId = pendingOrder is Map
+            ? pendingOrder['id']?.toString()
+            : null;
+        if (pendingResult['state'] == 'confirmed' &&
+            pendingOrderId != null &&
+            pendingOrderId.isNotEmpty) {
+          if (!mounted) return;
+          setState(() => _processingPayment = false);
+          context.go(AppRoutes.orderTrackingScreen, extra: pendingOrderId);
+          return;
+        }
+        if (pendingResult['state'] != 'failed') {
+          if (!mounted) return;
+          setState(() => _processingPayment = false);
+          _showMessage('Your previous payment is still being confirmed. Please wait before trying another payment.');
+          return;
+        }
+      }
+
       final paymentResponse = await _paymentService.createCheckoutPayment(
         addressId: _checkoutType == CheckoutType.delivery ? _selectedAddress?.id : null,
         restaurantPartnerId: widget.restaurantPartnerId,
