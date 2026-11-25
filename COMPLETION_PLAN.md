@@ -458,3 +458,14 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 - [!] Coupon path in legacy checkout currently does not calculate discount; coupon code lookup is non-authoritative there. Must ensure legacy checkout is disabled/guarded or reconcile with Cashfree verified checkout flow.
 - [!] Dispatch recovery uses in-process interval (10s) and can run on multiple instances concurrently; DB offer-claim predicates and uniqueness must be proven against simultaneous dispatchers. Multi-instance job coordination and durable scheduling remain.
 - [!] Dispatch fallback and personal-offer timeout/retry require load/concurrency testing and careful state reconciliation.
+
+
+## Storage / upload audit follow-up (2026-11-25)
+- [x] Storage service validates non-empty buffers and declared MIME types, applies 5 MiB food image and 10 MiB KYC document size limits, and generates UUID storage filenames; upsert is disabled.
+- [x] KYC documents use a private bucket and storage path is returned rather than a public URL; signed URL duration is 5 minutes and path validation is applied.
+- [!] Validation currently relies on client/declarative MIME metadata and does not inspect file magic bytes or scan malware; MIME spoofing risk remains until byte-level validation and scanning are added.
+- [!] Signed URL creation accepts a storage path but service-level code shown does not establish partner/customer authorization to that path. Authorization must be enforced at the calling route/controller and verified; source search did not return call sites.
+- [!] Upload route multipart parser limits, storage bucket policy configuration, private KYC bucket isolation, image transformation, and access logging/retention were not verifiable in this code-only pass.
+- [x] Notification service's customer-read, mark-read and delete paths now return sanitized generic DB failure messages (previously returned raw error.message). Commit: f0ebaafa.
+- [ ] Add tests for malformed/magic-byte mismatches, oversized files at route and service layers, cross-partner KYC path access, signed URL expiry/access, storage outage, and notification ownership enforcement. Tests/build not executed.
+- No UI changes, migrations, merge or deployment.
