@@ -2,11 +2,11 @@ import { IsString, Matches, MaxLength } from 'class-validator';
 
 export class CustomerVerifyOtpDto {
   @IsString()
-  @Matches(/^[6-9]\\d{9}$/)
+  @Matches(/^[6-9]\d{9}$/)
   mobile!: string;
 
   @IsString()
-  @Matches(/^\\d{6}$/)
+  @Matches(/^\d{6}$/)
   otp!: string;
 
   @IsString()
