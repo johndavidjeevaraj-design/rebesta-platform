@@ -489,7 +489,7 @@ if (!Number.isFinite(totalAmount) || totalAmount <= 0 || !Number.isSafeInteger(M
   async refund(orderId: string) {
     const { data: order, error } = await supabase
       .from('orders')
-      .select('id, payment_status, cashfree_order_id, cashfree_payment_id, cashfree_refund_id')
+      .select('id, payment_status, total_amount, cashfree_order_id, cashfree_payment_id, cashfree_refund_id')
       .eq('id', orderId)
       .maybeSingle();
 
