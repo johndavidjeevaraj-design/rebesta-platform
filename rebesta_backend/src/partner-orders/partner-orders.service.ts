@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { supabase } from '../supabase';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationTemplates } from '../notifications/notification.templates';
@@ -150,6 +150,8 @@ async updateStatus(
         id,
         customer_id,
         order_status,
+        payment_status,
+        razorpay_order_id,
         restaurant_partner_id
       `)
       .eq('id', orderId)
@@ -165,6 +167,19 @@ async updateStatus(
       'Order not found',
     );
 
+  }
+
+  // Online orders are created only after Razorpay capture. Never let a
+  // pending/failed online payment enter restaurant preparation. COD orders
+  // have no Razorpay order ID and may legitimately remain payment-pending.
+  if (
+    order.order_status === 'pending' &&
+    order.razorpay_order_id &&
+    order.payment_status !== 'paid'
+  ) {
+    throw new BadRequestException(
+      'Online payment must be confirmed before accepting this order',
+    );
   }
 
   // Allowed state transitions
