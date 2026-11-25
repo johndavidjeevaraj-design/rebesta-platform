@@ -10,7 +10,9 @@ ALTER TABLE public.payment_attempts
 
 ALTER TABLE public.orders
   ADD COLUMN IF NOT EXISTS cashfree_order_id text,
-  ADD COLUMN IF NOT EXISTS cashfree_payment_id text;
+  ADD COLUMN IF NOT EXISTS cashfree_payment_id text,
+  ADD COLUMN IF NOT EXISTS cashfree_refund_id text,
+  ADD COLUMN IF NOT EXISTS cashfree_refund_status text;
 
 DO $$
 BEGIN
