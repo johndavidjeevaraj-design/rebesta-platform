@@ -862,6 +862,7 @@ Future<void> _placeCODOrder() async {
       : null,
   restaurantPartnerId: widget.restaurantPartnerId,
   couponCode: _couponCode,
+  orderType: _checkoutType == CheckoutType.delivery ? 'delivery' : 'pickup',
 );
 
     debugPrint('COD ORDER RESPONSE: $response');   // ← we need this log!
