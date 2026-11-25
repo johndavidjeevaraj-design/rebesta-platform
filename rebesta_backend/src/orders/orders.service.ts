@@ -273,45 +273,10 @@ const totalAmount =
       throw new Error('Unable to save order items');
     }
 
-    // ==========================================================
-// LIVE RESTAURANT ORDER EVENT
-// ==========================================================
+    // Do not notify partners about this legacy checkout-created order before
+// payment is confirmed. The paid Cashfree order conversion emits partner
+// notifications after payment verification.
 
-try {
-  this.socketGateway.emitToPartner(
-    order.restaurant_partner_id,
-    'new-order',
-    {
-      orderId: order.id,
-      status: order.order_status,
-      paymentStatus: order.payment_status,
-      totalAmount: order.total_amount,
-    },
-  );
-
-} catch (socketError) {
-  console.warn('Partner order notification delivery failed');
-}
-
-// ==========================================================
-// NOTIFY RESTAURANT PARTNER — FCM
-// ==========================================================
-
-try {
-  await this.fcmService.sendToPartner(
-    dto.restaurantPartnerId,
-    '🍽️ New Order',
-    'You have received a new order.',
-    {
-      orderId: order.id,
-      status: 'pending',
-      screen: 'orders',
-    },
-  );
-
-} catch (error) {
-  console.warn('Partner push notification delivery failed');
-}
     // ==========================================================
     // IMPORTANT
     //
