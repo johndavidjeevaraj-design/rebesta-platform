@@ -221,6 +221,22 @@ export class DispatchService implements OnModuleInit, OnModuleDestroy {
         ),
       );
 
+      // A rider may hold only one live personal offer at a time. The
+      // database index is the final concurrency guard; this query avoids
+      // selecting a rider already holding another order's offer.
+      const { data: pendingRiderOffers, error: pendingRiderOffersError } = await supabase
+        .from('delivery_offers')
+        .select('delivery_partner_id')
+        .eq('status', 'pending')
+        .gt('expires_at', new Date().toISOString());
+
+      if (pendingRiderOffersError) {
+        throw new Error(`Pending rider offers lookup failed: ${pendingRiderOffersError.message}`);
+      }
+      const pendingOfferRiderIds = new Set(
+        (pendingRiderOffers ?? []).map((offer) => offer.delivery_partner_id as string),
+      );
+
       // --------------------------------------------------------
       // 4. Riders already offered THIS order
       // (pending / accepted / declined / expired / superseded)
@@ -274,6 +290,7 @@ export class DispatchService implements OnModuleInit, OnModuleDestroy {
           (p) =>
             p.id &&
             !busyIds.has(p.id) &&
+            !pendingOfferRiderIds.has(p.id) &&
             !offeredIds.has(p.id),
         )
         .map((p) => ({
@@ -335,6 +352,14 @@ export class DispatchService implements OnModuleInit, OnModuleDestroy {
         // not fall back to an unrestricted rider broadcast.
         this.logger.warn(`Order ${orderId} already has an active rider offer`);
         return true;
+      }
+
+      if (offerError?.code === '23505' &&
+          offerError.message?.includes('idx_delivery_offers_one_pending_per_partner')) {
+        // The selected rider was claimed by another concurrent order.
+        // Re-run candidate selection; the new pending-offer query will
+        // exclude that rider and choose the next eligible candidate.
+        return this.dispatchOrder(orderId);
       }
 
       if (offerError || !offer) {
