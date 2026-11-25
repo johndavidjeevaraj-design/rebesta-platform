@@ -264,3 +264,8 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 - [x] Reduced severity of best-effort socket/FCM notification failures after atomic order conversion from error to warning; these notification failures must not be mistaken for payment/order-conversion failures.
 - [ ] Adopt structured, redacted logs and correlation IDs; review remaining logs repository-wide and validate log retention/permissions.
 - [ ] Validate webhook and payment retry/concurrency behavior in sandbox; code review alone is not runtime verification.
+
+
+## Cashfree error-response hardening (2026-11-25)
+- [x] Payment order-creation failure now returns a generic client-facing error instead of forwarding upstream provider error details.
+- [ ] Continue reviewing error responses and logs for leakage; payment sandbox and concurrency validation remain outstanding.
