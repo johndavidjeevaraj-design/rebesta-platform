@@ -147,10 +147,7 @@ export class DispatchService implements OnModuleInit, OnModuleDestroy {
         .single();
 
       if (orderError || !order) {
-        this.logger.warn(
-          `Dispatch skipped - order not found: ${orderId}`,
-        );
-        return false;
+        throw new Error(`Dispatch order lookup failed: ${orderError?.message ?? 'order missing'}`);
       }
 
       if (
@@ -178,15 +175,14 @@ export class DispatchService implements OnModuleInit, OnModuleDestroy {
           .eq('is_online', true)
           .eq('kyc_status', 'verified');
 
-      if (partnersError || !partners || partners.length === 0) {
-        return false;
-      }
+      if (partnersError) throw new Error(`Rider lookup failed: ${partnersError.message}`);
+      if (!partners || partners.length === 0) return false;
 
       // --------------------------------------------------------
       // 3. Riders already busy with an active delivery
       // --------------------------------------------------------
 
-      const { data: busyOrders } = await supabase
+      const { data: busyOrders, error: busyError } = await supabase
         .from('orders')
         .select('delivery_partner_id')
         .not('delivery_partner_id', 'is', null)
@@ -198,6 +194,7 @@ export class DispatchService implements OnModuleInit, OnModuleDestroy {
           'arrived_at_customer',
         ]);
 
+      if (busyError) throw new Error(`Busy rider lookup failed: ${busyError.message}`);
       const busyIds = new Set(
         (busyOrders ?? []).map(
           (o) => o.delivery_partner_id as string,
@@ -209,11 +206,12 @@ export class DispatchService implements OnModuleInit, OnModuleDestroy {
       // (pending / accepted / declined / expired / superseded)
       // --------------------------------------------------------
 
-      const { data: priorOffers } = await supabase
+      const { data: priorOffers, error: priorOffersError } = await supabase
         .from('delivery_offers')
         .select('delivery_partner_id')
         .eq('order_id', orderId);
 
+      if (priorOffersError) throw new Error(`Prior offers lookup failed: ${priorOffersError.message}`);
       const offeredIds = new Set(
         (priorOffers ?? []).map(
           (o) => o.delivery_partner_id as string,
@@ -227,11 +225,12 @@ export class DispatchService implements OnModuleInit, OnModuleDestroy {
       const startOfDay = new Date();
       startOfDay.setHours(0, 0, 0, 0);
 
-      const { data: todaysOffers } = await supabase
+      const { data: todaysOffers, error: todaysOffersError } = await supabase
         .from('delivery_offers')
         .select('delivery_partner_id')
         .gte('offered_at', startOfDay.toISOString());
 
+      if (todaysOffersError) throw new Error(`Daily offers lookup failed: ${todaysOffersError.message}`);
       const offerCounts = new Map<string, number>();
 
       for (const o of todaysOffers ?? []) {
@@ -355,10 +354,9 @@ export class DispatchService implements OnModuleInit, OnModuleDestroy {
 
       return true;
     } catch (error) {
-      // Fail open - the caller falls back to broadcasting.
-
+      // Fail closed on infrastructure errors; callers must not broadcast an unrestricted feed.
       this.logger.error(`Dispatch failed: ${error}`);
-      return false;
+      throw error;
     }
   }
 
