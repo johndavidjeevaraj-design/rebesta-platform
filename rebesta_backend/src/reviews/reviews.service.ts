@@ -25,9 +25,7 @@ export class ReviewsService {
         );
 
     if (error) {
-      throw new BadRequestException(
-        error.message,
-      );
+      throw new BadRequestException('Unable to calculate restaurant rating');
     }
 
     const totalReviews = reviews.length;
@@ -65,9 +63,7 @@ export class ReviewsService {
         );
 
     if (error) {
-      throw new BadRequestException(
-        error.message,
-      );
+      throw new BadRequestException('Unable to calculate delivery rating');
     }
 
     const validReviews =
@@ -178,9 +174,7 @@ export class ReviewsService {
       .single();
 
   if (reviewError) {
-    throw new BadRequestException(
-      reviewError.message,
-    );
+    throw new BadRequestException('Unable to submit review');
   }
 
   // Update ratings
@@ -235,9 +229,7 @@ async getMyReviews(
       });
 
   if (error) {
-    throw new BadRequestException(
-      error.message,
-    );
+    throw new BadRequestException('Unable to retrieve reviews');
   }
 
   return {
@@ -276,9 +268,7 @@ async getRestaurantReviews(
       });
 
   if (error) {
-    throw new BadRequestException(
-      error.message,
-    );
+    throw new BadRequestException('Unable to retrieve restaurant reviews');
   }
 
   return {
@@ -317,9 +307,7 @@ async getDeliveryPartnerReviews(
       });
 
   if (error) {
-    throw new BadRequestException(
-      error.message,
-    );
+    throw new BadRequestException('Unable to retrieve delivery reviews');
   }
 
   return {
@@ -377,9 +365,7 @@ async updateReview(
       .single();
 
   if (updateError) {
-    throw new BadRequestException(
-      updateError.message,
-    );
+    throw new BadRequestException('Unable to update review');
   }
 
   await this.updateRestaurantRating(
