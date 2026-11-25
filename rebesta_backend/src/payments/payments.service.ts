@@ -376,15 +376,13 @@ if (!Number.isFinite(totalAmount) || totalAmount <= 0 || !Number.isSafeInteger(M
           : null,
       };
     } catch (providerError: any) {
-      await supabase
-        .from('payment_attempts')
-        .update({ status: 'failed' })
-        .eq('id', attempt.id)
-        .eq('status', 'created');
-      // Avoid returning upstream provider details to the client; they may
-      // contain internal diagnostic information. Keep a generic response.
+      // A timeout or local persistence failure does not prove that Cashfree
+      // rejected the order. Keep the attempt in its reconcilable state and
+      // retain its provider order ID/idempotency key; marking it failed here
+      // could hide an order that was actually created upstream.
+      // Avoid returning upstream provider details to the client.
       throw new BadRequestException(
-        'Cashfree order creation failed. Please try again.',
+        'We could not confirm payment setup. Do not start another payment yet; please reconcile this attempt or contact support.',
       );
     }
   }
