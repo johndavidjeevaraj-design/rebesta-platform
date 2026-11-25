@@ -552,3 +552,10 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 - [x] Legacy joinCustomer validates the supplied ID against the locally stored identity before requesting the room. Backend remains responsible for authoritative JWT/room authorization.
 - [!] Full call-site tracing remains incomplete; this is hardening, not proof the legacy service can be retired. Flutter analysis/tests and runtime socket tests were not executed.
 - Commit: 832a751daf4ac44d96d525e34c587a6165a6ed70. No UI changes, migrations, merge or deployment.
+
+
+## Rider GPS rate-limit follow-up (2026-11-25)
+- [x] Applied route-level throttling to the JWT-protected `POST /delivery/location` endpoint: maximum 30 requests per 60 seconds, complementing global throttling. This limits noisy clients and abuse while allowing a normal GPS cadence.
+- [x] Location DTO constrains latitude/longitude to valid numeric geographic ranges (reviewed).
+- [!] Throttler storage is in-memory per backend instance per earlier infrastructure audit; limits are not shared across replicas and restart-reset behavior remains. GPS throttling is route/IP-context based according to current throttler configuration, not proven per rider identity. Validate cadence with rider-app telemetry/runtime tests and multi-instance setup before release.
+- Commit: e5b75cae8d2f9bc2b3e4cf4de333309a5af01d61. No UI changes, migration, deployment or merge.
