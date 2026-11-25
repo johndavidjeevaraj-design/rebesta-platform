@@ -562,7 +562,7 @@ if (!Number.isFinite(totalAmount) || totalAmount <= 0 || !Number.isSafeInteger(M
             refund_note: 'Order refund',
           },
           {
-            headers: this.cashfreeHeaders(crypto.randomUUID()),
+            headers: this.cashfreeHeaders(refundId),
             timeout: 15000,
           },
         );
