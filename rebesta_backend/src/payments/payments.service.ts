@@ -574,9 +574,11 @@ if (!Number.isFinite(totalAmount) || totalAmount <= 0 || !Number.isSafeInteger(M
         success: true,
         message: status === 'SUCCESS'
           ? 'Refund processed successfully'
-          : status === 'FAILED'
-            ? 'Cashfree rejected the refund'
-            : 'Refund submitted; awaiting Cashfree confirmation',
+          : status === 'FAILED' || status === 'CANCELLED'
+            ? 'Cashfree did not complete the refund; the payment remains paid'
+            : status === 'ONHOLD'
+              ? 'Cashfree has placed the refund on hold; reconciliation is required'
+              : 'Refund submitted; awaiting Cashfree confirmation',
         refundId,
         refundStatus: status,
       };
