@@ -522,3 +522,6 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 
 - [x] Customer profile screen no longer prints raw profile API exceptions in debug output.
 - [x] Expired customer sessions clear cached token, customer ID, name and email before redirecting to login; pending payment reconciliation data remains untouched.
+
+- [x] Customer logout now removes only authentication/session identity keys instead of clearing all SharedPreferences, preserving pending Cashfree reconciliation and other app state. In-memory OTP proof is also cleared.
+- [ ] Replace debug Android release signing, establish the permanent Play Store application ID, configure release signing securely (not committed), and validate release manifest/build. No signing secrets or package identity have been fabricated.
