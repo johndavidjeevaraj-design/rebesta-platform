@@ -517,7 +517,7 @@ return this.createOrderFromAttempt(
   async refund(orderId: string) {
     const { data: order, error } = await supabase
       .from('orders')
-      .select('*')
+      .select('id, payment_status, razorpay_payment_id')
       .eq('id', orderId)
       .single();
 
@@ -525,16 +525,41 @@ return this.createOrderFromAttempt(
       throw new BadRequestException('Order not found');
     }
 
+    if (order.payment_status === 'refunded') {
+      throw new BadRequestException('Order has already been refunded');
+    }
+
+    if (order.payment_status !== 'paid') {
+      throw new BadRequestException(
+        'Only paid orders can be refunded',
+      );
+    }
+
     if (!order.razorpay_payment_id) {
       throw new BadRequestException('Payment not found');
     }
 
-    await this.razorpay.payments.refund(order.razorpay_payment_id, {});
+    // Do not mark the order refunded until the provider confirms the refund.
+    await this.razorpay.payments.refund(
+      order.razorpay_payment_id,
+      {},
+    );
 
-    await supabase
+    const { data: updatedOrder, error: updateError } = await supabase
       .from('orders')
       .update({ payment_status: 'refunded' })
-      .eq('id', orderId);
+      .eq('id', orderId)
+      .eq('payment_status', 'paid')
+      .select('id')
+      .maybeSingle();
+
+    if (updateError || !updatedOrder) {
+      // Provider refund succeeded but local state may not have updated.
+      // Keep this explicit for reconciliation rather than reporting success.
+      throw new BadRequestException(
+        'Refund was accepted by Razorpay but order status update failed. Reconcile this order before retrying.',
+      );
+    }
 
     return { success: true, message: 'Refund processed successfully' };
   }
