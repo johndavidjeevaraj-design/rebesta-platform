@@ -504,10 +504,28 @@ export class DispatchService implements OnModuleInit, OnModuleDestroy {
         return;
       }
 
-      this.socketGateway.emitToAllDelivery(
-        'new-order',
-        order,
-      );
+      // Broadcast only a privacy-minimized payload to the shared rider feed.
+      // Assigned riders receive full destination details through their order APIs.
+      const address = order.addresses as
+        | { city?: string | null; state?: string | null; pincode?: string | null }
+        | null;
+      const coarseArea = [address?.city, address?.state, address?.pincode]
+        .filter((part): part is string => Boolean(part && part.trim()))
+        .join(', ');
+      this.socketGateway.emitToAllDelivery('new-order', {
+        id: order.id,
+        total_amount: order.total_amount,
+        order_status: order.order_status,
+        created_at: order.created_at,
+        customers: { name: 'Customer' },
+        addresses: {
+          address: coarseArea || 'Delivery area unavailable',
+          landmark: null,
+          city: address?.city ?? null,
+          state: address?.state ?? null,
+          pincode: address?.pincode ?? null,
+        },
+      });
     } catch (error) {
       this.logger.error(`Broadcast failed: ${error}`);
     }
