@@ -66,9 +66,7 @@ export class CustomerAuthService {
 
     if (error || !customer) {
 
-      throw new Error(
-        'Invalid email or password',
-      );
+      throw new Error('Invalid email or password');
 
     }
 
@@ -274,7 +272,7 @@ async profile(customerId: string) {
       .single();
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error('Unable to retrieve customer profile');
   }
 
   return {
