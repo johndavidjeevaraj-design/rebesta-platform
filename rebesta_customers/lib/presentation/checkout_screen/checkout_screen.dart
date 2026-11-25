@@ -184,7 +184,6 @@ Future<void> _changeQuantity(int index, int delta) async {
       quantity: nextQty,
     );
   } catch (e) {
-    debugPrint('QUANTITY SYNC ERROR: $e');
     await _loadCart(); // roll back to server truth
     _showMessage('Could not save the quantity change');
   }
@@ -196,14 +195,6 @@ Future<void> _changeQuantity(int index, int delta) async {
 
   Future<void> _loadCart() async {
     try {
-      debugPrint('================================');
-      debugPrint('CHECKOUT CART LOADING');
-      debugPrint(
-        'Restaurant Partner ID: '
-        '${widget.restaurantPartnerId}',
-      );
-      debugPrint('================================');
-
       final response =
           await _cartService.getCart
           (
@@ -212,8 +203,6 @@ Future<void> _changeQuantity(int index, int delta) async {
         restaurantPartnerId:
             widget.restaurantPartnerId,
       );
-
-      debugPrint('FULL CART RESPONSE: $response');
 
       final cart = response['cart'];
 
@@ -245,19 +234,7 @@ Future<void> _changeQuantity(int index, int delta) async {
         _loading = false;
       });
 
-      debugPrint(
-        'CHECKOUT CART SUCCESS: '
-        '${items.length} items',
-      );
-    } catch (e, stackTrace) {
-      debugPrint(
-        'CHECKOUT CART ERROR: $e',
-      );
-
-      debugPrint(
-        '$stackTrace',
-      );
-
+      } catch (e, stackTrace) {
       if (!mounted) return;
 
       setState(() {
@@ -290,10 +267,6 @@ Future<void> _changeQuantity(int index, int delta) async {
         _loadingAddress = false;
       });
     } catch (e) {
-      debugPrint(
-        'CHECKOUT ADDRESS ERROR: $e',
-      );
-
       if (!mounted) return;
 
       setState(() {
@@ -778,8 +751,6 @@ Future<void> _changeQuantity(int index, int delta) async {
       setState(() => _processingPayment = false);
       _showMessage(e.message);
     } catch (e, stackTrace) {
-      debugPrint('CASHFREE CHECKOUT ERROR: $e');
-      debugPrint('$stackTrace');
       if (!mounted) return;
       setState(() => _processingPayment = false);
       _showMessage(_friendlyError(e));
@@ -818,12 +789,6 @@ Future<void> _placeCODOrder() async {
   setState(() => _processingPayment = true);
 
   try {
-    debugPrint('================================');
-    debugPrint('📦 PLACING COD ORDER');
-    debugPrint('Restaurant: ${widget.restaurantPartnerId}');
-    debugPrint('Address: ${_selectedAddress?.id}');
-    debugPrint('================================');
-
     final response = await _orderService.checkout(
   addressId: _checkoutType == CheckoutType.delivery
       ? _selectedAddress?.id
@@ -833,7 +798,7 @@ Future<void> _placeCODOrder() async {
   orderType: _checkoutType == CheckoutType.delivery ? 'delivery' : 'pickup',
 );
 
-    debugPrint('COD ORDER RESPONSE: $response');   // ← we need this log!
+    // ← we need this log!
 
     final order = response['order'] is Map
         ? Map<String, dynamic>.from(response['order'] as Map)
@@ -850,7 +815,6 @@ Future<void> _placeCODOrder() async {
 
     context.go(AppRoutes.orderTrackingScreen, extra: orderId);
   } catch (e) {
-    debugPrint('COD ORDER ERROR: $e');
     if (!mounted) return;
     setState(() => _processingPayment = false);
     _showMessage(_friendlyError(e));
@@ -879,8 +843,6 @@ Future<void> _placeCODOrder() async {
       setState(() => _processingPayment = false);
       context.go(AppRoutes.orderTrackingScreen, extra: orderId);
     } catch (e, stackTrace) {
-      debugPrint('CASHFREE PAYMENT VERIFICATION ERROR: $e');
-      debugPrint('$stackTrace');
       try {
         final recovery = await _paymentService.reconcilePayment(cashfreeOrderId);
         final recoveredOrder = recovery['order'];
@@ -894,8 +856,7 @@ Future<void> _placeCODOrder() async {
           return;
         }
       } catch (reconcileError) {
-        debugPrint('CASHFREE PAYMENT RECONCILIATION DEFERRED: $reconcileError');
-      }
+        }
       if (!mounted) return;
       setState(() => _processingPayment = false);
       _showMessage(
@@ -908,8 +869,6 @@ Future<void> _placeCODOrder() async {
     CFErrorResponse errorResponse,
     String cashfreeOrderId,
   ) async {
-    debugPrint('CASHFREE CHECKOUT RESPONSE: ${errorResponse.getMessage()}');
-
     if (cashfreeOrderId.isNotEmpty) {
       try {
         final recovery = await _paymentService.reconcilePayment(cashfreeOrderId);
@@ -922,8 +881,7 @@ Future<void> _placeCODOrder() async {
           return;
         }
       } catch (e) {
-        debugPrint('CASHFREE ERROR RECOVERY DEFERRED: $e');
-      }
+        }
     }
 
     if (!mounted) return;
