@@ -567,20 +567,21 @@ if (!Number.isFinite(totalAmount) || totalAmount <= 0 || !Number.isSafeInteger(M
   }
 
   private async applyCashfreeRefundStatus(orderId: string, refundId: string, status: string) {
+    let result: any;
     if (status === 'SUCCESS') {
-      await supabase.from('orders')
+      result = await supabase.from('orders')
         .update({ payment_status: 'refunded', cashfree_refund_status: status })
         .eq('cashfree_order_id', orderId)
         .eq('cashfree_refund_id', refundId)
         .eq('payment_status', 'refund_pending');
     } else if (status === 'FAILED') {
-      await supabase.from('orders')
+      result = await supabase.from('orders')
         .update({ payment_status: 'paid', cashfree_refund_status: status })
         .eq('cashfree_order_id', orderId)
         .eq('cashfree_refund_id', refundId)
         .eq('payment_status', 'refund_pending');
     } else {
-      await supabase.from('orders')
+      result = await supabase.from('orders')
         .update({ cashfree_refund_status: 'PENDING' })
         .eq('cashfree_order_id', orderId)
         .eq('cashfree_refund_id', refundId)
@@ -589,7 +590,7 @@ if (!Number.isFinite(totalAmount) || totalAmount <= 0 || !Number.isSafeInteger(M
   }
 
   async webhook(body: any, signature: string, timestamp: string, rawBody: Buffer) {
-    const secret = process.env.CASHFREE_CLIENT_SECRET;
+    const secret = process.env.CASHFREE_WEBHOOK_SECRET ?? process.env.CASHFREE_CLIENT_SECRET;
     if (!secret || !signature || !timestamp || !rawBody) {
       throw new BadRequestException('Cashfree webhook signature is missing');
     }
