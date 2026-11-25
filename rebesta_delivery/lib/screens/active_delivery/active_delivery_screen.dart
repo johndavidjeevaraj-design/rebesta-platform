@@ -600,9 +600,6 @@ Future<void> _cancelDelivery() async {
         'ORDER ID: $_orderId',
       );
       debugPrint(
-        'OTP: $otp',
-      );
-      debugPrint(
         'POST: ${ApiConstants.verifyDeliveryOtp}',
       );
       debugPrint(
