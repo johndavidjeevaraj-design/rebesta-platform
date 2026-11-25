@@ -233,3 +233,8 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 
 - [x] Socket.IO browser CORS now uses the same explicit CORS_ALLOWED_ORIGINS configuration as HTTP rather than wildcard origin; native clients without browser origins remain supported by Socket.IO's origin handling.
 - [ ] Confirm staging web origins and native-client connectivity; CORS configuration and authentication need runtime validation.
+
+
+## Admin socket authentication follow-up (2026-11-25)
+- [x] Admin socket room join now fails closed when the admin key is missing and compares equal-length key buffers with a timing-safe comparison, matching the HTTP admin guard's shared-key model.
+- [ ] Replace shared admin key with individually authenticated/authorized admin identity and audit trail; staging verification required.
