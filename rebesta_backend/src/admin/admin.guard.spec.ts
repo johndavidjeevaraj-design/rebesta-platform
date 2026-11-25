@@ -34,7 +34,7 @@ describe('AdminGuard', () => {
     );
   });
 
-  it('accepts the configured key', () => {
+  it('rejects non-string header values', () => {\n    process.env.ADMIN_API_KEY = 'secret';\n    const guard = new AdminGuard();\n    expect(() => guard.canActivate(contextFor(['secret'] as any))).toThrow(\n      UnauthorizedException,\n    );\n  });\n\n  it('accepts the configured key', () => {
     process.env.ADMIN_API_KEY = 'secret';
     const guard = new AdminGuard();
     expect(guard.canActivate(contextFor('secret'))).toBe(true);
