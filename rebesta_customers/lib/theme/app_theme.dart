@@ -67,13 +67,13 @@ class AppTheme {
       labelMedium: GoogleFonts.dmSans(fontSize: 12, fontWeight: FontWeight.w600, color: headlineText),
       labelSmall: GoogleFonts.dmSans(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.2, color: headlineText),
     ),
-    appBarTheme: AppBarTheme(
+    appBarTheme: AppBarThemeData(
       backgroundColor: surfaceLight,
       elevation: 0,
       scrolledUnderElevation: 0,
       titleTextStyle: GoogleFonts.dmSans(fontSize: 18, fontWeight: FontWeight.w700, color: headlineText),
     ),
-    cardTheme: CardTheme(
+    cardTheme: CardThemeData(
       color: surfaceLight,
       elevation: 0,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -85,7 +85,7 @@ class AppTheme {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
     ),
-    inputDecorationTheme: InputDecorationTheme(
+    inputDecorationTheme: InputDecorationThemeData(
       filled: true,
       fillColor: surfaceVariantLight,
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: outlineLight)),
