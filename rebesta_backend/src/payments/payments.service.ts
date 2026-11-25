@@ -556,19 +556,12 @@ return this.createOrderFromAttempt(
         {},
       );
     } catch (providerError) {
-      // Restore only our claimed state. If this fails, leave a visible
-      // refund_pending state for manual/provider reconciliation.
-      const { error: restoreError } = await supabase
-        .from('orders')
-        .update({ payment_status: 'paid' })
-        .eq('id', orderId)
-        .eq('payment_status', 'refund_pending');
-      if (restoreError) {
-        throw new BadRequestException(
-          'Refund request failed and local state restoration failed; reconcile this order',
-        );
-      }
-      throw new BadRequestException('Razorpay refund request failed');
+      // Network errors can be ambiguous: Razorpay may have accepted the refund
+      // before the response was lost. Keep refund_pending to block duplicate
+      // attempts until the provider state is reconciled or refund.failed arrives.
+      throw new BadRequestException(
+        'Refund outcome is uncertain. Order remains refund_pending; reconcile with Razorpay before retrying.',
+      );
     }
 
     const { data: updatedOrder, error: updateError } = await supabase
