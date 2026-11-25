@@ -52,6 +52,9 @@ Benchmark: core functional capabilities of major food delivery platforms; not co
 - [x] Added `20261125220000_restore_stock_on_restaurant_cancellation.sql`; restaurant acceptance records only tracked-stock deductions, and cancellation restores those quantities once in the same transaction as the state change.
 - [x] Restaurant cancellation now calls the stock-restoration RPC instead of directly changing order status.
 - [x] Restaurant cancellation now rechecks unpaid/failed/refunded payment state atomically for both pending and accepted/preparing orders; paid orders must complete the admin refund flow first.
+- [x] Delivery KYC approve/reject actions now update only submissions still in `submitted` state and return a conflict for stale/replayed decisions.
+- [x] Rider earnings period summaries exclude reversed ledger entries.
+- [ ] Confirm the actual rider compensation policy before removing the current ₹40-per-completion value; do not equate customer delivery fee with rider earnings without an approved pricing rule.
 - [ ] Apply `20261125200000_atomic_restaurant_stock_acceptance.sql` and `20261125220000_restore_stock_on_restaurant_cancellation.sql` in timestamp order; verify tracked/untracked items, insufficient stock, concurrent acceptance, cancellation restoration and repeated cancellation rejection.
 - [x] Admin rider earnings now read actual `delivery_earnings`/wallet balances instead of estimating earnings as a fixed ₹40 multiplied by delivered orders or summing customer order value.
 - [x] Added an audited, idempotent manual payout settlement RPC and admin endpoint. It settles pending earning rows, records a unique payout reference, and updates rider wallet/pending-payout balances atomically. This records a bank transfer after an administrator has completed it; it does not initiate a bank transfer.
