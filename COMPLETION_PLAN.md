@@ -609,3 +609,11 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 - [x] Removed partner Socket.IO and FCM notifications from the legacy checkout endpoint that creates orders with payment_status pending. Partner notifications are emitted from the verified Cashfree paid-order conversion path instead.
 - [!] Legacy checkout remains a pending/unpaid order creation path and its lifecycle, pricing, and integration should still be reviewed/retired or guarded. Static review only; tests not run.
 - Commit: 2b72f6a2cb8748e8ebb449ffcc44eabd98346736.
+
+
+## Coupon API input and error hardening (2026-11-25)
+- [x] Coupon application DTO now rejects blank/oversized codes, blank restaurant partner IDs, non-finite amounts, and amounts below ₹0.01 before the service runs.
+- [x] Partner coupon list/create/update paths return generic operation-specific errors instead of exposing raw Supabase provider messages. Existing ownership-scoped update/deactivate filters remain intact.
+- [!] Coupon application still accepts a client-supplied subtotal and restaurant ID for a preview response; it is not an authoritative checkout calculation. Legacy checkout currently ignores coupon discounts. Do not treat preview output as a payable amount until checkout recalculates from authoritative cart/menu/fee data and records usage atomically.
+- Static source edits only; tests not run. No migration, deployment or merge.
+- Commits: `80f90ec8` (DTO validation), `080aeac4` (error sanitization).
