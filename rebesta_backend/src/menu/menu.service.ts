@@ -34,7 +34,7 @@ export class MenuService {
 
 
     if (error) {
-      throw new Error(error.message);
+      throw new Error('Menu operation failed');
     }
 
 
@@ -48,14 +48,6 @@ export class MenuService {
 async getPartnerMenu(
   restaurantPartnerId: string,
 ) {
-  console.log('========================================');
-  console.log('GET PARTNER MENU');
-  console.log(
-    'Restaurant Partner ID:',
-    restaurantPartnerId,
-  );
-  console.log('========================================');
-
   if (!restaurantPartnerId) {
     throw new Error(
       'Restaurant partner ID missing from authentication token',
@@ -88,18 +80,8 @@ async getPartnerMenu(
       { ascending: false },
     );
 
-  console.log('MENU DATA:', data);
-  console.log('SUPABASE ERROR:', error);
-
   if (error) {
-    console.error(
-      '❌ PARTNER MENU SUPABASE ERROR:',
-      error,
-    );
-
-    throw new Error(
-      `Failed to load partner menu: ${error.message}`,
-    );
+    throw new Error('Unable to load restaurant menu');
   }
 
   const menu = (data ?? []).map((item) => ({
@@ -113,8 +95,6 @@ async getPartnerMenu(
     isAvailable: item.is_available,
     createdAt: item.created_at,
   }));
-
-  console.log('MENU COUNT:', menu.length);
 
   return {
     success: true,
@@ -133,17 +113,7 @@ async getPartnerMenu(
 
     const { data, error } = await supabase
       .from('menu_items')
-      .update({
-
-        category: dto.category,
-        name: dto.name,
-        description: dto.description,
-        price: dto.price,
-        image_url: dto.imageUrl,
-        is_veg: dto.isVeg,
-        is_available: dto.isAvailable,
-
-      })
+      .update(Object.fromEntries(Object.entries({ category: dto.category, name: dto.name, description: dto.description, price: dto.price, image_url: dto.imageUrl, is_veg: dto.isVeg, is_available: dto.isAvailable }).filter(([, value]) => value !== undefined)))
       .eq(
         'id',
         id,
@@ -157,7 +127,7 @@ async getPartnerMenu(
 
 
     if (error) {
-      throw new Error(error.message);
+      throw new Error('Menu operation failed');
     }
 
 
@@ -186,7 +156,7 @@ async getPartnerMenu(
 
 
     if (error) {
-      throw new Error(error.message);
+      throw new Error('Menu operation failed');
     }
 
 
@@ -216,7 +186,7 @@ async toggleAvailability(
 
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error('Menu operation failed');
   }
 
 
@@ -261,7 +231,7 @@ async findAll(
   const { data, error } = await query;
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error('Menu operation failed');
   }
 
 
@@ -307,7 +277,7 @@ async findOne(id: string) {
 
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error('Menu operation failed');
   }
 
 
