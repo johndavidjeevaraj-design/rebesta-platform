@@ -13,6 +13,7 @@ import { CreateCheckoutPaymentDto } from './dto/create-checkout-payment.dto';
 import { VerifyPaymentDto } from './dto/verify-payment.dto';
 
 import { CustomerJwtGuard } from '../customer-auth/customer-jwt.guard';
+import { AdminGuard } from '../admin/admin.guard';
 
 @Controller('payments')
 export class PaymentsController {
@@ -45,22 +46,24 @@ export class PaymentsController {
   }
 
   @Post('refund/:orderId')
+  @UseGuards(AdminGuard)
   refund(@Param('orderId') orderId: string) {
     return this.paymentsService.refund(orderId);
   }
 
-@Post('webhook')
-webhook(@Req() req, @Body() body: any) {
-  const signature =
-    req.headers['x-razorpay-signature'] as string;
+  @Post('webhook')
+  webhook(@Req() req, @Body() body: any) {
+    const signature =
+      req.headers['x-razorpay-signature'] as string;
 
-  return this.paymentsService.webhook(
-    body,
-    signature,
-    req.rawBody,
-  );
-}
-    @Post('reconcile')
+    return this.paymentsService.webhook(
+      body,
+      signature,
+      req.rawBody,
+    );
+  }
+
+  @Post('reconcile')
   @UseGuards(CustomerJwtGuard)
   reconcile(
     @Req() req,
