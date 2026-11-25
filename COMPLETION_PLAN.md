@@ -334,3 +334,16 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 - [!] Coupon lookup in this legacy checkout path currently calculates no discount; address and restaurant coordinate/fee inputs are checked but live availability and pricing need staging validation.
 - [ ] Test cross-customer detail/tracking, stale cart price, unavailable menu items, item-insert rollback, duplicate checkout, and legacy-vs-Cashfree client routing. Tests not executed.
 - No UI changes, migrations, deployment or merge.
+
+
+## Cashfree payment/refund audit pass (2026-11-25; runtime verification pending)
+- [x] Customer payment verification and reconciliation lookup scope payment_attempts by customer ID and provider.
+- [x] Refund endpoint is AdminGuard-protected and throttled; refund request claims paid -> refund_pending with compare-and-set, persisting a refund ID before provider interaction. Retry fetches existing refund ID and avoids issuing a second refund ID.
+- [x] Refund-status webhook updates are scoped to provider order/refund identifiers and refund_pending state; terminal refund failure returns payment state to paid, success to refunded, pending/on-hold stays refund_pending.
+- [x] Webhook signature validation uses HMAC SHA256, timestamp + raw body, constant-time compare. Payment success processing queries provider payment data before conversion; failure webhook does not terminalize attempt.
+- [x] Sanitized payment attempt lookup, restaurant lookup, insert and atomic-conversion errors to avoid exposing database diagnostics.
+- [!] Refund authorization is based on the shared AdminGuard/API key, not individual admin identity or role-level permissions; refunds require stronger auditability and approval policy before production.
+- [!] Refund amount is full order total and there is no partial refund workflow; order total/provider refund consistency and refund webhook event dedupe should be verified with Cashfree sandbox and database constraints.
+- [!] Reconcile and verify provider fetches are not broadly caught/sanitized at all points; inspect exception handling and test provider outages, malformed payloads, conflicting payment/refund events, and webhook replay.
+- [ ] Sandbox tests for concurrent refund calls, provider timeout after refund creation, duplicate/out-of-order webhook delivery, amount mismatch, partial payments, multiple SUCCESS payments, and reconciliation races. Not executed.
+- No UI changes, deployment, merge or migrations.
