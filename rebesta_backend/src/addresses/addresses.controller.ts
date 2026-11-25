@@ -58,13 +58,7 @@ export class AddressesController {
   update(
     @Req() req: any,
     @Param('id') id: string,
-    @Body()
-    dto: {
-      title: string;
-      address: string;
-      latitude: number;
-      longitude: number;
-    },
+    @Body() dto: CreateAddressDto,
   ) {
     return this.service.update(req.user.customerId, id, dto);
   }
