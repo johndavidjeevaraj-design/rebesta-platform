@@ -1,0 +1,95 @@
+# Rebesta Platform — Completion Plan (Steps 1–5)
+
+Benchmark: core functional capabilities of major food delivery platforms; not copying proprietary branding or design.
+
+## Step 1 — Audit and remediation
+- [x] Repository map: NestJS API, Supabase/Postgres, Razorpay, socket.io, Firebase; customer, restaurant-partner, and delivery Flutter apps.
+- [x] Inspect startup, CI, auth/payment/order modules and launch runbook.
+- [ ] Complete endpoint-by-endpoint authorization review and abuse cases.
+- [ ] Complete DB schema, RLS, storage, migration, and RPC review.
+- [ ] Audit payment/refund/reconciliation and order state transitions.
+- [ ] Audit app UX flows, crash handling, accessibility, device permissions and offline states.
+- [ ] Review test coverage and repair CI gates (currently lint/analyze steps are configured to continue on errors).
+- [ ] Remediate findings in PRs, with tests.
+
+## Initial findings
+- Backend bootstrap calls `app.enableCors()` with no explicit origin policy.
+- Global request validation/transform/whitelisting pipe is not configured in `main.ts`.
+- CI backend lint and Flutter analyze steps currently use `continue-on-error: true`.
+- Global rate limiting is 100 requests/minute/IP. High-risk endpoints need endpoint-specific throttling.
+- CI checks build/test; Android release builds, dependency audit and integration/E2E gates need adding.
+- The three apps need independent release tracks and signing identities.
+
+## Step 2 — Security and infrastructure
+- [ ] Explicit CORS allowlist and strict global DTO validation.
+- [ ] Endpoint-specific throttling for OTP/auth, checkout, payment verification, refunds and support.
+- [ ] Secrets/config validation at startup; no secret leakage in logs.
+- [ ] Health/readiness endpoints and structured logging.
+- [ ] Docker backend image and local/staging compose.
+- [ ] Reverse proxy/TLS and staging deployment configuration.
+- [ ] CI gating: build, tests, lint, Flutter analyze, dependency/security checks.
+- [ ] Caching only for safe read-only public data; invalidation correctness.
+- [ ] Retry/timeout/circuit-breaker protections for external services; idempotency.
+- [ ] Load testing, capacity planning and backups.
+- [ ] Load balancing / service discovery / Kubernetes only when justified.
+
+## Step 3 — Feature benchmark
+### Customer app
+- [ ] Location/address, serviceability and address book
+- [ ] Restaurant discovery, search, filters, cuisine, dietary tags, sort
+- [ ] Restaurant profile, menu/category search, item customization/add-ons where supported
+- [ ] Cart validation, single-restaurant rules, price snapshots
+- [ ] Coupons/promotions, fees, taxes and transparent totals
+- [ ] Checkout, payment methods/provider reconciliation, safe retries
+- [ ] Order status/live tracking, contact options, notifications
+- [ ] History, reorder, favorites, reviews/ratings
+- [ ] Cancellation/refund rules and support tickets
+- [ ] Profile and privacy controls
+
+### Restaurant partner app
+- [ ] Onboarding and approval states
+- [ ] Store availability/hours and serviceability
+- [ ] Menu, price, availability and inventory controls
+- [ ] Order queue, accept/reject and preparation-time management
+- [ ] Order status transitions and handoff
+- [ ] Offers/promotions
+- [ ] Earnings, payout/reporting and analytics
+- [ ] Push alerts and support
+
+### Delivery partner app
+- [ ] Signup/login, profile and KYC
+- [ ] Online/offline and availability
+- [ ] Offer dispatch, accept/reject and expiry
+- [ ] Pickup navigation and pickup confirmation
+- [ ] Customer delivery navigation and delivery OTP/confirmation
+- [ ] GPS location updates, reconnect/offline handling
+- [ ] Delivery history, earnings, withdrawals
+- [ ] Safety, support and notification reliability
+
+### Admin/back-office
+- [ ] Restaurant/rider/customer management and verification
+- [ ] Orders, refunds, payment reconciliation
+- [ ] KYC moderation, menu/content moderation
+- [ ] Coupons, banners, platform settings
+- [ ] Support tickets, reporting/audit logs and permissions
+
+## Step 4 — Staging deployment
+- [ ] Dedicated staging environment and domain
+- [ ] Staging DB project/backup and migrations
+- [ ] Test payment credentials/webhook
+- [ ] SMS/FCM/map configuration and budgets
+- [ ] Dockerized API, reverse proxy, TLS, monitoring
+- [ ] Android builds pointed only at staging
+
+## Step 5 — E2E and beta readiness
+- [ ] Customer signup/address/discovery/cart/coupon/checkout
+- [ ] Payment success/failure/timeout/reconcile and duplicate webhook tests
+- [ ] Restaurant accept/prep/ready flow
+- [ ] Rider dispatch/accept/pickup/deliver with location and OTP
+- [ ] Cancellation/refund/support/review flows
+- [ ] Permissions, offline/network failure, reconnect, crash and performance checks
+- [ ] Security checks, load tests, backup restore rehearsal
+- [ ] Document known issues and beta exit criteria
+
+## Release boundary
+Steps 1–5 only. Play Store release preparation and publishing are deferred until staging and end-to-end readiness are achieved.
