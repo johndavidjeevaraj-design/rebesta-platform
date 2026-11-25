@@ -144,8 +144,11 @@ BEGIN
   ) RETURNING * INTO v_order;
 
   v_snapshot := v_attempt.cart_items_snapshot;
-  IF jsonb_typeof(v_snapshot) <> 'array' OR jsonb_array_length(v_snapshot) = 0 THEN
+  IF v_snapshot IS NULL OR jsonb_typeof(v_snapshot) IS DISTINCT FROM 'array' THEN
     RAISE EXCEPTION 'Payment attempt cart snapshot is invalid';
+  END IF;
+  IF jsonb_array_length(v_snapshot) = 0 THEN
+    RAISE EXCEPTION 'Payment attempt cart snapshot is empty';
   END IF;
 
   INSERT INTO public.order_items (order_id, menu_id, quantity, price)
