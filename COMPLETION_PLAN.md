@@ -479,3 +479,10 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 - [!] Cart update/remove authorization is checked by reading cart ownership before mutation; concurrent delete/update and ownership policy should be covered by DB constraints/RLS plus tests.
 - [ ] Verify unique constraints for customer/restaurant cart and cart/menu item, implement atomic upsert/increment if absent, and test concurrency/price freshness/ownership. Tests/build not executed.
 - No UI changes, deployment, merge or migrations.
+
+
+## Cart price snapshot improvement (2026-11-25)
+- [x] When incrementing an existing cart item through add-to-cart, update its stored price to the current menu price alongside the new quantity. This reduces stale-price persistence for this mutation path, but is not an atomic checkout price guarantee.
+- [!] Cart reads may still expose stored snapshot prices; cart quantity update endpoint does not refresh price from authoritative menu lookup. Legacy checkout remains unsuitable as an authoritative pricing path until verified/disabled.
+- [!] Atomic cart creation/item increment protections remain unresolved; implementing DB RPC/constraints requires migration/schema verification and staging tests, not available in this pass.
+- No migrations, deployment, merge, UI change. Build/test execution unavailable.
