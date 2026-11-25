@@ -168,70 +168,21 @@ export class DeliveryService {
       );
     }
 
-    const { data: order, error: findError } = await supabase
-      .from('orders')
-      .select(`
-        id,
-        customer_id,
-        order_status,
-        delivery_partner_id
-      `)
-      .eq('id', orderId)
-      .single();
+    const { data: acceptedResult, error: acceptError } = await supabase.rpc(
+      'accept_delivery_order',
+      {
+        p_order_id: orderId,
+        p_partner_id: deliveryPartnerId,
+      },
+    );
 
-    if (findError || !order) {
-      throw new BadRequestException('Order not found');
-    }
-
-    if (order.order_status !== 'ready') {
-      throw new BadRequestException('Order is not ready');
-    }
-
-    if (order.delivery_partner_id) {
-      throw new BadRequestException('Order already accepted');
-    }
-
-    // ============================================================
-    // SWIGGY-STYLE FAIRNESS: while this order is being offered
-    // to a specific rider, nobody else may grab it.
-    // (Fails open if the offers table is not set up yet.)
-    // ============================================================
-
-    const { data: activeOffers, error: offerCheckError } = await supabase
-      .from('delivery_offers')
-      .select('delivery_partner_id')
-      .eq('order_id', orderId)
-      .eq('status', 'pending')
-      .gt('expires_at', new Date().toISOString());
-    if (offerCheckError) {
-      throw new BadRequestException('Unable to verify active delivery offers');
-    }
-    if (activeOffers?.length && !activeOffers.some((o) => o.delivery_partner_id === deliveryPartnerId)) {
-      throw new BadRequestException('This order is currently offered to another delivery partner');
-    }
-
-    const { data, error } = await supabase
-      .from('orders')
-      .update({
-        delivery_partner_id: deliveryPartnerId,
-        assigned_at: new Date().toISOString(),
-        order_status: 'accepted_for_delivery',
-      })
-      .eq('id', orderId)
-      .eq('order_status', 'ready')
-      .is('delivery_partner_id', null)
-      .select()
-      .single();
-
-    if (error) {
-      throw new BadRequestException(error.message);
-    }
-
-    if (!data) {
+    if (acceptError || !acceptedResult?.order) {
       throw new BadRequestException(
-        'Order was accepted by another delivery partner',
+        acceptError?.message ?? 'Order could not be accepted',
       );
     }
+
+    const data = acceptedResult.order;
 
     this.socketGateway.sendOrderUpdate(
       orderId,
