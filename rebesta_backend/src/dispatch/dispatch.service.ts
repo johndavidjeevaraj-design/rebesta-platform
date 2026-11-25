@@ -446,9 +446,7 @@ export class DispatchService implements OnModuleInit, OnModuleDestroy {
       offer.order_id,
     );
 
-    if (!dispatched) {
-      await this.broadcastOrderToFeed(offer.order_id);
-    }
+    // Leave the order eligible for a later dispatch retry.
   }
 
   // ============================================================
@@ -486,11 +484,7 @@ export class DispatchService implements OnModuleInit, OnModuleDestroy {
         offer.order_id,
       );
 
-      if (!dispatched) {
-        await this.broadcastOrderToFeed(
-          offer.order_id,
-        );
-      }
+      // Leave the order eligible for a later dispatch retry.
     }
   }
 }
