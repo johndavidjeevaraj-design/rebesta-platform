@@ -9,7 +9,7 @@ Benchmark: core functional capabilities of major food delivery platforms; not co
 - [ ] Complete DB schema, RLS, storage, migration, and RPC review.
 - [ ] Audit payment/refund/reconciliation and order state transitions.
 - [ ] Audit app UX flows, crash handling, accessibility, device permissions and offline states.
-- [ ] Review test coverage and repair CI gates (currently lint/analyze steps are configured to continue on errors).
+- [ ] Review test coverage and repair CI gates (backend lint and Flutter analyze are still configured as non-blocking baseline checks).
 - [ ] Remediate findings in PRs, with tests.
 
 ## Initial findings
@@ -41,7 +41,7 @@ Benchmark: core functional capabilities of major food delivery platforms; not co
 
 ## Step 2 — Security and infrastructure
 - [x] Explicit CORS allowlist and strict global DTO validation.
-- [ ] Endpoint-specific throttling for OTP/auth, checkout, payment verification, refunds and support.
+- [x] Endpoint-specific throttling on customer/partner/delivery auth and customer OTP routes; checkout payment creation, verification, reconciliation and admin refunds now have tighter limits. Support throttling remains pending until a support API exists.
 - [ ] Secrets/config validation at startup; no secret leakage in logs.
 - [ ] Health/readiness endpoints and structured logging.
 - [ ] Docker backend image and local/staging compose.
