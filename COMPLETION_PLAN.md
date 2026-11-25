@@ -148,3 +148,10 @@ Benchmark: core functional capabilities of major food delivery platforms; not co
 
 ## Release boundary
 Steps 1–5 only. Play Store release preparation and publishing are deferred until staging and end-to-end readiness are achieved.
+
+## Follow-up payment audit (latest PR head; runtime validation still pending)
+- [x] Cashfree refund POST retries now reuse the persisted refund ID as the request idempotency key instead of generating a fresh key on each retry.
+- [ ] Validate Cashfree refund idempotency header format against provider requirements and sandbox behavior.
+- [ ] Review webhook failure-event ordering against payment retries: a failed attempt event must not prematurely block or mislabel an order when later payment attempts may succeed.
+- [ ] Confirm SQL conversion RPC preserves all required order metadata and item snapshot fields compared with the original conversion RPC; verify schema and grants in staging.
+- [ ] Execute payment tests/build and sandbox payment/refund scenarios; not run in this audit environment.
