@@ -104,7 +104,7 @@ export class PaymentsService {
     for (const item of cartItems) {
       const { data: menuItem, error: menuError } = await supabase
         .from('menu_items')
-        .select('id, price, is_available')
+        .select('id, price, is_available, restaurant_partner_id')
         .eq('id', item.menu_item_id)
         .single();
 
@@ -118,6 +118,10 @@ export class PaymentsService {
         throw new BadRequestException(
           'One or more items in your cart are currently unavailable',
         );
+      }
+
+      if (menuItem.restaurant_partner_id !== dto.restaurantPartnerId) {
+        throw new BadRequestException('Cart contains an item from another restaurant');
       }
 
       const quantity = Number(item.quantity ?? 0);
