@@ -504,11 +504,8 @@ export class DeliveryService {
     const dispatched =
       await this.dispatchService.dispatchOrder(orderId);
 
-    if (!dispatched) {
-      await this.dispatchService.broadcastOrderToFeed(
-        orderId,
-      );
-    }
+    // No unrestricted rider broadcast: the order remains in the
+    // eligible pool and can be picked up by the dispatch retry/sweep.
 
     return {
       success: true,
