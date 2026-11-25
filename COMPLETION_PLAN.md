@@ -223,3 +223,10 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 - [ ] Verify rate limiting, tracking permission/consent, and active-order fan-out behavior in staging; current endpoint updates the rider's stored location and emits to customers on their active assigned orders.
 - [ ] Available-order feed still returns recipient details before rider eligibility/assignment; safe contract change requires app compatibility validation.
 - No UI/design changes, migrations or deployment.
+
+
+## Available-orders privacy remediation (2026-11-25)
+- [x] Available-order feed now verifies the authenticated rider's KYC status server-side before returning orders; unverified riders receive a forbidden response.
+- [x] Unassigned-order feed payload removes customer name, street address, landmark and precise coordinates; it exposes only coarse city/state/pincode while retaining existing card fields to avoid layout changes.
+- [ ] Verify delivery app behavior, schema relation shapes, KYC denial and available-order filtering in staging; backend/client tests were not executable in this environment.
+- [ ] Socket gateway CORS and shared-key admin socket identity remain pending coordinated client/config review.
