@@ -6,6 +6,18 @@ import { SocketGateway } from '../socket/socket.gateway';
 import { FcmService } from '../fcm/fcm.service';
 import { DispatchService } from '../dispatch/dispatch.service';
 
+export function canAcceptRestaurantOrder(order: {
+  order_status: string;
+  payment_status: string | null;
+  razorpay_order_id: string | null;
+}): boolean {
+  return !(
+    order.order_status === 'pending' &&
+    Boolean(order.razorpay_order_id) &&
+    order.payment_status !== 'paid'
+  );
+}
+
 @Injectable()
 export class PartnerOrdersService {
 
@@ -172,11 +184,7 @@ async updateStatus(
   // Online orders are created only after Razorpay capture. Never let a
   // pending/failed online payment enter restaurant preparation. COD orders
   // have no Razorpay order ID and may legitimately remain payment-pending.
-  if (
-    order.order_status === 'pending' &&
-    order.razorpay_order_id &&
-    order.payment_status !== 'paid'
-  ) {
+  if (!canAcceptRestaurantOrder(order)) {
     throw new BadRequestException(
       'Online payment must be confirmed before accepting this order',
     );
