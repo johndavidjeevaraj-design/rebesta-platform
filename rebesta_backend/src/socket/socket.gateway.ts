@@ -10,6 +10,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 
 import { Server, Socket } from 'socket.io';
+import * as crypto from 'crypto';
 
 import { supabase } from '../supabase';
 
@@ -374,23 +375,30 @@ joinAdmin(
   @ConnectedSocket() client: Socket,
 ) {
   const expected = process.env.ADMIN_API_KEY;
-
   const provided = client.handshake.auth?.adminKey;
 
-  if (!expected || provided !== expected) {
-    console.log('⛔ join_admin denied');
+  // Match the HTTP admin guard's shared-key auth, fail closed and
+  // compare only equal-length buffers using a timing-safe primitive.
+  if (
+    typeof expected !== 'string' ||
+    expected.length === 0 ||
+    typeof provided !== 'string' ||
+    provided.length === 0
+  ) {
+    return { success: false, message: 'Not allowed' };
+  }
 
-    return {
-      success: false,
-      message: 'Not allowed',
-    };
+  const expectedBuffer = Buffer.from(expected, 'utf8');
+  const providedBuffer = Buffer.from(provided, 'utf8');
+  if (
+    expectedBuffer.length !== providedBuffer.length ||
+    !crypto.timingSafeEqual(expectedBuffer, providedBuffer)
+  ) {
+    return { success: false, message: 'Not allowed' };
   }
 
   client.join('admin');
-
-  console.log(
-    '✅ Admin connected',
-  );
+  return { success: true };
 
 }
 
