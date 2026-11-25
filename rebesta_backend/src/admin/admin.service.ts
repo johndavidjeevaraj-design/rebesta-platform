@@ -117,7 +117,7 @@ async approveRestaurant(id: string) {
     .eq('id', id)
     .eq('status', 'pending')
     .select()
-    .single();
+    .maybeSingle();
 
   if (error) {
     throw new Error(error.message);
@@ -143,7 +143,7 @@ async rejectRestaurant(id: string) {
     .eq('id', id)
     .eq('status', 'pending')
     .select()
-    .single();
+    .maybeSingle();
 
   if (error) {
     throw new Error(error.message);
@@ -169,7 +169,7 @@ async blockRestaurant(id: string) {
     .eq('id', id)
     .eq('status', 'approved')
     .select()
-    .single();
+    .maybeSingle();
 
   if (error) {
     throw new Error(error.message);
@@ -195,7 +195,7 @@ async unblockRestaurant(id: string) {
     .eq('id', id)
     .eq('status', 'blocked')
     .select()
-    .single();
+    .maybeSingle();
 
   if (error) {
     throw new Error(error.message);
