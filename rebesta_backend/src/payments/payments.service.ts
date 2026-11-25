@@ -587,6 +587,9 @@ if (!Number.isFinite(totalAmount) || totalAmount <= 0 || !Number.isSafeInteger(M
         .eq('cashfree_refund_id', refundId)
         .eq('payment_status', 'refund_pending');
     }
+    if (result?.error) {
+      throw new BadRequestException('Cashfree refund state could not be reconciled');
+    }
   }
 
   async webhook(body: any, signature: string, timestamp: string, rawBody: Buffer) {
