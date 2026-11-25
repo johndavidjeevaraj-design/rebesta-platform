@@ -48,9 +48,8 @@ BEGIN
     RETURN jsonb_build_object('created', false, 'order', to_jsonb(v_existing));
   END IF;
 
-  IF v_attempt.status = 'failed' THEN
-    RAISE EXCEPTION 'Failed payment attempt cannot be converted';
-  END IF;
+  -- A late verified capture can recover even if a payment.failed webhook
+  -- previously arrived. Provider-confirmed capture is the source of truth.
 
   IF p_payment_id IS NULL OR length(trim(p_payment_id)) = 0 THEN
     RAISE EXCEPTION 'Payment ID is required';
