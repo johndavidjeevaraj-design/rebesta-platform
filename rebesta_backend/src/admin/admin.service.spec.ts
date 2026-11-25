@@ -1,4 +1,4 @@
-import { isAdminCancellableOrder } from './admin.service';
+import { isAdminCancellableOrder, isAllowedRestaurantAdminTransition } from './admin.service';
 
 describe('isAdminCancellableOrder', () => {
   it.each(['pending', 'failed', 'refunded'])(
@@ -30,17 +30,24 @@ describe('isAdminCancellableOrder', () => {
 });
 
 
-describe('admin restaurant state transitions', () => {
-  it('uses only the intended lifecycle transitions', () => {
-    const allowed: Record<string, string[]> = {
-      pending: ['approved', 'rejected'],
-      approved: ['blocked'],
-      blocked: ['approved'],
-      rejected: [],
-    };
-    expect(allowed.pending).toEqual(['approved', 'rejected']);
-    expect(allowed.approved).toContain('blocked');
-    expect(allowed.blocked).toContain('approved');
-    expect(allowed.rejected).toHaveLength(0);
+
+describe('isAllowedRestaurantAdminTransition', () => {
+  it.each([
+    ['pending', 'approved'],
+    ['pending', 'rejected'],
+    ['approved', 'blocked'],
+    ['blocked', 'approved'],
+  ])('allows %s -> %s', (current, next) => {
+    expect(isAllowedRestaurantAdminTransition(current, next)).toBe(true);
+  });
+
+  it.each([
+    ['rejected', 'approved'],
+    ['approved', 'rejected'],
+    ['blocked', 'rejected'],
+    ['pending', 'blocked'],
+    ['unknown', 'approved'],
+  ])('rejects %s -> %s', (current, next) => {
+    expect(isAllowedRestaurantAdminTransition(current, next)).toBe(false);
   });
 });
