@@ -101,7 +101,7 @@ BEGIN
   IF v_order.order_status NOT IN ('accepted', 'preparing') THEN
     RAISE EXCEPTION 'Only accepted or preparing orders can be cancelled by the restaurant';
   END IF;
-  IF v_order.payment_status NOT IN ('pending', 'failed', 'refunded') THEN
+  IF v_order.payment_status IS NULL OR v_order.payment_status NOT IN ('pending', 'failed', 'refunded') THEN
     RAISE EXCEPTION 'Paid orders must be refunded before restaurant cancellation';
   END IF;
 
