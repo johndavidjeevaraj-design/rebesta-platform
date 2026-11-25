@@ -228,13 +228,12 @@ class _OrderTrackingScreenState
 
         _startRouteRefresh();
       }
-    } catch (e, stackTrace) {
+    } catch (_) {
       if (!mounted) return;
 
       setState(() {
         _loading = false;
-
-        _error = e.toString();
+        _error = 'Unable to load order tracking. Please try again.';
       });
     }
   }
