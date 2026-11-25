@@ -510,3 +510,12 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 - [!] Confirm socket server enforces authenticated customer identity for room joins, and run socket reconnection/order-event integration tests. Flutter analysis/build not run.
 - [!] CI is PR/main-targeted and Flutter analyze remains non-blocking; Flutter tests are present, but release Android artifact/signing verification is not configured in the reviewed CI file.
 - No UI/design changes, deployment, merge or migrations.
+
+
+## Follow-up audit — customer auth/socket privacy (2026-11-25)
+- [x] Customer AuthService no longer prints the saved session token; login-state check is quiet. OTP verification resets the in-memory profile-completion proof before processing a new verification attempt.
+- [x] Legacy customer SocketService diagnostic logs removed (including customer-room identifiers and socket IDs/errors).
+- [x] Backend socket order-status emission no longer logs order IDs/status payload details.
+- [ ] Review legacy SocketService handshake authentication and room-join lifecycle: the reviewed legacy service does not currently attach the customer JWT or handle reconnect room rejoin. Prefer DeliverySocketService for authenticated order tracking; confirm legacy service callers and retire/secure it before release.
+- [ ] Review customer logout/session invalidation and secure local token storage; SharedPreferences is currently used for token persistence, and clearing local preferences is not server-side revocation.
+- [ ] Run Flutter analyze/tests and socket runtime integration checks; these changes have not been locally executed or staged.
