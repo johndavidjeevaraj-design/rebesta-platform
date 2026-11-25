@@ -273,14 +273,18 @@ async updateStatus(
     error = result.error;
     data = result.data?.order ?? null;
   } else {
-    const result = await supabase
+    let updateQuery = supabase
       .from('orders')
       .update({ order_status: newStatus })
       .eq('id', orderId)
       .eq('restaurant_partner_id', restaurantPartnerId)
-      .eq('order_status', order.order_status)
-      .select()
-      .single();
+      .eq('order_status', order.order_status);
+
+    if (newStatus === 'cancelled') {
+      updateQuery = updateQuery.in('payment_status', ['pending', 'failed', 'refunded']);
+    }
+
+    const result = await updateQuery.select().single();
     data = result.data;
     error = result.error;
   }
