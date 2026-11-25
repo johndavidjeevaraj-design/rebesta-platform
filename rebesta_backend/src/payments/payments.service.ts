@@ -39,6 +39,42 @@ export class PaymentsService {
     customerId: string,
     dto: CreateCheckoutPaymentDto,
   ) {
+    // Sequential retry guard: if this customer already has an unresolved
+    // Cashfree attempt, return it instead of creating another provider order.
+    // This is intentionally not described as a concurrency lock; two requests
+    // can still pass this read simultaneously until a DB claim/RPC is added.
+    const { data: activeAttempt, error: activeAttemptError } = await supabase
+      .from('payment_attempts')
+      .select('cashfree_order_id, cashfree_payment_session_id, total_amount, created_at')
+      .eq('customer_id', customerId)
+      .eq('payment_provider', 'cashfree')
+      .eq('status', 'created')
+      .is('order_id', null)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (activeAttemptError) {
+      throw new BadRequestException('Unable to check for an existing payment attempt');
+    }
+
+    if (activeAttempt) {
+      return {
+        success: true,
+        provider: 'cashfree',
+        state: activeAttempt.cashfree_payment_session_id
+          ? 'ready'
+          : 'reconciliation_required',
+        orderId: activeAttempt.cashfree_order_id,
+        paymentSessionId: activeAttempt.cashfree_payment_session_id,
+        amount: Number(activeAttempt.total_amount),
+        createdAt: activeAttempt.created_at,
+        message: activeAttempt.cashfree_payment_session_id
+          ? 'An existing payment session is available; resume it instead of creating a new payment.'
+          : 'An existing payment attempt needs reconciliation before another payment can be started.',
+      };
+    }
+
     // ----------------------------------------------------------
     // GET CART
     // ----------------------------------------------------------
