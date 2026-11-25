@@ -3,7 +3,7 @@
 Benchmark: core functional capabilities of major food delivery platforms; not copying proprietary branding or design.
 
 ## Step 1 — Audit and remediation
-- [x] Repository map: NestJS API, Supabase/Postgres, Razorpay, socket.io, Firebase; customer, restaurant-partner, and delivery Flutter apps.
+- [x] Repository map: NestJS API, Supabase/Postgres, Cashfree PG (new checkouts), legacy Razorpay transaction fields for historical records, socket.io, Firebase; customer, restaurant-partner, and delivery Flutter apps.
 - [x] Inspect startup, CI, auth/payment/order modules and launch runbook.
 - [ ] Complete endpoint-by-endpoint authorization review and abuse cases.
 - [ ] Complete DB schema, RLS, storage, migration, and RPC review.
@@ -27,7 +27,7 @@ Benchmark: core functional capabilities of major food delivery platforms; not co
 - [x] Legacy customer password signup and public partner self-registration are disabled until verified registration/invitation flows are implemented. This is an intentional temporary restriction.
 - [x] Customer OTP/profile, cart-add, payment verification and reconciliation request DTOs were added or hardened for the global whitelist pipe.
 - [x] Cart item quantities are bounded and checkout verifies menu items belong to the selected restaurant.
-- [x] Captured Razorpay payments are checked against the expected checkout amount, currency and order before order conversion (verify, reconcile and webhook paths).
+- [x] Cashfree payments are checked against the expected order ID, INR order currency, order amount, payment amount and successful provider status before order conversion (verify, reconcile and webhook paths). Legacy Razorpay fields remain for historical records.
 - [ ] Confirm OTP/session changes compile and pass tests on latest PR head.
 - [ ] Confirm all DTOs have validation decorators; empty DTO files and inline body types remain under review.
 - [x] Admin delivery-KYC rejection now uses a validated DTO (non-empty reason, maximum 500 characters) with DTO unit tests.
@@ -44,7 +44,7 @@ Benchmark: core functional capabilities of major food delivery platforms; not co
 - [ ] Add staging concurrency tests for simultaneous rider acceptance, dispatch insert vs acceptance, and one-pending-offer constraints.
 - [x] COD checkout now explicitly carries `delivery` vs `pickup`; pickup skips address lookup and delivery-fee calculation and records `order_type='pickup'` without changing the existing UI.
 - [x] Online payment attempts now persist `order_type`; a follow-up migration carries it into the paid order so online pickup remains pickup instead of silently defaulting to delivery. Legacy attempts are backfilled from the prior checkout contract (null address means pickup); new attempts default to delivery.
-- [x] Restaurant acceptance now blocks pending/failed Razorpay-backed orders while preserving legitimate COD acceptance; unit tests cover COD, captured online, unpaid online, and already-accepted states.
+- [x] Restaurant acceptance now blocks pending/failed provider-backed orders (legacy Razorpay and Cashfree) while preserving legitimate COD acceptance; unit tests cover COD, captured online, unpaid online, and already-accepted states.
 - [ ] Apply `20261125190000_preserve_paid_order_type.sql` in staging before deploying the updated payment service; verify pickup and delivery conversion end-to-end.
 - [x] Added optional `menu_items.stock_quantity` tracking; `NULL` preserves unlimited/untracked behavior for existing dishes.
 - [x] Added partner-authenticated inventory read/update endpoints (`GET /inventory/partner`, `PATCH /inventory/:menuItemId/stock`) with integer bounds and restaurant ownership scoping.
@@ -54,8 +54,15 @@ Benchmark: core functional capabilities of major food delivery platforms; not co
 - [x] Restaurant cancellation now rechecks unpaid/failed/refunded payment state atomically for both pending and accepted/preparing orders; paid orders must complete the admin refund flow first.
 - [x] Delivery KYC approve/reject actions now update only submissions still in `submitted` state and return a conflict for stale/replayed decisions.
 - [x] Rider earnings period summaries exclude reversed ledger entries.
-- [x] Admin refund requests no longer mark an order refunded merely because Razorpay accepted the request; `refund_pending` remains until provider confirmation, with explicit processed/failed handling.
+- [x] Admin refund requests use Cashfree for new Cashfree-backed orders; `refund_pending` remains until provider confirmation, with SUCCESS/FAILED/CANCELLED/PENDING/ONHOLD handling. Historical Razorpay identifiers remain for audit; legacy refunds need the original provider path or dashboard.
 - [ ] Confirm the actual rider compensation policy before removing the current ₹40-per-completion value; do not equate customer delivery fee with rider earnings without an approved pricing rule.
+- [x] New customer online checkout uses Cashfree PG Orders API and the official Cashfree Flutter SDK; Razorpay SDK and backend dependency were removed from the active checkout path.
+- [x] Added Cashfree payment verification, retry reconciliation, signed webhook handling, and provider-confirmed refund state transitions. Unit tests cover payment amount/currency/order validation, webhook signature verification, and refund status mapping.
+- [x] Added provider-specific Cashfree order/payment/refund identifiers while preserving Razorpay columns and marking legacy attempts as Razorpay for historical compatibility.
+- [ ] Apply `20261126090000_cashfree_payment_provider.sql` in staging only after confirming `payment_attempts.razorpay_order_id` exists and reviewing the migration against the live schema.
+- [ ] Regenerate and commit `rebesta_customers/pubspec.lock` using `flutter pub get`; the current lockfile still contains `razorpay_flutter` and does not yet record `flutter_cashfree_pg_sdk`.
+- [ ] Configure Cashfree sandbox App ID/Secret, webhook secret, HTTPS webhook/notify URL and event subscriptions in staging; do not use production credentials until sandbox E2E passes.
+- [ ] Run backend build/tests and all three Flutter app analyses/tests against the latest PR head; current GitHub Actions results do not yet cover the latest Cashfree commits.
 - [ ] Apply `20261125200000_atomic_restaurant_stock_acceptance.sql` and `20261125220000_restore_stock_on_restaurant_cancellation.sql` in timestamp order; verify tracked/untracked items, insufficient stock, concurrent acceptance, cancellation restoration and repeated cancellation rejection.
 - [x] Admin rider earnings now read actual `delivery_earnings`/wallet balances instead of estimating earnings as a fixed ₹40 multiplied by delivered orders or summing customer order value.
 - [x] Added an audited, idempotent manual payout settlement RPC and admin endpoint. It settles pending earning rows, records a unique payout reference, and updates rider wallet/pending-payout balances atomically. This records a bank transfer after an administrator has completed it; it does not initiate a bank transfer.
