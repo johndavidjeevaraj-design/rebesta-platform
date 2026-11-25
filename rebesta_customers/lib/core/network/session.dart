@@ -29,7 +29,9 @@ class Session {
       final prefs = await SharedPreferences.getInstance();
 
       await prefs.remove('token');
+      await prefs.remove('customerId');
       await prefs.remove('customerName');
+      await prefs.remove('customerEmail');
 
       appRouter.go(AppRoutes.loginScreen);
     } finally {
