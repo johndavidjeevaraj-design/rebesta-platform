@@ -6,6 +6,7 @@ import {
 import { AdminService } from './admin.service';
 import { Body, Param, Patch } from '@nestjs/common';
 import { AdminGuard } from './admin.guard';
+import { RejectDeliveryKycDto } from './dto/reject-delivery-kyc.dto';
 
 // Every admin route requires the x-admin-key header
 @UseGuards(AdminGuard)
@@ -144,9 +145,9 @@ approveDeliveryKyc(
 @Patch('delivery-kyc/:id/reject')
 rejectDeliveryKyc(
   @Param('id') id: string,
-  @Body('reason') reason: string,
+  @Body() dto: RejectDeliveryKycDto,
 ) {
-  return this.adminService.rejectDeliveryKyc(id, reason);
+  return this.adminService.rejectDeliveryKyc(id, dto.reason);
 }
 
 // ==========================
