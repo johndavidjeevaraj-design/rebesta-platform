@@ -125,6 +125,7 @@ verifyOtp(
     dto.sessionId,
   );
 }
+@Throttle({ default: { limit: 5, ttl: 60000 } })
 @Post('complete-profile')
 completeProfile(
   @Body() dto: CustomerCompleteProfileDto,
