@@ -89,11 +89,13 @@ BEGIN
     order_id = v_order.id
   WHERE id = v_attempt.id;
 
+  -- Remove only the cart rows that were included in this paid snapshot.
+  -- Items added after checkout began must remain in the customer's cart.
   DELETE FROM cart_items
-  WHERE cart_id IN (
-    SELECT id FROM carts
-    WHERE customer_id = v_attempt.customer_id
-      AND restaurant_partner_id = v_attempt.restaurant_partner_id
+  WHERE id IN (
+    SELECT (item->>'cartItemId')::uuid
+    FROM jsonb_array_elements(v_snapshot) item
+    WHERE item ? 'cartItemId'
   );
 
   RETURN jsonb_build_object('created', true, 'order', to_jsonb(v_order));
