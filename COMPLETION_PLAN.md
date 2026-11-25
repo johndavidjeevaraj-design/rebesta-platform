@@ -37,6 +37,7 @@ Benchmark: core functional capabilities of major food delivery platforms; not co
 - [x] Removed the remaining customer delivery OTP debug log from the rider app.
 - [ ] Support API remains a placeholder despite DTO files; implement only after the support-ticket schema and app contract are verified.
 - [x] Dispatch now has a database-enforced single-pending-offer-per-order index migration; duplicate concurrent inserts are treated as an already-claimed order, not as a reason to broadcast. Stale fallback broadcasts re-check order readiness, assignment, and pending offers.
+- [x] Added a periodic recovery sweep for up to 25 oldest ready/unassigned orders; it retries personal dispatch after transient failures and process restarts, while checking for an active offer before selecting another rider.
 - [ ] Apply and verify `20261125170000_one_pending_delivery_offer_per_order.sql` in the staging database before enabling this dispatch guarantee in a deployed environment.
 - [ ] Dispatch fairness still needs a separate concurrency strategy to prevent one rider receiving simultaneous pending offers for different orders.
 - [x] Removed delivery-app debug logging of full order/customer response payloads where reviewed.
