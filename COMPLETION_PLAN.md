@@ -155,3 +155,10 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 - [ ] Review webhook failure-event ordering against payment retries: a failed attempt event must not prematurely block or mislabel an order when later payment attempts may succeed.
 - [ ] Confirm SQL conversion RPC preserves all required order metadata and item snapshot fields compared with the original conversion RPC; verify schema and grants in staging.
 - [ ] Execute payment tests/build and sandbox payment/refund scenarios; not run in this audit environment.
+
+
+## Webhook lifecycle audit update
+- [x] PAYMENT_FAILED_WEBHOOK no longer directly marks a local attempt terminal; failure webhooks may be out of order or followed by a later successful attempt. Local state is left to authoritative reconciliation.
+- [ ] Verify webhook payload/signature/header configuration and event delivery behavior against Cashfree sandbox.
+- [ ] Validate the Cashfree SQL conversion against schema: compare order metadata (coupon/subtotal/tax fields, if present), defaults, and constraints. The conversion currently inserts the same core fields as the original conversion but may omit ancillary fields.
+- [ ] Add integration tests for webhook ordering (failure followed by success), duplicate success events, and simultaneous verify/webhook conversion; tests remain unexecuted.
