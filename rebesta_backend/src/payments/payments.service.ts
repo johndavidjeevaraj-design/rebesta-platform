@@ -675,6 +675,16 @@ async webhook(
         .eq('razorpay_payment_id', refund.payment_id);
     }
 
+    if (event === 'refund.failed') {
+      const refund = body.payload.refund.entity;
+
+      await supabase
+        .from('orders')
+        .update({ payment_status: 'paid' })
+        .eq('razorpay_payment_id', refund.payment_id)
+        .eq('payment_status', 'refund_pending');
+    }
+
     return { success: true };
   }
     // ============================================================
