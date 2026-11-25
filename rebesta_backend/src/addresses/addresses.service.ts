@@ -47,6 +47,7 @@ export class AddressesService {
   // ============================================================
 
   async update(
+    customerId: string,
     id: string,
     dto: {
       title: string;
@@ -64,6 +65,7 @@ export class AddressesService {
         longitude: dto.longitude,
       })
       .eq('id', id)
+      .eq('user_id', customerId)
       .select()
       .single();
 
@@ -78,11 +80,12 @@ export class AddressesService {
   // DELETE ADDRESS
   // ============================================================
 
-  async remove(id: string) {
+  async remove(customerId: string, id: string) {
     const { data, error } = await supabase
       .from('addresses')
       .delete()
       .eq('id', id)
+      .eq('user_id', customerId)
       .select()
       .single();
 
