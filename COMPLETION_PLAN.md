@@ -324,3 +324,13 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 - [!] Findings/follow-up: menu create/update DTO validation and multipart conversion need end-to-end testing; partner JWT currently appears to validate claims rather than re-query account approval/block state on every request; profile updates need a strict DTO and field-level validation review; public restaurant listing and dashboard revenue semantics need reconciliation (e.g. delivered/completed status variants, paid/COD/refunded treatment); payout/admin permissions remain shared-key based.
 - [ ] Tests and staging checks for cross-partner access, menu price update, stock bounds, concurrent accept/cancel, cancellation stock restore, blocked partner tokens, and revenue/payout reconciliation. Not executed here.
 - No UI changes, migration, merge or deployment.
+
+
+## Customer order lifecycle review (2026-11-25; code-level, runtime verification pending)
+- [x] Customer order history, detail and tracking queries are scoped to authenticated customer ID.
+- [x] Removed provider/database error detail exposure in legacy order creation/listing and reduced order notification log context.
+- [!] Legacy `POST /orders/checkout` creates a pending order and snapshots item prices from cart rows; it does not independently revalidate menu item ownership/availability/current price or use the Cashfree payment-attempt conversion path. Treat this route as legacy and verify app usage; do not rely on it for paid checkout integrity. Cashfree checkout separately performs server-side cart/menu/price checks.
+- [!] Legacy checkout order + item insert is not one RPC transaction; it compensates by deleting the order when item insertion fails, but cleanup failure could leave orphaned rows. Race tests and retirement/replacement with the Cashfree path are recommended.
+- [!] Coupon lookup in this legacy checkout path currently calculates no discount; address and restaurant coordinate/fee inputs are checked but live availability and pricing need staging validation.
+- [ ] Test cross-customer detail/tracking, stale cart price, unavailable menu items, item-insert rollback, duplicate checkout, and legacy-vs-Cashfree client routing. Tests not executed.
+- No UI changes, migrations, deployment or merge.
