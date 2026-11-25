@@ -739,7 +739,7 @@ export function isCashfreePaymentMatch(payment: any, attempt: any): boolean {
     Number.isFinite(expectedAmount) &&
     payment?.order_id === attempt?.cashfree_order_id &&
     payment?.payment_status === 'SUCCESS' &&
-    payment?.payment_currency === 'INR' &&
+    payment?.order_currency === 'INR' &&
     Number(payment?.order_amount) === expectedAmount &&
     Number(payment?.payment_amount) === expectedAmount &&
     payment?.cf_payment_id != null &&
