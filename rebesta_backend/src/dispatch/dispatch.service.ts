@@ -308,11 +308,19 @@ export class DispatchService implements OnModuleInit, OnModuleDestroy {
         .select()
         .single();
 
+      if (offerError?.code === '23505' &&
+          offerError.message?.includes('idx_delivery_offers_one_pending_per_order')) {
+        // Another concurrent dispatcher already owns the single active
+        // offer slot for this order. Treat it as handled so callers do
+        // not fall back to an unrestricted rider broadcast.
+        this.logger.warn(`Order ${orderId} already has an active rider offer`);
+        return true;
+      }
+
       if (offerError || !offer) {
-        this.logger.error(
-          `Could not create delivery offer: ${offerError?.message}`,
-        );
-        return false;
+        // Infrastructure/schema errors must fail closed. Returning false
+        // would make callers broadcast the order to every connected rider.
+        throw new Error(`Could not create delivery offer: ${offerError?.message ?? 'offer missing'}`);
       }
 
       // --------------------------------------------------------
@@ -368,12 +376,13 @@ export class DispatchService implements OnModuleInit, OnModuleDestroy {
     orderId: string,
   ): Promise<void> {
     try {
-      const { data: order } = await supabase
+      const { data: order, error: orderError } = await supabase
         .from('orders')
         .select(`
           id,
           total_amount,
           order_status,
+          delivery_partner_id,
           created_at,
 
           customers(
@@ -394,7 +403,28 @@ export class DispatchService implements OnModuleInit, OnModuleDestroy {
         .eq('id', orderId)
         .single();
 
-      if (!order) {
+      if (orderError || !order) {
+        if (orderError) throw new Error(orderError.message);
+        return;
+      }
+
+      // A stale fallback must never re-publish an order already assigned
+      // or currently held by a personal rider offer.
+      if (order.order_status !== 'ready' || order.delivery_partner_id) {
+        return;
+      }
+
+      const { data: activeOffers, error: activeOffersError } = await supabase
+        .from('delivery_offers')
+        .select('id')
+        .eq('order_id', orderId)
+        .eq('status', 'pending')
+        .limit(1);
+
+      if (activeOffersError) {
+        throw new Error(activeOffersError.message);
+      }
+      if (activeOffers?.length) {
         return;
       }
 
