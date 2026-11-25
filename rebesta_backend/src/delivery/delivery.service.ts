@@ -747,193 +747,33 @@ export class DeliveryService {
     deliveryPartnerId: string,
     dto: VerifyDeliveryOtpDto,
   ) {
-    const { data: order, error } = await supabase
-      .from('orders')
-      .select(`
-        id,
-        customer_id,
-        order_status,
-        delivery_partner_id,
-        delivery_otp,
-        otp_verified,
-        delivered_at
-      `)
-      .eq('id', dto.orderId)
-      .eq('delivery_partner_id', deliveryPartnerId)
-      .single();
+    const { data, error } = await supabase.rpc('complete_delivery_with_otp', {
+      p_order_id: dto.orderId,
+      p_partner_id: deliveryPartnerId,
+      p_otp: String(dto.otp),
+      p_amount: 40,
+    });
 
-    if (error || !order) {
-      throw new BadRequestException('Order not found');
+    if (error || !data) {
+      throw new BadRequestException(error?.message ?? 'Delivery completion failed');
     }
 
-    if (
-      order.order_status === 'delivered' &&
-      order.otp_verified === true
-    ) {
-      return {
-        success: true,
-        message: 'Delivery already completed',
-        order,
-        earning: {
-          amount: 40,
-          status: 'already_recorded',
-        },
-      };
-    }
-
-    if (order.order_status !== 'arrived_at_customer') {
-      throw new BadRequestException(
-        `Order is not ready for OTP verification. Current status: ${order.order_status}`,
-      );
-    }
-
-    if (order.otp_verified) {
-      throw new BadRequestException('OTP already verified');
-    }
-
-    if (
-      String(order.delivery_otp) !==
-      String(dto.otp)
-    ) {
-      throw new BadRequestException('Invalid OTP');
-    }
-
-    const { data: updatedOrder, error: updateError } =
-      await supabase
-        .from('orders')
-        .update({
-          otp_verified: true,
-          order_status: 'delivered',
-          delivered_at: new Date().toISOString(),
-        })
-        .eq('id', dto.orderId)
-        .eq('delivery_partner_id', deliveryPartnerId)
-        .eq('order_status', 'arrived_at_customer')
-        .eq('otp_verified', false)
-        .select()
-        .single();
-
-    if (updateError) {
-      throw new BadRequestException(updateError.message);
-    }
-
-    if (!updatedOrder) {
-      throw new BadRequestException('Delivery could not be completed');
-    }
-
-    const earningAmount = 40;
-
-    const {
-      data: existingEarning,
-      error: earningCheckError,
-    } = await supabase
-      .from('delivery_earnings')
-      .select('id, amount, status')
-      .eq('order_id', dto.orderId)
-      .maybeSingle();
-
-    if (earningCheckError) {
-      throw new BadRequestException(
-        `Unable to check delivery earning: ${earningCheckError.message}`,
-      );
-    }
-
-    if (!existingEarning) {
-      const { error: earningInsertError } =
-        await supabase
-          .from('delivery_earnings')
-          .insert({
-            delivery_partner_id: deliveryPartnerId,
-            order_id: dto.orderId,
-            amount: earningAmount,
-            status: 'pending',
-          });
-
-      if (earningInsertError) {
-        throw new BadRequestException(
-          `Delivery completed, but earning creation failed: ${earningInsertError.message}`,
-        );
-      }
-    }
-
-    const {
-      data: partner,
-      error: partnerError,
-    } = await supabase
-      .from('delivery_partners')
-      .select(`
-        wallet_balance,
-        total_earnings,
-        pending_payout,
-        completed_deliveries
-      `)
-      .eq('id', deliveryPartnerId)
-      .single();
-
-    if (partnerError || !partner) {
-      throw new BadRequestException(
-        'Delivery completed, but delivery partner wallet was not found',
-      );
-    }
-
-    if (!existingEarning) {
-      const { error: walletError } =
-        await supabase
-          .from('delivery_partners')
-          .update({
-            wallet_balance:
-              Number(partner.wallet_balance ?? 0) +
-              earningAmount,
-
-            total_earnings:
-              Number(partner.total_earnings ?? 0) +
-              earningAmount,
-
-            pending_payout:
-              Number(partner.pending_payout ?? 0) +
-              earningAmount,
-
-            completed_deliveries:
-              Number(partner.completed_deliveries ?? 0) +
-              1,
-          })
-          .eq('id', deliveryPartnerId);
-
-      if (walletError) {
-        throw new BadRequestException(
-          `Delivery completed, but wallet update failed: ${walletError.message}`,
-        );
-      }
-    }
-
-    this.socketGateway.sendOrderUpdate(
-      dto.orderId,
-      'delivered',
-    );
-
+    const order = data.order;
+    const earning = data.earning;
+    this.socketGateway.sendOrderUpdate(dto.orderId, 'delivered');
     this.notifyPartnerStatus(dto.orderId, 'delivered');
-
-    if (updatedOrder.customer_id) {
-      this.socketGateway.emitToCustomer(
-        updatedOrder.customer_id,
-        'order_status',
-        {
-          orderId: updatedOrder.id,
-          status: 'delivered',
-        },
-      );
+    if (order?.customer_id) {
+      this.socketGateway.emitToCustomer(order.customer_id, 'order_status', {
+        orderId: order.id,
+        status: 'delivered',
+      });
     }
 
     return {
       success: true,
-      message: 'Delivery completed successfully',
-      order: updatedOrder,
-      earning: {
-        amount: earningAmount,
-        status: existingEarning
-          ? 'already_recorded'
-          : 'pending',
-      },
+      message: data.already_completed ? 'Delivery already completed' : 'Delivery completed successfully',
+      order,
+      earning: { amount: earning?.amount ?? 40, status: data.already_completed ? 'already_recorded' : 'pending' },
     };
   }
 
