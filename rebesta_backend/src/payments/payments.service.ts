@@ -423,10 +423,8 @@ if (
     signatureBuffer,
   )
 ) {
-  await supabase
-    .from('payment_attempts')
-    .update({ status: 'failed' })
-    .eq('id', attempt.id);
+  // Do not poison the attempt on a client signature failure.
+  // A separately verified captured webhook/reconciliation can still recover it.
 
   throw new BadRequestException(
     'Invalid payment signature',
