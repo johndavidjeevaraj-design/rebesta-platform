@@ -317,10 +317,15 @@ if (!Number.isFinite(totalAmount) || totalAmount <= 0 || !Number.isSafeInteger(M
         order_note: isPickup ? 'Food pickup order' : 'Food delivery order',
       };
 
+      const orderMeta: Record<string, string> = {};
       if (process.env.CASHFREE_RETURN_URL) {
-        orderPayload.order_meta = {
-          return_url: `${process.env.CASHFREE_RETURN_URL}${process.env.CASHFREE_RETURN_URL.includes('?') ? '&' : '?'}order_id={order_id}`,
-        };
+        orderMeta.return_url = `${process.env.CASHFREE_RETURN_URL}${process.env.CASHFREE_RETURN_URL.includes('?') ? '&' : '?'}order_id={order_id}`;
+      }
+      if (process.env.CASHFREE_NOTIFY_URL) {
+        orderMeta.notify_url = process.env.CASHFREE_NOTIFY_URL;
+      }
+      if (Object.keys(orderMeta).length > 0) {
+        orderPayload.order_meta = orderMeta;
       }
 
       const response = await axios.post(
