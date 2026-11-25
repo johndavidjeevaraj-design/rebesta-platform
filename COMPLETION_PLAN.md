@@ -27,7 +27,7 @@ Benchmark: core functional capabilities of major food delivery platforms; not co
 - [x] Legacy customer password signup and public partner self-registration are disabled until verified registration/invitation flows are implemented. This is an intentional temporary restriction.
 - [x] Customer OTP/profile, cart-add, payment verification and reconciliation request DTOs were added or hardened for the global whitelist pipe.
 - [x] Cart item quantities are bounded and checkout verifies menu items belong to the selected restaurant.
-- [x] Cashfree payments are checked against the expected order ID, INR order currency, order amount, payment amount and successful provider status before order conversion (verify, reconcile and webhook paths). Legacy Razorpay fields remain for historical records.
+- [x] Cashfree payments are checked against the expected order ID, INR payment currency, order amount, payment amount and successful provider status before order conversion (verify, reconcile and webhook paths). Legacy Razorpay fields remain for historical records.
 - [ ] Confirm OTP/session changes compile and pass tests on latest PR head.
 - [ ] Confirm all DTOs have validation decorators; empty DTO files and inline body types remain under review.
 - [x] Admin delivery-KYC rejection now uses a validated DTO (non-empty reason, maximum 500 characters) with DTO unit tests.
