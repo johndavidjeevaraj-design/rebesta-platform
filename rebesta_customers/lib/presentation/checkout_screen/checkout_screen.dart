@@ -691,7 +691,7 @@ Future<void> _changeQuantity(int index, int delta) async {
   // ============================================================
   // PLACE ORDER
   //
-  // No order is created here. This only creates a Razorpay
+  // No order is created here. This only creates a Cashfree
   // payment to pay against. The real order is created by the
   // backend only after payment is verified.
   // ============================================================
@@ -774,7 +774,7 @@ Future<void> _placeOrder() async {
 }
 
 // ============================================================
-// PLACE COD ORDER — NO Razorpay. Creates the order directly.
+// PLACE COD ORDER — NO online payment provider. Creates the order directly.
 // ============================================================
 
 Future<void> _placeCODOrder() async {
