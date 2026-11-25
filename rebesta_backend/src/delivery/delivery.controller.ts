@@ -8,6 +8,7 @@ import {
   Body,
   UseGuards,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 
 import { DeliveryService } from './delivery.service';
 import { DeliveryJwtGuard } from '../delivery-auth/delivery-jwt.guard';
@@ -153,6 +154,7 @@ updateLocation(
 
 }
 
+@Throttle({ default: { limit: 5, ttl: 60000 } })
 @Post('verify-otp')
 @UseGuards(DeliveryJwtGuard)
 verifyOtp(
