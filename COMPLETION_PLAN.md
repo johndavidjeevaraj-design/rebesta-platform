@@ -420,3 +420,16 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 - [ ] Circuit breaker and centralized retry/backoff not implemented. Do not apply generic automatic retries to payment/refund/order mutation operations without idempotency protections.
 - [ ] CI, unit tests, staging timeouts/provider outage/fault-injection, and live service checks not executed.
 - No UI changes, deployment, merge or migrations.
+
+
+## Push notifications and notification service hardening (2026-11-25)
+- [x] FCM customer push path no longer logs customer identifiers, raw token-query errors, token counts or provider response counts. Token lookup failures quietly skip best-effort delivery.
+- [x] Customer and partner push sending now catches provider exceptions and logs a generic failure, preventing best-effort push delivery from propagating exceptions.
+- [x] Partner FCM token lookup checks query error and empty token list before sending.
+- [x] Notification service database errors now return generic messages instead of exposing raw Supabase error strings.
+- [!] FCM registration flows (customer/restaurant/delivery) still need consistency review: query/update/insert error handling and duplicate-token race prevention; invalid token cleanup and batching beyond Firebase multicast limits remain.
+- [!] Notification persistence and push dispatch are synchronous, not durable queue-based; transactional outbox/background delivery, retries with bounded backoff and delivery observability are future work.
+- [!] Storage upload validation, file-size/type/content verification, collision resistance, error sanitization, and private-document access checks require deeper controller/route audit.
+- [!] Firebase Admin credentials file path is runtime dependency; secure provisioning/rotation and deployment validation pending.
+- [ ] Tests and runtime verification not executed.
+- No UI changes, deployment, merge or migrations.
