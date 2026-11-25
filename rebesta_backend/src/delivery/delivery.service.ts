@@ -218,6 +218,7 @@ export class DeliveryService {
         order_status: 'accepted_for_delivery',
       })
       .eq('id', orderId)
+      .eq('order_status', 'ready')
       .is('delivery_partner_id', null)
       .select()
       .single();
