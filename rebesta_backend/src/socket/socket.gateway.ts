@@ -65,7 +65,7 @@ export class SocketGateway implements OnGatewayConnection {
       bearer.replace('Bearer ', '');
 
     if (!token) {
-      console.log('❌ Socket rejected: no token');
+      // Rejected missing token.
 
       client.disconnect(true);
 
@@ -84,11 +84,9 @@ export class SocketGateway implements OnGatewayConnection {
 
       client.data.user = payload;
 
-      console.log(
-        `✅ Socket authenticated: ${payload.role} ${payload.sub}`,
-      );
+      // Authenticated without logging the subject identifier.
     } catch {
-      console.log('❌ Socket rejected: invalid token');
+      // Rejected invalid token.
 
       client.disconnect(true);
     }
@@ -125,9 +123,7 @@ joinCustomer(
     user.sub === customerId;
 
   if (!allowed) {
-    console.log(
-      `⛔ join_customer denied: ${user?.role ?? 'unauthenticated'} ${user?.sub ?? ''}`,
-    );
+    // Denied join without logging identity.
 
     return {
       success: false,
@@ -137,9 +133,7 @@ joinCustomer(
 
   client.join(`customer_${customerId}`);
 
-  console.log(
-    `✅ Customer joined customer_${customerId}`,
-  );
+  // Joined authorized customer room.
 
   return {
     success: true,
@@ -179,9 +173,7 @@ joinPartner(
     user.restaurantPartnerId === restaurantPartnerId;
 
   if (!allowed) {
-    console.log(
-      `⛔ join_partner denied: ${user?.role ?? 'unauthenticated'} ${user?.sub ?? ''}`,
-    );
+    // Denied join without logging identity.
 
     return {
       success: false,
@@ -193,9 +185,7 @@ joinPartner(
     `partner_${restaurantPartnerId}`,
   );
 
-  console.log(
-    `✅ Partner joined partner_${restaurantPartnerId}`,
-  );
+  // Joined authorized partner room.
 
   return {
     success: true,
@@ -235,9 +225,7 @@ async joinDelivery(
     user.sub === deliveryPartnerId;
 
   if (!allowed) {
-    console.log(
-      `⛔ join_delivery denied: ${user?.role ?? 'unauthenticated'} ${user?.sub ?? ''}`,
-    );
+    // Denied join without logging identity.
 
     return {
       success: false,
@@ -258,9 +246,7 @@ async joinDelivery(
   client.join(`delivery_${deliveryPartnerId}`);
   client.join('delivery_feed');
 
-  console.log(
-    `✅ Delivery joined delivery_${deliveryPartnerId}`,
-  );
+  // Joined authorized delivery rooms.
 
   return {
     success: true,
@@ -345,9 +331,7 @@ async joinOrder(
       order.delivery_partner_id === user.sub);
 
   if (!allowed) {
-    console.log(
-      `⛔ join-order denied: ${user.role} ${user.sub}`,
-    );
+    // Denied order room join without logging identity.
 
     return {
       success: false,
@@ -359,9 +343,7 @@ async joinOrder(
 
   client.join(room);
 
-  console.log(
-    `✅ Client joined ${room}`,
-  );
+  // Joined authorized order room.
 
   return {
     success: true,
