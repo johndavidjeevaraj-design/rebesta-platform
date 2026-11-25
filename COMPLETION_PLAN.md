@@ -579,3 +579,8 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 - [x] Cart item quantity update now fetches the current menu item price and availability from the backend before updating the cart-item price snapshot. Unavailable items are rejected; ownership checks remain in place.
 - [!] This is not an atomic cart operation and does not eliminate races between menu changes and cart writes. Checkout remains responsible for authoritative pricing. Runtime/database tests have not been run.
 - Commit: 65d07438f259e68647caca4506872ac1597be8ea.
+
+
+## Cart concurrency audit disposition (2026-11-25)
+- [!] Existing cart creation and item quantity updates use separate read/write calls. Concurrent requests may create duplicate carts or lose increments. Do not claim this is fixed by price-snapshot refresh.
+- [ ] Resolve safely with database uniqueness constraints and an atomic RPC/transaction approach, plus tests and staging verification. Schema change is intentionally deferred; no migration executed.
