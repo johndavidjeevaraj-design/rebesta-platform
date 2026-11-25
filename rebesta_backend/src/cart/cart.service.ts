@@ -43,13 +43,13 @@ async addToCart(
 
   if (menuError) {
     throw new Error(
-      `Menu lookup failed: ${menuError.message}`,
+      'Unable to retrieve menu item',
     );
   }
 
   if (!menuItem) {
     throw new Error(
-      `Menu item not found for ID: ${dto.menuItemId}`,
+      'Menu item not found',
     );
   }
 
@@ -60,7 +60,7 @@ async addToCart(
   }
 
   if (!menuItem.restaurant_partner_id) {
-    throw new Error('Menu item is not linked to a restaurant');
+    throw new Error('Menu item is unavailable');
   }
 
   
@@ -95,7 +95,7 @@ async addToCart(
 
   if (cartLookupError) {
     throw new Error(
-      `Cart lookup failed: ${cartLookupError.message}`,
+      'Unable to retrieve cart',
     );
   }
 
@@ -130,7 +130,7 @@ async addToCart(
 
     if (createCartError) {
       throw new Error(
-        `Cart creation failed: ${createCartError.message}`,
+        'Unable to create cart',
       );
     }
 
@@ -157,7 +157,7 @@ async addToCart(
 
   if (existingItemError) {
     throw new Error(
-      `Cart item lookup failed: ${existingItemError.message}`,
+      'Unable to retrieve cart item',
     );
   }
 
@@ -190,7 +190,7 @@ async addToCart(
 
     if (error) {
       throw new Error(
-        `Cart item update failed: ${error.message}`,
+        'Unable to update cart item',
       );
     }
 
@@ -225,7 +225,7 @@ async addToCart(
 
   if (error) {
     throw new Error(
-      `Cart item creation failed: ${error.message}`,
+      'Unable to add item to cart',
     );
   }
 
@@ -333,14 +333,9 @@ async getCart(
   // ============================================================
 
   if (error) {
-    console.error(
-      '❌ GET CART ERROR:',
-      error,
-    );
+    // Avoid logging provider/database error payloads in customer cart requests.
 
-    throw new Error(
-      error.message,
-    );
+    throw new Error('Unable to retrieve cart');
   }
 
   // ============================================================
@@ -604,9 +599,7 @@ if (addressId) {
 
 
     if (error) {
-      throw new Error(
-        error.message,
-      );
+      throw new Error('Unable to update cart item');
     }
 
 
@@ -661,7 +654,7 @@ async removeCartItem(
       .eq('id', itemId);
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error('Unable to remove cart item');
   }
 
   return {
