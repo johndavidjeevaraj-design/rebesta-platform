@@ -16,41 +16,13 @@ class PaymentReconciliationService {
         return null;
       }
 
-      debugPrint(
-        '========================================',
-      );
-      debugPrint(
-        'PENDING PAYMENT FOUND',
-      );
-      debugPrint(
-        'Cashfree Order: $pendingOrderId',
-      );
-      debugPrint(
-        'RECONCILING PAYMENT',
-      );
-      debugPrint(
-        '========================================',
-      );
-
       final result =
           await _paymentService.reconcilePayment(
         pendingOrderId,
       );
 
-      debugPrint(
-        'RECONCILE RESULT: $result',
-      );
-
       return result;
-    } catch (e, stackTrace) {
-      debugPrint(
-        'PAYMENT RECONCILIATION ERROR: $e',
-      );
-
-      debugPrint(
-        '$stackTrace',
-      );
-
+    } catch (_) {
       // Do NOT delete the pending payment here.
       //
       // If the network failed, we want another app-open
