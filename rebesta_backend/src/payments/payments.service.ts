@@ -657,7 +657,8 @@ async webhook(
       await supabase
         .from('payment_attempts')
         .update({ status: 'failed' })
-        .eq('razorpay_order_id', payment.order_id);
+        .eq('razorpay_order_id', payment.order_id)
+        .eq('status', 'created');
     }
 
     if (event === 'refund.processed') {
