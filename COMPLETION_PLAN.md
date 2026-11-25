@@ -450,3 +450,11 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 - [!] Socket rooms remain process-local; multi-instance delivery requires a Socket.IO adapter/shared pub-sub and deployment validation.
 - [!] Socket disconnect/reconnect strategy and durable event replay are not implemented; order state must remain retrievable through REST and client reconciliation.
 - [!] Admin socket shared-key model remains broad and needs identity/role-based admin authorization and audit events.
+
+
+## Cart, checkout and dispatch reliability follow-up (2026-11-25)
+- [!] Cart service performs multiple sequential DB operations for cart creation/item updates; concurrent add requests may race without DB uniqueness/atomic upsert safeguards. Error messages in cart paths include raw provider/database details in several places and require sanitization review.
+- [!] Checkout computes totals from stored cart item prices; current checkout path inspected does not re-fetch menu item prices/availability to verify freshness. This is a high-priority pricing/availability integrity gap; do not patch casually without atomic checkout/order-item transaction.
+- [!] Coupon path in legacy checkout currently does not calculate discount; coupon code lookup is non-authoritative there. Must ensure legacy checkout is disabled/guarded or reconcile with Cashfree verified checkout flow.
+- [!] Dispatch recovery uses in-process interval (10s) and can run on multiple instances concurrently; DB offer-claim predicates and uniqueness must be proven against simultaneous dispatchers. Multi-instance job coordination and durable scheduling remain.
+- [!] Dispatch fallback and personal-offer timeout/retry require load/concurrency testing and careful state reconciliation.
