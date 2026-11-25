@@ -303,8 +303,8 @@ if (!Number.isFinite(totalAmount) || totalAmount <= 0 || !Number.isSafeInteger(M
         order_currency: 'INR',
         customer_details: {
           customer_id: customerId,
-          customer_name: customer.name || 'Rebesta Customer',
-          customer_email: customer.email || 'customer@rebesta.in',
+          ...(customer.name ? { customer_name: customer.name } : {}),
+          ...(customer.email ? { customer_email: customer.email } : {}),
           customer_phone: String(customer.mobile).replace(/\\D/g, ''),
         },
         order_note: isPickup ? 'Food pickup order' : 'Food delivery order',
@@ -390,15 +390,7 @@ if (!Number.isFinite(totalAmount) || totalAmount <= 0 || !Number.isSafeInteger(M
   // ============================================================
 
   private assertCashfreePaymentMatchesAttempt(payment: any, attempt: any) {
-    const expectedAmount = Number(Number(attempt.total_amount).toFixed(2));
-    if (
-      payment.order_id !== attempt.cashfree_order_id ||
-      payment.payment_status !== 'SUCCESS' ||
-      payment.payment_currency !== 'INR' ||
-      Number(payment.order_amount) !== expectedAmount ||
-      Number(payment.payment_amount) !== expectedAmount ||
-      !payment.cf_payment_id
-    ) {
+    if (!isCashfreePaymentMatch(payment, attempt)) {
       throw new BadRequestException('Cashfree payment does not match the expected order, amount and currency');
     }
   }
@@ -730,4 +722,18 @@ if (!Number.isFinite(totalAmount) || totalAmount <= 0 || !Number.isSafeInteger(M
     };
   }
 
+}
+
+export function isCashfreePaymentMatch(payment: any, attempt: any): boolean {
+  const expectedAmount = Number(Number(attempt?.total_amount).toFixed(2));
+  return (
+    Number.isFinite(expectedAmount) &&
+    payment?.order_id === attempt?.cashfree_order_id &&
+    payment?.payment_status === 'SUCCESS' &&
+    payment?.payment_currency === 'INR' &&
+    Number(payment?.order_amount) === expectedAmount &&
+    Number(payment?.payment_amount) === expectedAmount &&
+    payment?.cf_payment_id != null &&
+    String(payment.cf_payment_id).length > 0
+  );
 }
