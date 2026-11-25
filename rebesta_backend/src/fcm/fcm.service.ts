@@ -32,19 +32,12 @@ async sendToCustomer(
       .select('token')
       .eq('customer_id', customerId);
 
-  console.log('================================');
-  console.log('🔔 FCM CUSTOMER');
-  console.log('Customer:', customerId);
-  console.log('Token DB error:', error);
-  console.log('Token count:', tokens?.length ?? 0);
-  console.log('================================');
-
-  if (error || !tokens?.length) {
-    console.log(
-      '⚠️ No FCM tokens registered for customer',
-    );
+  if (error) {
+    console.warn('FCM token lookup failed.');
     return;
   }
+
+  if (!tokens?.length) return;
 
   const message = {
     notification: {
@@ -55,15 +48,12 @@ async sendToCustomer(
     tokens: tokens.map((t: any) => t.token),
   };
 
-  const response =
-    await this.firebaseService.messaging
-      .sendEachForMulticast(message);
-
-  console.log('================================');
-  console.log('🔥 FCM CUSTOMER RESULT');
-  console.log('Success:', response.successCount);
-  console.log('Failure:', response.failureCount);
-  console.log('================================');
+  try {
+    await this.firebaseService.messaging.sendEachForMulticast(message);
+  } catch {
+    // Push delivery is best-effort; don't expose provider errors or tokens.
+    console.warn('FCM customer push delivery failed.');
+  }
 }
   // ===============================
   // Customer
@@ -260,31 +250,24 @@ async sendToPartner(
   data?: Record<string, string>,
 ) {
 
-  const { data: tokens } =
+  const { data: tokens, error } =
     await supabase
       .from('fcm_tokens')
       .select('token')
-      .eq(
-        'restaurant_partner_id',
-        restaurantPartnerId,
-      );
+      .eq('restaurant_partner_id', restaurantPartnerId);
 
-  if (!tokens?.length) {
-    return;
+  if (error || !tokens?.length) return;
+
+  try {
+    await this.firebaseService.messaging.sendEachForMulticast({
+      notification: { title, body },
+      data: data ?? {},
+      tokens: tokens.map((t: any) => t.token),
+    });
+  } catch {
+    // Push delivery is best-effort; don't expose provider errors or tokens.
+    console.warn('FCM partner push delivery failed.');
   }
-
-  await this.firebaseService.messaging.sendEachForMulticast({
-
-    notification: {
-      title,
-      body,
-    },
-
-    data: data ?? {},
-
-    tokens: tokens.map((t: any) => t.token),
-
-  });
 
 }
 }
