@@ -127,10 +127,12 @@ verifyOtp(
 completeProfile(
   @Body('mobile') mobile: string,
   @Body('name') name: string,
+  @Body('verificationToken') verificationToken: string,
 ) {
   return this.customerAuthService.completeProfile(
     mobile,
     name,
+    verificationToken,
   );
 }
 }
