@@ -15,7 +15,7 @@ class PaymentService {
   )..interceptors.add(authExpiredInterceptor());
 
   static const String _pendingPaymentKey =
-      'rebesta_pending_razorpay_order_id';
+      'rebesta_pending_cashfree_order_id';
 
   Future<Map<String, String>> _authHeaders() async {
     final prefs = await SharedPreferences.getInstance();
@@ -53,12 +53,10 @@ class PaymentService {
 
     final result = Map<String, dynamic>.from(response.data);
 
-    final razorpayOrderId =
-        result['orderId']?.toString();
+    final cashfreeOrderId = result['orderId']?.toString();
 
-    if (razorpayOrderId != null &&
-        razorpayOrderId.isNotEmpty) {
-      await savePendingPayment(razorpayOrderId);
+    if (cashfreeOrderId != null && cashfreeOrderId.isNotEmpty) {
+      await savePendingPayment(cashfreeOrderId);
     }
 
     return result;
@@ -69,63 +67,27 @@ class PaymentService {
   // ============================================================
 
   Future<Map<String, dynamic>> verifyPayment({
-    required String razorpayOrderId,
-    required String razorpayPaymentId,
-    required String signature,
+    required String cashfreeOrderId,
   }) async {
     final response = await _dio.post(
       '/payments/verify',
-      data: {
-        'razorpayOrderId': razorpayOrderId,
-        'razorpayPaymentId': razorpayPaymentId,
-        'signature': signature,
-      },
-      options: Options(
-        headers: await _authHeaders(),
-      ),
+      data: {'cashfreeOrderId': cashfreeOrderId},
+      options: Options(headers: await _authHeaders()),
     );
-
-    final result =
-        Map<String, dynamic>.from(response.data);
-
-    if (result['success'] == true) {
-      await clearPendingPayment();
-    }
-
+    final result = Map<String, dynamic>.from(response.data);
+    if (result['success'] == true) await clearPendingPayment();
     return result;
   }
 
-  // ============================================================
-  // RECONCILE PAYMENT
-  //
-  // Used when the app was killed / network dropped during
-  // payment and we don't know whether Razorpay succeeded.
-  // ============================================================
-
-  Future<Map<String, dynamic>> reconcilePayment(
-    String razorpayOrderId,
-  ) async {
+  Future<Map<String, dynamic>> reconcilePayment(String cashfreeOrderId) async {
     final response = await _dio.post(
       '/payments/reconcile',
-      data: {
-        'razorpayOrderId': razorpayOrderId,
-      },
-      options: Options(
-        headers: await _authHeaders(),
-      ),
+      data: {'cashfreeOrderId': cashfreeOrderId},
+      options: Options(headers: await _authHeaders()),
     );
-
-    final result =
-        Map<String, dynamic>.from(response.data);
-
-    final state =
-        result['state']?.toString();
-
-    if (state == 'confirmed' ||
-        state == 'failed') {
-      await clearPendingPayment();
-    }
-
+    final result = Map<String, dynamic>.from(response.data);
+    final state = result['state']?.toString();
+    if (state == 'confirmed' || state == 'failed') await clearPendingPayment();
     return result;
   }
 
@@ -134,14 +96,14 @@ class PaymentService {
   // ============================================================
 
   Future<void> savePendingPayment(
-    String razorpayOrderId,
+    String cashfreeOrderId,
   ) async {
     final prefs =
         await SharedPreferences.getInstance();
 
     await prefs.setString(
       _pendingPaymentKey,
-      razorpayOrderId,
+      cashfreeOrderId,
     );
   }
 
