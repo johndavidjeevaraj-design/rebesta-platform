@@ -58,12 +58,13 @@ export class PaymentsController {
 
 @Post('webhook')
 webhook(@Req() req, @Body() body: any) {
-  const signature =
-    req.headers['x-razorpay-signature'] as string;
+  const signature = req.headers['x-webhook-signature'] as string;
+  const timestamp = req.headers['x-webhook-timestamp'] as string;
 
   return this.paymentsService.webhook(
     body,
     signature,
+    timestamp,
     req.rawBody,
   );
 }
@@ -76,7 +77,7 @@ webhook(@Req() req, @Body() body: any) {
   ) {
     return this.paymentsService.reconcilePayment(
       req.user.customerId,
-      body.razorpayOrderId,
+      body.cashfreeOrderId,
     );
   }
 }
