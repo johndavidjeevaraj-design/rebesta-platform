@@ -93,6 +93,7 @@ export class PaymentsService {
     // ----------------------------------------------------------
 
     const snapshot: Array<{
+      cartItemId: string;
       menuItemId: string;
       quantity: number;
       price: number;
@@ -130,6 +131,7 @@ export class PaymentsService {
       }
 
       snapshot.push({
+        cartItemId: item.id,
         menuItemId: menuItem.id,
         quantity,
         price,
@@ -483,10 +485,6 @@ return this.createOrderFromAttempt(
         state: 'confirmed',
         order: existingOrder,
       };
-    }
-
-    if (attempt.status === 'failed') {
-      return { success: true, state: 'failed', order: null };
     }
 
     // Ask Razorpay directly what actually happened to this order.
