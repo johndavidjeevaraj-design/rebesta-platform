@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 
 import '../core/constants/api_constants.dart';
@@ -17,17 +16,10 @@ class SocketService {
 
   void connect() {
     if (_socket != null && _socket!.connected) {
-      debugPrint('🔌 CUSTOMER SOCKET ALREADY CONNECTED');
-      return;
+            return;
     }
 
-    debugPrint('=================================');
-    debugPrint('🔌 CUSTOMER SOCKET CONNECTING');
-    debugPrint(
-      'URL: ${ApiConstants.baseUrl}',
-    );
-    debugPrint('=================================');
-
+                
     _socket = IO.io(
       ApiConstants.baseUrl,
       IO.OptionBuilder()
@@ -38,31 +30,16 @@ class SocketService {
     );
 
     _socket!.onConnect((_) {
-      debugPrint('=================================');
-      debugPrint('✅ CUSTOMER SOCKET CONNECTED');
-      debugPrint(
-        'Socket ID: ${_socket!.id}',
-      );
-      debugPrint('=================================');
-    });
+                            });
 
     _socket!.onDisconnect((reason) {
-      debugPrint(
-        '🔌 CUSTOMER SOCKET DISCONNECTED: $reason',
-      );
-    });
+          });
 
     _socket!.onConnectError((error) {
-      debugPrint(
-        '❌ CUSTOMER SOCKET CONNECT ERROR: $error',
-      );
-    });
+          });
 
     _socket!.onError((error) {
-      debugPrint(
-        '❌ CUSTOMER SOCKET ERROR: $error',
-      );
-    });
+          });
 
     _socket!.connect();
   }
@@ -76,10 +53,7 @@ class SocketService {
       connect();
     }
 
-    debugPrint(
-      '👤 CUSTOMER JOIN ROOM: customer_$customerId',
-    );
-
+    
     _socket!.emit(
       'join_customer',
       customerId,
@@ -100,10 +74,7 @@ class SocketService {
       callback,
     );
 
-    debugPrint(
-      '📡 CUSTOMER LISTENING: delivery_location',
-    );
-  }
+      }
 
   // ============================================================
   // REMOVE LOCATION LISTENER
@@ -114,10 +85,7 @@ class SocketService {
       'delivery_location',
     );
 
-    debugPrint(
-      '📡 CUSTOMER STOPPED: delivery_location',
-    );
-  }
+      }
 
   // ============================================================
   // DISCONNECT
@@ -128,8 +96,5 @@ class SocketService {
     _socket?.dispose();
     _socket = null;
 
-    debugPrint(
-      '🔌 CUSTOMER SOCKET DISPOSED',
-    );
-  }
+      }
 }
