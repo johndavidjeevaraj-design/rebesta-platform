@@ -633,3 +633,12 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 - [!] This is a recovery primitive, not a complete duplicate-attempt lock. Concurrent create-order requests can still create multiple attempts; a database-backed active-attempt uniqueness/claim strategy and customer UI integration are required. The `created` state is intentionally retained for uncertain provider outcomes, so the client must reconcile before offering a fresh payment.
 - Static source edits only; tests, compilation and Cashfree sandbox replay not run. No migration, deployment or merge.
 - Commits: `ee855d8f` (service lookup), `d0b378ab` (controller endpoint).
+
+
+## Cashfree checkout sequential retry guard (2026-11-25)
+- [x] Checkout creation now checks for the customer's newest unresolved Cashfree attempt before reading the cart or creating a provider order. A retry returns the existing Cashfree order/session details rather than generating another order.
+- [x] Existing attempts without a persisted payment session return `reconciliation_required`; attempts with a session return `ready` so the client can resume the existing payment.
+- [!] This read-before-create guard prevents ordinary sequential duplicate taps/retries but is not atomic. Concurrent requests can both observe no active attempt and insert separate rows; a database-backed claim/unique-active-attempt strategy and concurrency tests remain mandatory.
+- [!] Customer Flutter checkout must explicitly handle `state` and reuse `paymentSessionId` / call authenticated reconciliation for `orderId`. Existing UI contract compatibility has not been verified.
+- Static source edit only; backend compilation, tests and Cashfree sandbox replay not run. No migration, deployment, merge or UI/design change.
+- Commit: `9310f216`.
