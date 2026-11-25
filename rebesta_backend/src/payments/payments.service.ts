@@ -270,9 +270,12 @@ if (!Number.isFinite(totalAmount) || totalAmount <= 0 || !Number.isSafeInteger(M
     if (customerError || !customer?.mobile) {
       throw new BadRequestException('A verified customer phone number is required for online payment');
     }
-    const customerPhone = String(customer.mobile).replace(/\D/g, '');
-    if (!/^\d{10,15}$/.test(customerPhone)) {
-      throw new BadRequestException('A valid customer phone number is required for Cashfree payment');
+    let customerPhone = String(customer.mobile).replace(/\D/g, '');
+    if (customerPhone.length === 12 && customerPhone.startsWith('91')) {
+      customerPhone = customerPhone.slice(2);
+    }
+    if (!/^\d{10}$/.test(customerPhone)) {
+      throw new BadRequestException('A valid 10-digit customer phone number is required for Cashfree payment');
     }
 
     const cashfreeOrderId = `rb_${crypto.randomUUID().replace(/-/g, '')}`;
@@ -469,7 +472,16 @@ if (!Number.isFinite(totalAmount) || totalAmount <= 0 || !Number.isSafeInteger(M
     }
 
     const providerOrderStatus = orderResponse.data?.order_status;
-    if (providerOrderStatus === 'EXPIRED') {
+    const paymentListResponse = await axios.get(
+      `${this.cashfreeBaseUrl()}/orders/${encodeURIComponent(cashfreeOrderId)}/payments`,
+      { headers: this.cashfreeHeaders(), timeout: 15000 },
+    );
+    const payments = Array.isArray(paymentListResponse.data) ? paymentListResponse.data : [];
+    const terminalFailureStatuses = ['FAILED', 'USER_DROPPED', 'CANCELLED'];
+    const allAttemptsFailed = payments.length > 0 &&
+      payments.every((item: any) => terminalFailureStatuses.includes(String(item.payment_status).toUpperCase()));
+
+    if (providerOrderStatus === 'EXPIRED' || allAttemptsFailed) {
       await supabase.from('payment_attempts')
         .update({ status: 'failed' })
         .eq('id', attempt.id)
