@@ -323,7 +323,7 @@ export class CouponsService {
 
     if (error) {
       throw new BadRequestException(
-        error.message,
+        'Unable to retrieve restaurant offers',
       );
     }
 
@@ -453,8 +453,7 @@ export class CouponsService {
 
     if (error || !data) {
       throw new BadRequestException(
-        error?.message ??
-          'Failed to create offer',
+        'Unable to create offer',
       );
     }
 
@@ -655,8 +654,7 @@ export class CouponsService {
 
     if (error || !data) {
       throw new BadRequestException(
-        error?.message ??
-          'Failed to update offer',
+        'Unable to update offer',
       );
     }
 
