@@ -13,10 +13,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
  async validate(payload: any) {
-  console.log('========================================');
-  console.log('PARTNER JWT VALIDATE');
-  console.log('PAYLOAD:', payload);
-  console.log('========================================');
+  // Never log JWT claims or credentials.
 
   return {
     id: payload.sub,
