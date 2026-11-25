@@ -575,27 +575,18 @@ if (!Number.isFinite(totalAmount) || totalAmount <= 0 || !Number.isSafeInteger(M
   }
 
   private async applyCashfreeRefundStatus(orderId: string, refundId: string, status: string) {
-    let result: any;
-    if (status === 'SUCCESS') {
-      result = await supabase.from('orders')
-        .update({ payment_status: 'refunded', cashfree_refund_status: status })
-        .eq('cashfree_order_id', orderId)
-        .eq('cashfree_refund_id', refundId)
-        .eq('payment_status', 'refund_pending');
-    } else if (status === 'FAILED') {
-      result = await supabase.from('orders')
-        .update({ payment_status: 'paid', cashfree_refund_status: status })
-        .eq('cashfree_order_id', orderId)
-        .eq('cashfree_refund_id', refundId)
-        .eq('payment_status', 'refund_pending');
-    } else {
-      result = await supabase.from('orders')
-        .update({ cashfree_refund_status: 'PENDING' })
-        .eq('cashfree_order_id', orderId)
-        .eq('cashfree_refund_id', refundId)
-        .eq('payment_status', 'refund_pending');
-    }
-    if (result?.error) {
+    const normalizedStatus = status.toUpperCase();
+    const paymentStatus = cashfreeRefundPaymentStatus(normalizedStatus);
+    const { error } = await supabase.from('orders')
+      .update({
+        payment_status: paymentStatus,
+        cashfree_refund_status: normalizedStatus,
+      })
+      .eq('cashfree_order_id', orderId)
+      .eq('cashfree_refund_id', refundId)
+      .eq('payment_status', 'refund_pending');
+
+    if (error) {
       throw new BadRequestException('Cashfree refund state could not be reconciled');
     }
   }
@@ -760,4 +751,19 @@ export function isCashfreeWebhookSignatureValid(
   const receivedBuffer = Buffer.from(signature);
   return expectedBuffer.length === receivedBuffer.length &&
     crypto.timingSafeEqual(expectedBuffer, receivedBuffer);
+}
+
+
+export function cashfreeRefundPaymentStatus(status: string): 'refunded' | 'paid' | 'refund_pending' {
+  switch (status.toUpperCase()) {
+    case 'SUCCESS':
+      return 'refunded';
+    case 'FAILED':
+    case 'CANCELLED':
+      return 'paid';
+    case 'PENDING':
+    case 'ONHOLD':
+    default:
+      return 'refund_pending';
+  }
 }
