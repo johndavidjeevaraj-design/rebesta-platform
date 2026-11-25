@@ -237,19 +237,13 @@ async sendOtp(mobile: string) {
     `${phone}/AUTOGEN/REBESTA`;
 
   console.log('========================================');
-  console.log('PARTNER SEND OTP');
-  console.log('Partner:', user.id);
-  console.log('Mobile:', phone);
-  console.log('========================================');
+  // OTP dispatch telemetry excludes phone numbers and account identifiers.
 
   const response = await fetch(url);
 
   const data = await response.json();
 
-  console.log(
-    '2Factor Partner OTP Response:',
-    data,
-  );
+  // Do not log provider response payloads.
 
   if (data.Status !== 'Success') {
     throw new Error(
@@ -290,19 +284,13 @@ async verifyOtp(
     `${sessionId}/${otp}`;
 
   console.log('========================================');
-  console.log('PARTNER VERIFY OTP');
-  console.log('Mobile:', phone);
-  console.log('Session:', sessionId);
-  console.log('========================================');
+  // OTP verification telemetry excludes phone numbers and session IDs.
 
   const response = await fetch(url);
 
   const data = await response.json();
 
-  console.log(
-    '2Factor Partner Verify Response:',
-    data,
-  );
+  // Do not log provider response payloads.
 
   if (data.Status !== 'Success') {
     throw new Error(
@@ -317,11 +305,7 @@ async verifyOtp(
 
  const normalizedPhone = mobile.replace(/\D/g, '');
 
-console.log('========================================');
-console.log('FIND PARTNER AFTER OTP');
-console.log('Original mobile:', mobile);
-console.log('Normalized mobile:', normalizedPhone);
-console.log('========================================');
+// Avoid logging raw phone numbers.
 
 const { data: user, error } = await supabase
   .from('partner_users')
@@ -385,10 +369,7 @@ if (!user) {
 }
 
 async getCurrentPartner(userId: string) {
-  console.log('========================================');
-  console.log('GET CURRENT PARTNER');
-  console.log('User ID:', userId);
-  console.log('========================================');
+  // Profile retrieval without logging identifiers.
 
   const { data: user, error } = await supabase
     .from('partner_users')
@@ -457,18 +438,7 @@ async getCurrentPartner(userId: string) {
     restaurant = restaurantData;
   }
 
-  console.log('========================================');
-  console.log('PARTNER PROFILE SUCCESS');
-  console.log('Partner:', user.name);
-  console.log(
-    'Restaurant Partner ID:',
-    user.restaurant_partner_id,
-  );
-  console.log(
-    'Restaurant:',
-    restaurant?.restaurant_name,
-  );
-  console.log('========================================');
+  // Profile data is intentionally not written to logs.
 
   return {
     success: true,
