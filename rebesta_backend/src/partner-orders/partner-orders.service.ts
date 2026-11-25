@@ -14,11 +14,12 @@ export function canCancelRestaurantOrder(order: { order_status: string; payment_
 export function canAcceptRestaurantOrder(order: {
   order_status: string;
   payment_status: string | null;
-  razorpay_order_id: string | null;
+  razorpay_order_id?: string | null;
+  cashfree_order_id?: string | null;
 }): boolean {
   return !(
     order.order_status === 'pending' &&
-    Boolean(order.razorpay_order_id) &&
+    Boolean(order.razorpay_order_id || order.cashfree_order_id) &&
     order.payment_status !== 'paid'
   );
 }
@@ -169,6 +170,7 @@ async updateStatus(
         order_status,
         payment_status,
         razorpay_order_id,
+        cashfree_order_id,
         restaurant_partner_id
       `)
       .eq('id', orderId)
@@ -186,9 +188,9 @@ async updateStatus(
 
   }
 
-  // Online orders are created only after Razorpay capture. Never let a
+  // Online orders are created only after provider-confirmed capture. Never let a
   // pending/failed online payment enter restaurant preparation. COD orders
-  // have no Razorpay order ID and may legitimately remain payment-pending.
+  // have neither provider order ID and may legitimately remain payment-pending.
   if (!canAcceptRestaurantOrder(order)) {
     throw new BadRequestException(
       'Online payment must be confirmed before accepting this order',
