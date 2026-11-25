@@ -238,3 +238,9 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 ## Admin socket authentication follow-up (2026-11-25)
 - [x] Admin socket room join now fails closed when the admin key is missing and compares equal-length key buffers with a timing-safe comparison, matching the HTTP admin guard's shared-key model.
 - [ ] Replace shared admin key with individually authenticated/authorized admin identity and audit trail; staging verification required.
+
+
+## Shared delivery-feed socket privacy fix (2026-11-25)
+- [x] KYC-verified riders only can join the shared delivery feed socket room; the room join now checks server-side rider KYC.
+- [x] Shared fallback broadcasts expose only coarse destination area and placeholder customer name, removing street/landmark/coordinates and personal name.
+- [ ] Validate rider-app payload compatibility and feed-room join behavior in staging; tests not run in this environment.
