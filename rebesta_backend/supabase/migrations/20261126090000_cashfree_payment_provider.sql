@@ -32,6 +32,14 @@ CREATE UNIQUE INDEX IF NOT EXISTS payment_attempts_cashfree_order_id_unique
   ON public.payment_attempts(cashfree_order_id)
   WHERE cashfree_order_id IS NOT NULL;
 
+CREATE UNIQUE INDEX IF NOT EXISTS payment_attempts_cashfree_idempotency_key_unique
+  ON public.payment_attempts(cashfree_idempotency_key);
+
+CREATE UNIQUE INDEX IF NOT EXISTS payment_attempts_cashfree_payment_id_unique
+  ON public.payment_attempts(cashfree_payment_id)
+  WHERE cashfree_payment_id IS NOT NULL;
+
+
 CREATE UNIQUE INDEX IF NOT EXISTS orders_cashfree_order_id_unique
   ON public.orders(cashfree_order_id)
   WHERE cashfree_order_id IS NOT NULL;
@@ -39,6 +47,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS orders_cashfree_order_id_unique
 CREATE UNIQUE INDEX IF NOT EXISTS orders_cashfree_payment_id_unique
   ON public.orders(cashfree_payment_id)
   WHERE cashfree_payment_id IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS orders_cashfree_refund_id_unique
+  ON public.orders(cashfree_refund_id)
+  WHERE cashfree_refund_id IS NOT NULL;
 
 -- Cashfree-specific conversion keeps legacy Razorpay conversion intact for
 -- historical attempts. The provider is verified by the backend before RPC.
