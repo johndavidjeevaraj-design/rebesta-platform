@@ -494,3 +494,11 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 - [!] Tracking-screen HTTP response logging, checkout/order-service response logs, auth/session lifecycle, socket rejoin authorization, and interruption/recovery behavior still need review. No runtime verification was performed.
 - [!] Android release build currently uses debug signing in its release build type and placeholder application ID `com.example.rebesta_customers`; Play Store release configuration/signing and manifest privacy/permissions review remain outstanding.
 - No UI changes, migration, deployment, merge. Flutter build/test execution unavailable.
+
+
+## Customer checkout and order/tracking log privacy (2026-11-25)
+- [x] Removed verbose checkout screen diagnostic logging, including checkout/payment response dumps and address/order context logs.
+- [x] Removed order service diagnostic logging of checkout payloads, order-list response bodies, and related identifiers.
+- [x] Removed tracking screen diagnostic logging of tracking responses and rider/location/order data.
+- [!] Reconnection lifecycle, payment UI callback interruption behavior, and authorization/room-join enforcement still need end-to-end validation. Flutter analysis/build/tests not run.
+- No UI changes, migration, deployment or merge.
