@@ -347,11 +347,15 @@ export class DeliveryService {
       })
       .eq('id', orderId)
       .eq('delivery_partner_id', deliveryPartnerId)
+      .eq('order_status', 'accepted_for_delivery')
       .select()
-      .single();
+      .maybeSingle();
 
     if (updateError) {
       throw new BadRequestException(updateError.message);
+    }
+    if (!data) {
+      throw new BadRequestException('Order status changed concurrently; refresh and retry');
     }
 
     this.socketGateway.sendOrderUpdate(orderId, 'arrived_at_restaurant');
@@ -485,11 +489,19 @@ export class DeliveryService {
       })
       .eq('id', orderId)
       .eq('delivery_partner_id', deliveryPartnerId)
+      .in('order_status', [
+        'accepted_for_delivery',
+        'arrived_at_restaurant',
+        'out_for_delivery',
+      ])
       .select()
-      .single();
+      .maybeSingle();
 
     if (updateError) {
       throw new BadRequestException(updateError.message);
+    }
+    if (!data) {
+      throw new BadRequestException('Order status changed concurrently; refresh and retry');
     }
 
     this.socketGateway.sendOrderUpdate(orderId, 'ready');
@@ -683,11 +695,15 @@ export class DeliveryService {
       })
       .eq('id', orderId)
       .eq('delivery_partner_id', deliveryPartnerId)
+      .eq('order_status', 'picked_up')
       .select()
-      .single();
+      .maybeSingle();
 
     if (updateError) {
       throw new BadRequestException(updateError.message);
+    }
+    if (!data) {
+      throw new BadRequestException('Order status changed concurrently; refresh and retry');
     }
 
     this.socketGateway.sendOrderUpdate(
