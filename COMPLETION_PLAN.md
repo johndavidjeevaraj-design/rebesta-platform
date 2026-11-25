@@ -566,3 +566,10 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 - [!] GPS stream remains high-accuracy with a 10-metre distance filter; actual cadence, background behavior, connectivity recovery and throttle compatibility require device/runtime testing. Stream errors are intentionally silent in this pass.
 - [ ] Verify location-service lifecycle, duplicate subscription prevention, GPS cadence under real devices, and delivery location throttling against backend limits with tests/telemetry.
 - Commit: 129f052ae4644e6a2753f7e53bee10bb7a034f93. No UI changes, migrations, merge or deployment.
+
+
+## Legacy customer socket caller trace (2026-11-25)
+- [x] Reviewed customer order tracking screen and active `DeliverySocketService`: the tracking screen uses the order-specific service with JWT handshake, reconnect customer-room join, and order-ID event filtering.
+- [!] The separately hardened legacy `SocketService` has no identified call site in the reviewed source tree/search. Search coverage is not runtime proof; avoid deleting it until a complete caller/build trace confirms it is unused.
+- [ ] Confirm callers using a full source search and Flutter analysis; then retire or consolidate the duplicate service safely.
+- [ ] Secure JWT storage migration remains blocked on dependency/platform/lockfile resolution and testing; don't perform partial storage migration.
