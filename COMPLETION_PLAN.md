@@ -293,3 +293,9 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 - [x] Availability endpoint response selects only explicit partner fields instead of returning the complete database row.
 - [x] Client-facing database failure response no longer forwards raw update error details.
 - [ ] Confirm approval/status values and behavior in staging; tests not executed.
+
+
+## Delivery completion OTP abuse/input hardening (2026-11-25)
+- [x] Validate delivery completion order ID as UUID and OTP as 4–8 numeric digits at DTO boundary.
+- [x] Rate limit authenticated delivery completion OTP endpoint to 5 attempts/minute per throttler key.
+- [ ] Validate expected OTP format against database function and test in staging; test suites not executed.
