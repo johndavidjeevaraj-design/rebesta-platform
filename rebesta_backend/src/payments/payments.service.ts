@@ -696,7 +696,7 @@ if (!Number.isFinite(totalAmount) || totalAmount <= 0 || !Number.isSafeInteger(M
       try {
         this.socketGateway.sendOrderUpdate(order.id, 'pending');
       } catch (e) {
-        console.error('Order room status update failed:', e);
+        console.warn('Order room status update failed:', e);
       }
       try {
         this.socketGateway.emitToPartner(order.restaurant_partner_id, 'new-order', {
@@ -706,7 +706,7 @@ if (!Number.isFinite(totalAmount) || totalAmount <= 0 || !Number.isSafeInteger(M
           totalAmount: order.total_amount,
         });
       } catch (e) {
-        console.error('Partner socket notification failed:', e);
+        console.warn('Partner socket notification failed:', e);
       }
       try {
         await this.fcmService.sendToPartner(
@@ -716,7 +716,7 @@ if (!Number.isFinite(totalAmount) || totalAmount <= 0 || !Number.isSafeInteger(M
           { orderId: order.id, screen: 'order_details' },
         );
       } catch (e) {
-        console.error('Partner FCM notification failed:', e);
+        console.warn('Partner FCM notification failed:', e);
       }
     }
 
