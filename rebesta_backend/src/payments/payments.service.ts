@@ -606,15 +606,7 @@ if (!Number.isFinite(totalAmount) || totalAmount <= 0 || !Number.isSafeInteger(M
       throw new BadRequestException('Cashfree webhook signature is missing');
     }
 
-    const expected = crypto.createHmac('sha256', secret)
-      .update(timestamp + rawBody.toString('utf8'))
-      .digest('base64');
-    const expectedBuffer = Buffer.from(expected);
-    const receivedBuffer = Buffer.from(signature);
-    if (
-      expectedBuffer.length !== receivedBuffer.length ||
-      !crypto.timingSafeEqual(expectedBuffer, receivedBuffer)
-    ) {
+    if (!isCashfreeWebhookSignatureValid(signature, timestamp, rawBody, secret)) {
       throw new BadRequestException('Invalid Cashfree webhook signature');
     }
 
@@ -752,4 +744,20 @@ export function isCashfreePaymentMatch(payment: any, attempt: any): boolean {
     payment?.cf_payment_id != null &&
     String(payment.cf_payment_id).length > 0
   );
+}
+
+export function isCashfreeWebhookSignatureValid(
+  signature: string,
+  timestamp: string,
+  rawBody: Buffer,
+  secret: string,
+): boolean {
+  if (!signature || !timestamp || !rawBody || !secret) return false;
+  const expected = crypto.createHmac('sha256', secret)
+    .update(timestamp + rawBody.toString('utf8'))
+    .digest('base64');
+  const expectedBuffer = Buffer.from(expected);
+  const receivedBuffer = Buffer.from(signature);
+  return expectedBuffer.length === receivedBuffer.length &&
+    crypto.timingSafeEqual(expectedBuffer, receivedBuffer);
 }
