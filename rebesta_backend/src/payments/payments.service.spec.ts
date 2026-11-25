@@ -1,4 +1,5 @@
-import { isCashfreePaymentMatch } from './payments.service';
+import * as crypto from 'crypto';
+import { isCashfreePaymentMatch, isCashfreeWebhookSignatureValid } from './payments.service';
 
 describe('isCashfreePaymentMatch', () => {
   const attempt = {
@@ -33,6 +34,55 @@ describe('isCashfreePaymentMatch', () => {
   it('rejects an invalid expected amount', () => {
     expect(
       isCashfreePaymentMatch(payment, { ...attempt, total_amount: 'not-a-number' }),
+    ).toBe(false);
+  });
+});
+
+
+describe('isCashfreeWebhookSignatureValid', () => {
+  const secret = 'cashfree-webhook-test-secret';
+  const timestamp = '1764000000';
+  const rawBody = Buffer.from('{"type":"PAYMENT_SUCCESS_WEBHOOK","data":{}}');
+
+  function signatureFor(body: Buffer, time: string): string {
+    return crypto.createHmac('sha256', secret)
+      .update(time + body.toString('utf8'))
+      .digest('base64');
+  }
+
+  it('accepts a valid signature over the exact timestamp and raw body', () => {
+    expect(
+      isCashfreeWebhookSignatureValid(
+        signatureFor(rawBody, timestamp),
+        timestamp,
+        rawBody,
+        secret,
+      ),
+    ).toBe(true);
+  });
+
+  it('rejects a modified body', () => {
+    expect(
+      isCashfreeWebhookSignatureValid(
+        signatureFor(rawBody, timestamp),
+        timestamp,
+        Buffer.from('{"type":"PAYMENT_FAILED_WEBHOOK"}'),
+        secret,
+      ),
+    ).toBe(false);
+  });
+
+  it('rejects a modified timestamp or signature', () => {
+    expect(
+      isCashfreeWebhookSignatureValid(
+        signatureFor(rawBody, timestamp),
+        '1764000001',
+        rawBody,
+        secret,
+      ),
+    ).toBe(false);
+    expect(
+      isCashfreeWebhookSignatureValid('invalid', timestamp, rawBody, secret),
     ).toBe(false);
   });
 });
