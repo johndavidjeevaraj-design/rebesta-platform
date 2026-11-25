@@ -49,7 +49,7 @@ export class StorageService {
   }
 
   async getSignedDocumentUrl(storagePath: string) {
-    if (typeof storagePath !== 'string' || storagePath.length > 512 || !/^[0-9a-f-]{36}\\/[a-f0-9-]{36}\\.(jpg|png|pdf)$/i.test(storagePath)) {
+    if (typeof storagePath !== 'string' || storagePath.length > 512 || !/^[0-9a-f-]{36}\/[a-f0-9-]{36}\.(jpg|png|pdf)$/i.test(storagePath)) {
       throw new BadRequestException('Invalid document path');
     }
     const { data, error } = await supabase.storage.from('kyc-documents').createSignedUrl(storagePath, 300);
