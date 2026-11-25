@@ -80,7 +80,7 @@ export class AdminService {
     .order('created_at', { ascending: false });
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error('Admin operation failed');
   }
 
   return {
@@ -98,7 +98,7 @@ async getRestaurant(id: string) {
     .single();
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error('Admin operation failed');
   }
 
   return {
@@ -120,7 +120,7 @@ async approveRestaurant(id: string) {
     .maybeSingle();
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error('Admin operation failed');
   }
 
   if (!data) {
@@ -146,7 +146,7 @@ async rejectRestaurant(id: string) {
     .maybeSingle();
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error('Admin operation failed');
   }
 
   if (!data) {
@@ -172,7 +172,7 @@ async blockRestaurant(id: string) {
     .maybeSingle();
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error('Admin operation failed');
   }
 
   if (!data) {
@@ -198,7 +198,7 @@ async unblockRestaurant(id: string) {
     .maybeSingle();
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error('Admin operation failed');
   }
 
   if (!data) {
@@ -231,7 +231,7 @@ async getCustomers() {
     });
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error('Admin operation failed');
   }
 
   const result: any[] = [];
@@ -331,7 +331,7 @@ async getDeliveryPartners() {
     });
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error('Admin operation failed');
   }
 
   const result: any[] = [];
@@ -428,7 +428,7 @@ async getDeliveryPartner(id: string) {
     .single();
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error('Admin operation failed');
   }
 
   const { data: orders } = await supabase
@@ -520,7 +520,7 @@ async approveDeliveryPartner(id: string) {
     .single();
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error('Admin operation failed');
   }
 
   return {
@@ -546,7 +546,7 @@ async rejectDeliveryPartner(id: string) {
     .single();
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error('Admin operation failed');
   }
 
   return {
@@ -569,9 +569,7 @@ async settleDeliveryPayout(id: string, payoutReference: string) {
   });
 
   if (error || !data?.payout) {
-    throw new ConflictException(
-      error?.message ?? 'Payout settlement failed',
-    );
+    throw new ConflictException('Payout settlement failed or is already being processed');
   }
 
   return {
@@ -604,7 +602,7 @@ async getDeliveryKycSubmissions() {
     .order('created_at', { ascending: true });
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error('Admin operation failed');
   }
 
   const submissions: any[] = [];
@@ -659,7 +657,7 @@ async approveDeliveryKyc(id: string) {
     .maybeSingle();
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error('Admin operation failed');
   }
 
   if (!data) {
@@ -688,7 +686,7 @@ async rejectDeliveryKyc(id: string, reason: string) {
     .maybeSingle();
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error('Admin operation failed');
   }
 
   if (!data) {
@@ -717,7 +715,7 @@ async blockDeliveryPartner(id: string) {
     .single();
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error('Admin operation failed');
   }
 
   return {
@@ -745,7 +743,7 @@ async unblockDeliveryPartner(id: string) {
     .single();
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error('Admin operation failed');
   }
 
   return {
@@ -804,7 +802,7 @@ async getOrders() {
     });
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error('Admin operation failed');
   }
 
   const formattedOrders =
@@ -917,7 +915,7 @@ async getOrder(id: string) {
       .single();
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error('Admin operation failed');
   }
 
   const customer =
@@ -1062,7 +1060,7 @@ async cancelOrder(id: string) {
     .maybeSingle();
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error('Admin operation failed');
   }
 
   if (!data) {
