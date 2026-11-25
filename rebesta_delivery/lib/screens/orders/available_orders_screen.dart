@@ -124,9 +124,7 @@ class _AvailableOrdersScreenState
         'AVAILABLE ORDERS STATUS: ${response.statusCode}',
       );
 
-      debugPrint(
-        'AVAILABLE ORDERS RESPONSE: ${response.data}',
-      );
+
 
       final data = response.data;
 
@@ -189,9 +187,7 @@ class _AvailableOrdersScreenState
         'ACCEPT ORDER STATUS: ${response.statusCode}',
       );
 
-      debugPrint(
-        'ACCEPT ORDER RESPONSE: ${response.data}',
-      );
+
 
       final data = response.data;
 
