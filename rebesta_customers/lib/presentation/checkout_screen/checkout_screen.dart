@@ -856,16 +856,20 @@ Future<void> _placeCODOrder() async {
     } catch (e, stackTrace) {
       debugPrint('CASHFREE PAYMENT VERIFICATION ERROR: $e');
       debugPrint('$stackTrace');
-      final recovery = await _paymentService.reconcilePayment(cashfreeOrderId);
-      final recoveredOrder = recovery['order'];
-      final recoveredId = recoveredOrder is Map
-          ? recoveredOrder['id']?.toString()
-          : null;
-      if (recovery['state'] == 'confirmed' && recoveredId != null && recoveredId.isNotEmpty) {
-        if (!mounted) return;
-        setState(() => _processingPayment = false);
-        context.go(AppRoutes.orderTrackingScreen, extra: recoveredId);
-        return;
+      try {
+        final recovery = await _paymentService.reconcilePayment(cashfreeOrderId);
+        final recoveredOrder = recovery['order'];
+        final recoveredId = recoveredOrder is Map
+            ? recoveredOrder['id']?.toString()
+            : null;
+        if (recovery['state'] == 'confirmed' && recoveredId != null && recoveredId.isNotEmpty) {
+          if (!mounted) return;
+          setState(() => _processingPayment = false);
+          context.go(AppRoutes.orderTrackingScreen, extra: recoveredId);
+          return;
+        }
+      } catch (reconcileError) {
+        debugPrint('CASHFREE PAYMENT RECONCILIATION DEFERRED: $reconcileError');
       }
       if (!mounted) return;
       setState(() => _processingPayment = false);
