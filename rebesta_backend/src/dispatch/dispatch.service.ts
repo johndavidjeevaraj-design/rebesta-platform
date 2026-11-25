@@ -84,14 +84,16 @@ export class DispatchService implements OnModuleInit, OnModuleDestroy {
     // lost. This sweep claims expired offers straight from the DB.
 
     this.sweepTimer = setInterval(
-      () => {
-        this.sweepExpiredOffers().catch((error) => {
-          this.logger.error(`Offer sweep failed: ${error}`);
-        });
+      async () => {
+        try {
+          await this.sweepExpiredOffers();
+          await this.sweepReadyOrders();
+        } catch (error) {
+          this.logger.error(`Dispatch recovery sweep failed: ${error}`);
+        }
       },
       SWEEP_INTERVAL_MS,
-    );
-  }
+    );  }
 
   onModuleDestroy() {
     if (this.sweepTimer) {
@@ -155,6 +157,23 @@ export class DispatchService implements OnModuleInit, OnModuleDestroy {
         order.delivery_partner_id
       ) {
         return false;
+      }
+
+      // A scheduled retry or duplicate ready-event must not skip ahead
+      // while a rider still has a live offer for this order.
+      const { data: activeOffers, error: activeOffersError } = await supabase
+        .from('delivery_offers')
+        .select('id')
+        .eq('order_id', orderId)
+        .eq('status', 'pending')
+        .gt('expires_at', new Date().toISOString())
+        .limit(1);
+
+      if (activeOffersError) {
+        throw new Error(`Active offer lookup failed: ${activeOffersError.message}`);
+      }
+      if (activeOffers?.length) {
+        return true;
       }
 
       // --------------------------------------------------------
@@ -477,6 +496,36 @@ export class DispatchService implements OnModuleInit, OnModuleDestroy {
     );
 
     // Leave the order eligible for a later dispatch retry.
+  }
+
+  // ============================================================
+  // RECOVERY: retry ready, unassigned orders after process restarts
+  // or transient dispatch failures. Personal offers remain protected
+  // by the active-offer check and the database unique index.
+  // ============================================================
+
+  async sweepReadyOrders(): Promise<void> {
+    const { data: orders, error } = await supabase
+      .from('orders')
+      .select('id')
+      .eq('order_status', 'ready')
+      .is('delivery_partner_id', null)
+      .order('created_at', { ascending: true })
+      .limit(25);
+
+    if (error) {
+      throw new Error(`Ready-order recovery lookup failed: ${error.message}`);
+    }
+
+    for (const order of orders ?? []) {
+      try {
+        await this.dispatchOrder(order.id);
+      } catch (dispatchError) {
+        this.logger.error(
+          `Ready-order recovery failed for ${order.id}: ${dispatchError}`,
+        );
+      }
+    }
   }
 
   // ============================================================
