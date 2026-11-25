@@ -417,6 +417,38 @@ if (!Number.isFinite(totalAmount) || totalAmount <= 0 || !Number.isSafeInteger(M
     return successful;
   }
 
+  // Return the customer's newest unresolved Cashfree attempt so the app can
+  // recover after a client timeout without creating another provider order.
+  async getActivePaymentAttempt(customerId: string) {
+    const { data: attempt, error } = await supabase
+      .from('payment_attempts')
+      .select('cashfree_order_id, cashfree_payment_session_id, total_amount, status, created_at, order_id')
+      .eq('customer_id', customerId)
+      .eq('payment_provider', 'cashfree')
+      .eq('status', 'created')
+      .is('order_id', null)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      throw new BadRequestException('Unable to retrieve payment recovery status');
+    }
+    if (!attempt) return { success: true, state: 'none', attempt: null };
+
+    return {
+      success: true,
+      state: attempt.cashfree_payment_session_id ? 'ready' : 'reconciliation_required',
+      attempt: {
+        cashfreeOrderId: attempt.cashfree_order_id,
+        paymentSessionId: attempt.cashfree_payment_session_id,
+        amount: attempt.total_amount,
+        status: attempt.status,
+        createdAt: attempt.created_at,
+      },
+    };
+  }
+
   async verifyPayment(customerId: string, dto: VerifyPaymentDto) {
     const { data: attempt, error } = await supabase
       .from('payment_attempts')
