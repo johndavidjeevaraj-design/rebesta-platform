@@ -347,7 +347,7 @@ if (!Number.isFinite(totalAmount) || totalAmount <= 0 || !Number.isSafeInteger(M
   // ============================================================
 
   private assertCapturedPaymentMatchesAttempt(
-    payment: { order_id?: string; status?: string; amount?: number; currency?: string },
+    payment: { order_id?: string; status?: string; amount?: string | number; currency?: string },
     attempt: { razorpay_order_id: string; total_amount: number | string },
   ) {
     const expectedAmount = Math.round(Number(attempt.total_amount) * 100);
@@ -356,7 +356,7 @@ if (!Number.isFinite(totalAmount) || totalAmount <= 0 || !Number.isSafeInteger(M
       payment.status !== 'captured' ||
       payment.currency !== 'INR' ||
       !Number.isSafeInteger(expectedAmount) ||
-      payment.amount !== expectedAmount
+      Number(payment.amount) !== expectedAmount
     ) {
       throw new BadRequestException('Captured payment does not match the expected order amount and currency');
     }
