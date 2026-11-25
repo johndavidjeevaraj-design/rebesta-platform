@@ -230,3 +230,6 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 - [x] Unassigned-order feed payload removes customer name, street address, landmark and precise coordinates; it exposes only coarse city/state/pincode while retaining existing card fields to avoid layout changes.
 - [ ] Verify delivery app behavior, schema relation shapes, KYC denial and available-order filtering in staging; backend/client tests were not executable in this environment.
 - [ ] Socket gateway CORS and shared-key admin socket identity remain pending coordinated client/config review.
+
+- [x] Socket.IO browser CORS now uses the same explicit CORS_ALLOWED_ORIGINS configuration as HTTP rather than wildcard origin; native clients without browser origins remain supported by Socket.IO's origin handling.
+- [ ] Confirm staging web origins and native-client connectivity; CORS configuration and authentication need runtime validation.
