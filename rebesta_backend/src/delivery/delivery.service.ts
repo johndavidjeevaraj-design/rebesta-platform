@@ -197,28 +197,17 @@ export class DeliveryService {
     // (Fails open if the offers table is not set up yet.)
     // ============================================================
 
-    try {
-      const { data: activeOffers } = await supabase
-        .from('delivery_offers')
-        .select('delivery_partner_id')
-        .eq('order_id', orderId)
-        .eq('status', 'pending')
-        .gt('expires_at', new Date().toISOString());
-
-      if (activeOffers && activeOffers.length > 0) {
-        const mine = activeOffers.some(
-          (o) => o.delivery_partner_id === deliveryPartnerId,
-        );
-
-        if (!mine) {
-          throw new BadRequestException(
-            'This order is currently offered to another delivery partner',
-          );
-        }
-      }
-    } catch (e) {
-      if (e instanceof BadRequestException) throw e;
-      console.error('Offer fairness check skipped:', e);
+    const { data: activeOffers, error: offerCheckError } = await supabase
+      .from('delivery_offers')
+      .select('delivery_partner_id')
+      .eq('order_id', orderId)
+      .eq('status', 'pending')
+      .gt('expires_at', new Date().toISOString());
+    if (offerCheckError) {
+      throw new BadRequestException('Unable to verify active delivery offers');
+    }
+    if (activeOffers?.length && !activeOffers.some((o) => o.delivery_partner_id === deliveryPartnerId)) {
+      throw new BadRequestException('This order is currently offered to another delivery partner');
     }
 
     const { data, error } = await supabase
