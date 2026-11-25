@@ -1,5 +1,6 @@
 import {
   Injectable,
+  ForbiddenException,
 } from '@nestjs/common';
 
 import { HttpService } from '@nestjs/axios';
@@ -35,7 +36,7 @@ export class CustomerAuthService {
   async signup(_dto: CustomerSignupDto): Promise<never> {
     // Account creation must use the OTP-verified mobile flow. The legacy
     // email/password endpoint allowed registering somebody else's number.
-    throw new Error('Password signup is disabled. Use mobile OTP verification.');
+    throw new ForbiddenException('Password signup is disabled. Use mobile OTP verification.');
   }
 
   // ===============================
