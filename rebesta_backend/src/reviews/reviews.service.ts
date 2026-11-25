@@ -410,10 +410,15 @@ async deleteReview(
     );
   }
 
-  await supabase
+  const { error: deleteError } = await supabase
     .from('reviews')
     .delete()
-    .eq('id', reviewId);
+    .eq('id', reviewId)
+    .eq('customer_id', customerId);
+
+  if (deleteError) {
+    throw new BadRequestException('Unable to delete review');
+  }
 
   await this.updateRestaurantRating(
     review.restaurant_partner_id,
