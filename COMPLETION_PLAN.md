@@ -39,9 +39,13 @@ Benchmark: core functional capabilities of major food delivery platforms; not co
 - [x] Dispatch now has a database-enforced single-pending-offer-per-order index migration; duplicate concurrent inserts are treated as an already-claimed order, not as a reason to broadcast. Stale fallback broadcasts re-check order readiness, assignment, and pending offers.
 - [x] Added a periodic recovery sweep for up to 25 oldest ready/unassigned orders; it retries personal dispatch after transient failures and process restarts, while checking for an active offer before selecting another rider.
 - [ ] Apply and verify `20261125170000_one_pending_delivery_offer_per_order.sql` in the staging database before enabling this dispatch guarantee in a deployed environment.
+- [x] Rider acceptance now runs through `accept_delivery_order`, which locks the order row, verifies active offer ownership, prevents riders accepting while holding another live offer, and atomically assigns the order/settles offers.
+- [x] Dispatch re-checks order state after inserting a personal offer and supersedes it instead of notifying a rider if the order was accepted concurrently.
+- [ ] Add staging concurrency tests for simultaneous rider acceptance, dispatch insert vs acceptance, and one-pending-offer constraints.
 - [x] Dispatch now also prevents a rider from holding simultaneous pending offers for different orders, with candidate filtering plus a database unique index and retry-on-conflict.
 - [x] Removed delivery-app debug logging of full order/customer response payloads where reviewed.
-- [ ] Verify the delivery completion RPC against the live schema: `delivery_earnings` table and `delivery_partners` wallet/counter columns are referenced but are not created by repository migrations. Do not apply the migration until schema and grants are confirmed.
+- [x] Updated the delivery-completion migration to provision `delivery_earnings` and the rider wallet/counter columns before creating the OTP completion RPC.
+- [ ] Apply and verify the delivery-completion migration in staging; confirm the resulting table/column types, constraints, and service-role grants before enabling OTP earnings settlement.
 - [ ] Verify all public tables, policies, storage policies and RPC grants against the live Supabase schema; repository SQL alone cannot establish live database state.
 - [ ] Replace temporary public partner signup block with authenticated admin-issued invitations and approval checks.
 
