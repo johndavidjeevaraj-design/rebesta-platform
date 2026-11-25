@@ -19,7 +19,7 @@ export class AddressesService {
       .single();
 
     if (error) {
-      throw error;
+      throw new Error('Unable to save address');
     }
 
     return data;
@@ -36,7 +36,7 @@ export class AddressesService {
       .eq('user_id', user_id);
 
     if (error) {
-      throw error;
+      throw new Error('Unable to retrieve addresses');
     }
 
     return data;
@@ -70,7 +70,7 @@ export class AddressesService {
       .single();
 
     if (error) {
-      throw error;
+      throw new Error('Unable to update address');
     }
 
     return data;
@@ -90,7 +90,7 @@ export class AddressesService {
       .single();
 
     if (error) {
-      throw error;
+      throw new Error('Unable to delete address');
     }
 
     return data;
