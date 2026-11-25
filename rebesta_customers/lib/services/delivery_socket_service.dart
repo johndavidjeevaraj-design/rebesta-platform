@@ -29,13 +29,6 @@ class DeliverySocketService {
       throw Exception('Auth token not found');
     }
 
-    debugPrint('================================');
-    debugPrint('📡 CUSTOMER LIVE SOCKET');
-    debugPrint('Customer ID: $customerId');
-    debugPrint('Order ID: $orderId');
-    debugPrint('Socket URL: ${ApiConstants.baseUrl}');
-    debugPrint('================================');
-
     // Prevent duplicate connections
     disconnect();
 
@@ -55,44 +48,30 @@ class DeliverySocketService {
     // ==========================================================
 
     _socket!.onConnect((_) {
-      debugPrint('✅ CUSTOMER SOCKET CONNECTED');
-
       // Join customer room
       _socket!.emit(
         'join_customer',
         customerId,
       );
 
-      debugPrint(
-        '📡 Joined customer_$customerId',
-      );
-    });
+      });
 
     // ==========================================================
     // CONNECTION ERROR
     // ==========================================================
 
     _socket!.onConnectError((error) {
-      debugPrint(
-        '❌ CUSTOMER SOCKET CONNECT ERROR: $error',
-      );
-    });
+      });
 
     _socket!.onError((error) {
-      debugPrint(
-        '❌ CUSTOMER SOCKET ERROR: $error',
-      );
-    });
+      });
 
     // ==========================================================
     // DISCONNECT
     // ==========================================================
 
     _socket!.onDisconnect((reason) {
-      debugPrint(
-        '⚠️ CUSTOMER SOCKET DISCONNECTED: $reason',
-      );
-    });
+      });
 
     // ==========================================================
     // LIVE DELIVERY LOCATION
@@ -101,11 +80,6 @@ class DeliverySocketService {
     _socket!.on(
       'delivery_location',
       (data) {
-        debugPrint('================================');
-        debugPrint('📍 LIVE DELIVERY LOCATION');
-        debugPrint('DATA: $data');
-        debugPrint('================================');
-
         if (data is! Map) {
           return;
         }
@@ -116,9 +90,6 @@ class DeliverySocketService {
         // Only accept location updates
         // for the order currently being tracked.
         if (location['orderId']?.toString() != orderId) {
-          debugPrint(
-            '⚠️ Ignoring location for another order',
-          );
           return;
         }
 
@@ -134,8 +105,6 @@ class DeliverySocketService {
     _socket!.on(
       'order_status',
       (data) {
-        debugPrint('📦 ORDER STATUS EVENT: $data');
-
         if (data is! Map) return;
 
         final payload = Map<String, dynamic>.from(data);
@@ -155,8 +124,6 @@ class DeliverySocketService {
     _socket!.on(
       'delivery_assigned',
       (data) {
-        debugPrint('🚴 DELIVERY ASSIGNED EVENT: $data');
-
         if (data is! Map) return;
 
         final payload = Map<String, dynamic>.from(data);
@@ -180,10 +147,6 @@ class DeliverySocketService {
     if (_socket == null) {
       return;
     }
-
-    debugPrint(
-      '🔌 Disconnecting customer socket',
-    );
 
     _socket!.disconnect();
     _socket!.dispose();
