@@ -368,6 +368,37 @@ export class DispatchService implements OnModuleInit, OnModuleDestroy {
         throw new Error(`Could not create delivery offer: ${offerError?.message ?? 'offer missing'}`);
       }
 
+      // Re-check after inserting: a rider may have accepted the order
+      // between candidate selection and this offer insert. Never notify a
+      // rider about an order that has already left the ready/unassigned state.
+      const { data: currentOrder, error: currentOrderError } = await supabase
+        .from('orders')
+        .select('order_status, delivery_partner_id')
+        .eq('id', orderId)
+        .maybeSingle();
+
+      if (currentOrderError) {
+        await supabase
+          .from('delivery_offers')
+          .update({ status: 'superseded', responded_at: new Date().toISOString() })
+          .eq('id', offer.id)
+          .eq('status', 'pending');
+        throw new Error(`Post-offer order verification failed: ${currentOrderError.message}`);
+      }
+
+      if (
+        !currentOrder ||
+        currentOrder.order_status !== 'ready' ||
+        currentOrder.delivery_partner_id
+      ) {
+        await supabase
+          .from('delivery_offers')
+          .update({ status: 'superseded', responded_at: new Date().toISOString() })
+          .eq('id', offer.id)
+          .eq('status', 'pending');
+        return true;
+      }
+
       // --------------------------------------------------------
       // 8. Personal notification to the chosen rider
       // --------------------------------------------------------
