@@ -433,3 +433,13 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 - [!] Firebase Admin credentials file path is runtime dependency; secure provisioning/rotation and deployment validation pending.
 - [ ] Tests and runtime verification not executed.
 - No UI changes, deployment, merge or migrations.
+
+
+## Storage service hardening (2026-11-25)
+- [x] Food image upload service accepts only JPEG/PNG/WebP MIME labels and enforces a 5 MiB buffer limit.
+- [x] KYC upload service accepts only JPEG/PNG/PDF MIME labels and enforces a 10 MiB buffer limit; validates partner UUID; generated UUID storage names avoid user-controlled filenames and collisions.
+- [x] Upload error responses sanitized; uploads use upsert=false.
+- [x] KYC signed URL duration shortened from 60 minutes to 5 minutes; path format validated.
+- [!] MIME checks validate declared MIME only, not file magic bytes or malware scanning; route-level multipart limits and authorization must be verified. This service alone does not establish access control for issuing signed URLs (caller authorization must be audited).
+- [!] Repository tree inspection found storage service but no dedicated storage controller in backend src; verify actual upload routes and partner/customer call sites before integrating.
+- [ ] Tests and build not run; staging storage bucket configuration/access policies not verified.
