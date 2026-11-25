@@ -53,9 +53,7 @@ export class OrdersService {
       .maybeSingle();
 
     if (cartError) {
-      throw new Error(
-        `Cart lookup failed: ${cartError.message}`,
-      );
+      throw new Error('Unable to retrieve cart');
     }
 
     if (!cart) {
@@ -123,7 +121,7 @@ for (const item of cartItems) {
         .maybeSingle();
 
       if (restaurantLookupError) {
-        throw new Error(restaurantLookupError.message);
+        throw new Error('Unable to retrieve restaurant details');
       }
 
       const feeResult = await this.mapsService.calculateOrderDeliveryFee({
@@ -237,10 +235,7 @@ const totalAmount =
       .single();
 
     if (orderError || !order) {
-      throw new Error(
-        orderError?.message ??
-          'Failed to create order',
-      );
+      throw new Error('Unable to create order');
     }
 
     // ==========================================================
@@ -275,9 +270,7 @@ const totalAmount =
         .delete()
         .eq('id', order.id);
 
-      throw new Error(
-        itemError.message,
-      );
+      throw new Error('Unable to save order items');
     }
 
     // ==========================================================
@@ -296,16 +289,8 @@ try {
     },
   );
 
-  console.log(
-    '📡 New order event sent to partner:',
-    order.restaurant_partner_id,
-    order.id,
-  );
 } catch (socketError) {
-  console.error(
-    '❌ Failed to send new order socket event:',
-    socketError,
-  );
+  console.warn('Partner order notification delivery failed');
 }
 
 // ==========================================================
@@ -324,15 +309,8 @@ try {
     },
   );
 
-  console.log(
-    '🔔 New order FCM sent to partner:',
-    dto.restaurantPartnerId,
-  );
 } catch (error) {
-  console.error(
-    '❌ Partner FCM notification failed:',
-    error,
-  );
+  console.warn('Partner push notification delivery failed');
 }
     // ==========================================================
     // IMPORTANT
@@ -422,9 +400,7 @@ try {
       );
 
     if (error) {
-      throw new Error(
-        error.message,
-      );
+      throw new Error('Unable to retrieve orders');
     }
 
     return {
