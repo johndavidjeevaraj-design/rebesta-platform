@@ -1,6 +1,7 @@
 import {
   Injectable,
   ForbiddenException,
+  BadGatewayException,
 } from '@nestjs/common';
 
 import { HttpService } from '@nestjs/axios';
@@ -152,11 +153,16 @@ export class CustomerAuthService {
     }
 
     const url = `https://2factor.in/API/V1/${apiKey}/SMS/+91${cleanMobile}/AUTOGEN/OTP1`;
-    const response = await firstValueFrom(this.httpService.get(url));
-    const result = response.data;
+    let result: any;
+    try {
+      const response = await firstValueFrom(this.httpService.get(url));
+      result = response.data;
+    } catch {
+      throw new BadGatewayException('Unable to send verification code. Please try again.');
+    }
 
     if (!result || result.Status !== 'Success' || !result.Details) {
-      throw new Error(result?.Details?.toString() ?? 'Unable to send OTP');
+      throw new BadGatewayException('Unable to send verification code. Please try again.');
     }
 
     // Sign the provider session together with the destination number. A raw
@@ -206,11 +212,16 @@ async verifyOtp(
   }
 
   const url = `https://2factor.in/API/V1/${apiKey}/SMS/VERIFY/${encodeURIComponent(challenge.providerSessionId)}/${encodeURIComponent(otp)}`;
-  const response = await firstValueFrom(this.httpService.get(url));
-  const result = response.data;
+  let result: any;
+  try {
+    const response = await firstValueFrom(this.httpService.get(url));
+    result = response.data;
+  } catch {
+    throw new BadGatewayException('OTP verification service is temporarily unavailable. Please try again.');
+  }
 
   if (!result || result.Status !== 'Success') {
-    throw new Error(result?.Details || 'Invalid OTP');
+    throw new ForbiddenException('Invalid or expired OTP');
   }
 
   const { data: customer, error } = await supabase
