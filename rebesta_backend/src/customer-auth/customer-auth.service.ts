@@ -288,11 +288,8 @@ async verifyOtp(
 
   const result = response.data;
 
-  console.log(
-    '2Factor verify response:',
-    result,
-  );
-
+  // Do not log OTP provider responses or verification data.
+  
   if (
     !result ||
     result.Status !== 'Success'
@@ -323,11 +320,23 @@ async verifyOtp(
   // =====================================
 
   if (!customer) {
+    const verificationToken = await this.jwtService.signAsync(
+      {
+        purpose: 'customer_profile_completion',
+        mobile: cleanMobile,
+      },
+      {
+        secret: process.env.JWT_SECRET,
+        expiresIn: '5m',
+      },
+    );
+
     return {
       success: true,
       verified: true,
       isNewCustomer: true,
       mobile: cleanMobile,
+      verificationToken,
     };
   }
 
@@ -416,126 +425,70 @@ async updateProfile(
 async completeProfile(
   mobile: string,
   name: string,
+  verificationToken: string,
 ) {
-  if (!mobile || !name) {
-    throw new Error('Name and mobile number are required');
+  if (!mobile || !name || !verificationToken) {
+    throw new Error('Name, mobile number and OTP verification token are required');
   }
 
-  const cleanMobile = mobile
-    .replace(/\D/g, '')
-    .slice(-10);
-
+  const cleanMobile = mobile.replace(/\D/g, '').slice(-10);
   const cleanName = name.trim();
 
   if (cleanMobile.length !== 10) {
     throw new Error('Invalid mobile number');
   }
-
-  if (cleanName.length < 2) {
-    throw new Error('Please enter a valid name');
+  if (cleanName.length < 2 || cleanName.length > 100) {
+    throw new Error('Name must be between 2 and 100 characters');
   }
 
-  // ============================================================
-  // CHECK EXISTING CUSTOMER
-  // ============================================================
+  // The proof is minted only after the SMS provider confirms the OTP.
+  // It is short-lived and cryptographically bound to the verified number.
+  let proof: { purpose?: string; mobile?: string };
+  try {
+    proof = await this.jwtService.verifyAsync(verificationToken, {
+      secret: process.env.JWT_SECRET,
+    });
+  } catch {
+    throw new Error('OTP verification expired or invalid; please verify again');
+  }
 
-  const { data: existingCustomer, error: existingError } =
-    await supabase
-      .from('customers')
-      .select('id, name, email, mobile')
-      .eq('mobile', cleanMobile)
-      .maybeSingle();
+  if (
+    proof?.purpose !== 'customer_profile_completion' ||
+    proof.mobile !== cleanMobile
+  ) {
+    throw new Error('OTP verification does not match this mobile number');
+  }
+
+  // Never let profile completion modify or mint a token for an existing
+  // account. Existing customers receive their login token from verifyOtp.
+  const { data: existingCustomer, error: existingError } = await supabase
+    .from('customers')
+    .select('id')
+    .eq('mobile', cleanMobile)
+    .maybeSingle();
 
   if (existingError) {
-    console.error(
-      'Existing customer lookup error:',
-      existingError,
-    );
-
-    throw new Error(existingError.message);
+    throw new Error('Unable to verify customer account status');
   }
-
-  // ============================================================
-  // CUSTOMER EXISTS
-  // UPDATE NAME WITH THE NAME ENTERED NOW
-  // ============================================================
-
   if (existingCustomer) {
-    const { data: updatedCustomer, error: updateError } =
-      await supabase
-        .from('customers')
-        .update({
-          name: cleanName,
-        })
-        .eq('id', existingCustomer.id)
-        .select('id, name, email, mobile')
-        .single();
-
-    if (updateError) {
-      console.error(
-        'UPDATE CUSTOMER ERROR:',
-        updateError,
-      );
-
-      throw new Error(updateError.message);
-    }
-
-    // ==========================================================
-    // CREATE JWT
-    // ==========================================================
-
-    const payload = {
-      sub: updatedCustomer.id,
-      customerId: updatedCustomer.id,
-      email: updatedCustomer.email ?? null,
-      role: 'customer',
-    };
-
-    const token =
-      await this.jwtService.signAsync(payload);
-
-    return {
-      success: true,
-      isNewCustomer: false,
-      token,
-
-      customer: {
-        id: updatedCustomer.id,
-        name: updatedCustomer.name,
-        email: updatedCustomer.email,
-        mobile: updatedCustomer.mobile,
-      },
-    };
+    throw new Error('An account already exists; verify the number again to sign in');
   }
 
-  // ============================================================
-  // CREATE NEW CUSTOMER
-  // ============================================================
+  const { data: customer, error: createError } = await supabase
+    .from('customers')
+    .insert({
+      name: cleanName,
+      mobile: cleanMobile,
+      email: null,
+      password: null,
+    })
+    .select('id, name, email, mobile')
+    .single();
 
-  const { data: customer, error: createError } =
-    await supabase
-      .from('customers')
-      .insert({
-        name: cleanName,
-        mobile: cleanMobile,
-        email: null,
-        password: null,
-      })
-      .select('id, name, email, mobile')
-      .single();
-
-  if (createError) {
-    console.error(
-      'CREATE CUSTOMER ERROR:',
-      createError,
-    );
-
-    throw new Error(createError.message);
+  if (createError || !customer) {
+    // A unique mobile constraint also protects concurrent profile creation.
+    throw new Error('Unable to create customer account; verify the number again');
   }
-
-  // ============================================================
-  // CREATE JWT
-  // ============================================================
 
   const payload = {
     sub: customer.id,
@@ -543,19 +496,12 @@ async completeProfile(
     email: customer.email ?? null,
     role: 'customer',
   };
-
-  const token =
-    await this.jwtService.signAsync(payload);
-
-  // ============================================================
-  // RETURN NEW CUSTOMER
-  // ============================================================
+  const token = await this.jwtService.signAsync(payload);
 
   return {
     success: true,
     isNewCustomer: true,
     token,
-
     customer: {
       id: customer.id,
       name: customer.name,
