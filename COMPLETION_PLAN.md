@@ -584,3 +584,9 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 ## Cart concurrency audit disposition (2026-11-25)
 - [!] Existing cart creation and item quantity updates use separate read/write calls. Concurrent requests may create duplicate carts or lose increments. Do not claim this is fixed by price-snapshot refresh.
 - [ ] Resolve safely with database uniqueness constraints and an atomic RPC/transaction approach, plus tests and staging verification. Schema change is intentionally deferred; no migration executed.
+
+
+## Address API error privacy (2026-11-25)
+- [x] Customer address CRUD service now replaces raw Supabase error throws with generic operation-specific errors for create, read, update, and delete, reducing exposure of provider/database error payloads.
+- [!] API ownership filters on update/delete remain in place; behavior for missing records and downstream exception mapping has not been runtime tested.
+- Commit: ebba20aec72cf50a2650136f1abc7dac89152b52.
