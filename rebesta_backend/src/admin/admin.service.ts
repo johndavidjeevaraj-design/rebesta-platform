@@ -1,12 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { supabase } from '../supabase';
 import { StorageService } from '../storage/storage.service';
+import { PaymentsService } from '../payments/payments.service';
 
 @Injectable()
 export class AdminService {
 
   constructor(
     private readonly storageService: StorageService,
+    private readonly paymentsService: PaymentsService,
   ) {}
 
   // ==========================
@@ -987,26 +989,8 @@ async cancelOrder(id: string) {
 // Refund Order
 // ==========================
 async refundOrder(id: string) {
-
-  const { data, error } = await supabase
-    .from('orders')
-    .update({
-      payment_status: 'refunded',
-    })
-    .eq('id', id)
-    .select()
-    .single();
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  return {
-    success: true,
-    message: 'Refund processed successfully',
-    order: data,
-  };
-
+  // Use the same provider-backed refund flow as the payments endpoint.
+  return this.paymentsService.refund(id);
 }
 async getAnalytics() {
 
