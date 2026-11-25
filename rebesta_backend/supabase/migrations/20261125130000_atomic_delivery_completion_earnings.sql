@@ -1,3 +1,27 @@
+-- Ensure the rider wallet and earnings schema exists before the RPC
+-- is created. These fields are already consumed by the delivery app.
+alter table public.delivery_partners
+  add column if not exists wallet_balance numeric(12,2) not null default 0,
+  add column if not exists total_earnings numeric(12,2) not null default 0,
+  add column if not exists pending_payout numeric(12,2) not null default 0,
+  add column if not exists completed_deliveries integer not null default 0;
+
+create table if not exists public.delivery_earnings (
+  id uuid primary key default gen_random_uuid(),
+  delivery_partner_id uuid not null
+    references public.delivery_partners(id) on delete cascade,
+  order_id uuid not null
+    references public.orders(id) on delete cascade,
+  amount numeric(12,2) not null check (amount > 0),
+  status text not null default 'pending'
+    check (status in ('pending', 'paid', 'reversed')),
+  created_at timestamptz not null default now(),
+  constraint delivery_earnings_order_id_key unique (order_id)
+);
+
+create index if not exists idx_delivery_earnings_partner_created
+  on public.delivery_earnings(delivery_partner_id, created_at desc);
+
 -- Atomically verify delivery OTP, transition order and credit delivery earnings.
 create or replace function public.complete_delivery_with_otp(p_order_id uuid, p_partner_id uuid, p_otp text, p_amount numeric default 40)
 returns jsonb
