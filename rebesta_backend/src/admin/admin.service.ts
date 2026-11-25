@@ -1247,3 +1247,14 @@ export function isAdminCancellableOrder(
     ['pending', 'failed', 'refunded'].includes(paymentStatus)
   );
 }
+
+
+export function isAllowedRestaurantAdminTransition(currentStatus: string, nextStatus: string): boolean {
+  const transitions: Record<string, string[]> = {
+    pending: ['approved', 'rejected'],
+    approved: ['blocked'],
+    blocked: ['approved'],
+    rejected: [],
+  };
+  return transitions[currentStatus]?.includes(nextStatus) ?? false;
+}
