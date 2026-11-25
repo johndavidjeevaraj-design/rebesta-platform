@@ -191,3 +191,11 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 - Delivery tracking and active-delivery payloads include customer/rider contact and location data. These are expected to be restricted to the authenticated order owner or assigned rider respectively; verify realtime socket room authorization and app-side direct Supabase access in staging.
 - No broad authorization bypass was confirmed in the inspected controller/service snippets, but review is not exhaustive: endpoint coverage, sockets, storage, Supabase live policies and runtime abuse tests remain outstanding.
 - No code changes to API payloads were made in this audit pass because the available repository tools cannot run app contract tests or validate compatibility safely.
+
+
+## Realtime/socket authorization review (2026-11-25)
+- Customer, restaurant partner and rider room-join handlers compare requested IDs to authenticated token identity; order-room joins query the order and validate ownership/assignment.
+- **Critical authorization gap identified:** the `rider_location` socket event checks only that the sender has the delivery role, then relays arbitrary payload/orderId into the corresponding order room. It does not verify the rider is assigned to that order, validate coordinates, or bind the event to server-side rider identity. A rider account could spoof location updates to other order rooms. Fix before staging: authorize active assignment against the database, derive rider ID from JWT, validate payload schema/ranges, and emit server-controlled fields only.
+- Admin socket joining uses direct shared-key comparison and has no individual identity/role session. The shared static key approach is a temporary boundary; require server-side access control and key rotation review.
+- Socket gateway CORS currently uses wildcard origin; it should be constrained to the approved app/web origins, coordinated with connection auth and client deployment.
+- Findings recorded; realtime contract/runtime tests unavailable here, so no socket payload or access behavior changed in this pass.
