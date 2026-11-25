@@ -122,6 +122,10 @@ async approveRestaurant(id: string) {
     throw new Error(error.message);
   }
 
+  if (!data) {
+    throw new ConflictException(`${entity} status changed or transition is not allowed`);
+  }
+
   return {
     success: true,
     message: 'Restaurant approved',
@@ -136,11 +140,16 @@ async rejectRestaurant(id: string) {
       status: 'rejected',
     })
     .eq('id', id)
+    .eq('status', 'pending')
     .select()
     .single();
 
   if (error) {
     throw new Error(error.message);
+  }
+
+  if (!data) {
+    throw new ConflictException(`${entity} status changed or transition is not allowed`);
   }
 
   return {
@@ -157,11 +166,16 @@ async blockRestaurant(id: string) {
       status: 'blocked',
     })
     .eq('id', id)
+    .eq('status', 'approved')
     .select()
     .single();
 
   if (error) {
     throw new Error(error.message);
+  }
+
+  if (!data) {
+    throw new ConflictException(`${entity} status changed or transition is not allowed`);
   }
 
   return {
@@ -178,11 +192,16 @@ async unblockRestaurant(id: string) {
       status: 'approved',
     })
     .eq('id', id)
+    .eq('status', 'blocked')
     .select()
     .single();
 
   if (error) {
     throw new Error(error.message);
+  }
+
+  if (!data) {
+    throw new ConflictException(`${entity} status changed or transition is not allowed`);
   }
 
   return {
