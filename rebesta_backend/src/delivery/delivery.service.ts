@@ -22,7 +22,23 @@ export class DeliveryService {
   // Available Orders
   // ============================================================
 
-  async getAvailableOrders() {
+  async getAvailableOrders(deliveryPartnerId: string) {
+    // Do not expose the unassigned-order pool to unverified riders.
+    const { data: rider, error: riderError } = await supabase
+      .from('delivery_partners')
+      .select('id, kyc_status')
+      .eq('id', deliveryPartnerId)
+      .maybeSingle();
+
+    if (riderError || !rider) {
+      throw new BadRequestException('Unable to verify delivery partner');
+    }
+    if (rider.kyc_status !== 'verified') {
+      throw new ForbiddenException('KYC verification is required to view available orders');
+    }
+
+    // Before assignment, reveal only a coarse destination area. Do not
+    // expose customer identity, street address, landmark or coordinates.
     const { data, error } = await supabase
       .from('orders')
       .select(`
@@ -30,20 +46,10 @@ export class DeliveryService {
         total_amount,
         order_status,
         created_at,
-
-        customers(
-          name
-        ),
-
         addresses(
-          title,
-          address,
-          landmark,
           city,
           state,
-          pincode,
-          latitude,
-          longitude
+          pincode
         )
       `)
       .eq('order_status', 'ready')
@@ -52,6 +58,26 @@ export class DeliveryService {
     if (error) {
       throw new BadRequestException(error.message);
     }
+
+    const sanitized = (data ?? []).map((order) => {
+      const address = order.addresses as
+        | { city?: string | null; state?: string | null; pincode?: string | null }
+        | null;
+      const coarseArea = [address?.city, address?.state, address?.pincode]
+        .filter((part): part is string => Boolean(part && part.trim()))
+        .join(', ');
+      return {
+        ...order,
+        customers: { name: 'Customer' },
+        addresses: {
+          address: coarseArea || 'Delivery area unavailable',
+          landmark: null,
+          city: address?.city ?? null,
+          state: address?.state ?? null,
+          pincode: address?.pincode ?? null,
+        },
+      };
+    });
 
     // ============================================================
     // SWIGGY-STYLE: hide orders that are currently being offered
@@ -68,7 +94,7 @@ export class DeliveryService {
       throw new BadRequestException('Unable to safely load delivery offers');
     }
     const offeredOrderIds = new Set((pendingOffers ?? []).map((o) => o.order_id as string));
-    const pool = (data ?? []).filter((o) => !offeredOrderIds.has(o.id as string));
+    const pool = sanitized.filter((o) => !offeredOrderIds.has(o.id as string));
 
     return {
       success: true,
