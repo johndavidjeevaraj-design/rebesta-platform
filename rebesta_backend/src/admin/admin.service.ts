@@ -329,6 +329,7 @@ async getDeliveryPartners() {
       .eq('delivery_partner_id', partner.id)
       .in('order_status', [
         'accepted',
+        'accepted_for_delivery',
         'picked_up',
         'out_for_delivery',
       ])
@@ -433,7 +434,9 @@ async getDeliveryPartner(id: string) {
   }
 
   const lifetimeEarnings = (earnings ?? []).reduce(
-    (sum, earning) => sum + Number(earning.amount),
+    (sum, earning) => earning.status !== 'reversed'
+      ? sum + Number(earning.amount)
+      : sum,
     0,
   );
   const pendingPayout = (earnings ?? [])
