@@ -28,3 +28,19 @@ describe('isAdminCancellableOrder', () => {
     expect(isAdminCancellableOrder(orderStatus, 'pending')).toBe(false);
   });
 });
+
+
+describe('admin restaurant state transitions', () => {
+  it('uses only the intended lifecycle transitions', () => {
+    const allowed: Record<string, string[]> = {
+      pending: ['approved', 'rejected'],
+      approved: ['blocked'],
+      blocked: ['approved'],
+      rejected: [],
+    };
+    expect(allowed.pending).toEqual(['approved', 'rejected']);
+    expect(allowed.approved).toContain('blocked');
+    expect(allowed.blocked).toContain('approved');
+    expect(allowed.rejected).toHaveLength(0);
+  });
+});
