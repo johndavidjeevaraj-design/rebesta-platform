@@ -288,6 +288,7 @@ if (!Number.isFinite(totalAmount) || totalAmount <= 0 || !Number.isSafeInteger(M
         address_id: isPickup
         ? null
         : dto.addressId,
+        order_type: isPickup ? 'pickup' : 'delivery',
         subtotal,
         discount_amount: discount,
         delivery_fee: finalDeliveryFee,
