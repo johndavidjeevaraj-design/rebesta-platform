@@ -27,8 +27,12 @@ export class DeliveryController {
 
   @Get('available-orders')
   @UseGuards(DeliveryJwtGuard)
-  getAvailableOrders() {
-    return this.deliveryService.getAvailableOrders();
+  getAvailableOrders(
+    @Req() req,
+  ) {
+    return this.deliveryService.getAvailableOrders(
+      req.user.deliveryPartnerId,
+    );
   }
 
   // ==========================
