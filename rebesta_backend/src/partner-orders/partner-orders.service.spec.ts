@@ -78,6 +78,27 @@ describe('canAcceptRestaurantOrder', () => {
       razorpay_order_id: 'order_test_123',
     })).toBe(true);
   });
+
+  it('allows captured Cashfree orders', () => {
+    expect(canAcceptRestaurantOrder({
+      order_status: 'pending',
+      payment_status: 'paid',
+      cashfree_order_id: 'rb_order_test_123',
+    })).toBe(true);
+  });
+
+  it('rejects unpaid Cashfree orders', () => {
+    expect(canAcceptRestaurantOrder({
+      order_status: 'pending',
+      payment_status: 'pending',
+      cashfree_order_id: 'rb_order_test_123',
+    })).toBe(false);
+    expect(canAcceptRestaurantOrder({
+      order_status: 'pending',
+      payment_status: 'failed',
+      cashfree_order_id: 'rb_order_test_123',
+    })).toBe(false);
+  });
 });
 
 
