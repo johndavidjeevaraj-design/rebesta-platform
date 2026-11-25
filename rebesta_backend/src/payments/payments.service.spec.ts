@@ -1,0 +1,38 @@
+import { isCashfreePaymentMatch } from './payments.service';
+
+describe('isCashfreePaymentMatch', () => {
+  const attempt = {
+    cashfree_order_id: 'rb_order_123',
+    total_amount: 349.5,
+  };
+
+  const payment = {
+    order_id: 'rb_order_123',
+    payment_status: 'SUCCESS',
+    payment_currency: 'INR',
+    order_amount: 349.5,
+    payment_amount: 349.5,
+    cf_payment_id: 123456789,
+  };
+
+  it('accepts a successful payment with the exact order, amount and currency', () => {
+    expect(isCashfreePaymentMatch(payment, attempt)).toBe(true);
+  });
+
+  it.each([
+    [{ ...payment, order_id: 'another-order' }, 'wrong order'],
+    [{ ...payment, payment_status: 'PENDING' }, 'pending payment'],
+    [{ ...payment, payment_currency: 'USD' }, 'wrong currency'],
+    [{ ...payment, order_amount: 349 }, 'provider order amount mismatch'],
+    [{ ...payment, payment_amount: 300 }, 'captured payment amount mismatch'],
+    [{ ...payment, cf_payment_id: null }, 'missing provider payment ID'],
+  ])('rejects %s', (invalidPayment) => {
+    expect(isCashfreePaymentMatch(invalidPayment, attempt)).toBe(false);
+  });
+
+  it('rejects an invalid expected amount', () => {
+    expect(
+      isCashfreePaymentMatch(payment, { ...attempt, total_amount: 'not-a-number' }),
+    ).toBe(false);
+  });
+});
