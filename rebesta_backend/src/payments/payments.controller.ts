@@ -15,6 +15,7 @@ import { ReconcilePaymentDto } from './dto/reconcile-payment.dto';
 
 import { CustomerJwtGuard } from '../customer-auth/customer-jwt.guard';
 import { AdminGuard } from '../admin/admin.guard';
+import { Throttle } from '@nestjs/throttler';
 
 @Controller('payments')
 export class PaymentsController {
@@ -22,6 +23,7 @@ export class PaymentsController {
     private readonly paymentsService: PaymentsService,
   ) {}
 
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('create-order')
   @UseGuards(CustomerJwtGuard)
   createOrder(
@@ -34,6 +36,7 @@ export class PaymentsController {
     );
   }
 
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Post('verify')
   @UseGuards(CustomerJwtGuard)
   verifyPayment(
@@ -46,6 +49,7 @@ export class PaymentsController {
     );
   }
 
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('refund/:orderId')
   @UseGuards(AdminGuard)
   refund(@Param('orderId') orderId: string) {
@@ -63,6 +67,7 @@ webhook(@Req() req, @Body() body: any) {
     req.rawBody,
   );
 }
+    @Throttle({ default: { limit: 5, ttl: 60000 } })
     @Post('reconcile')
   @UseGuards(CustomerJwtGuard)
   reconcile(
