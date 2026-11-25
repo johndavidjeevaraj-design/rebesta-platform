@@ -50,7 +50,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _loading = false;
       });
     } catch (e) {
-      debugPrint('PROFILE LOAD ERROR: $e');
+
 
       if (!mounted) return;
 
@@ -138,7 +138,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         const SnackBar(content: Text('Profile updated')),
       );
     } catch (e) {
-      debugPrint('PROFILE UPDATE ERROR: $e');
+undefined
 
       if (!mounted) return;
 
