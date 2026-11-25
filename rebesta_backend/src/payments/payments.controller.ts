@@ -11,6 +11,7 @@ import { PaymentsService } from './payments.service';
 
 import { CreateCheckoutPaymentDto } from './dto/create-checkout-payment.dto';
 import { VerifyPaymentDto } from './dto/verify-payment.dto';
+import { ReconcilePaymentDto } from './dto/reconcile-payment.dto';
 
 import { CustomerJwtGuard } from '../customer-auth/customer-jwt.guard';
 import { AdminGuard } from '../admin/admin.guard';
@@ -66,7 +67,7 @@ webhook(@Req() req, @Body() body: any) {
   @UseGuards(CustomerJwtGuard)
   reconcile(
     @Req() req,
-    @Body() body: { razorpayOrderId: string },
+    @Body() body: ReconcilePaymentDto,
   ) {
     return this.paymentsService.reconcilePayment(
       req.user.customerId,
