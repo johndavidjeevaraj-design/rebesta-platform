@@ -228,16 +228,14 @@ async updateStatus(
 
       })
       .eq('id', orderId)
+      .eq('restaurant_partner_id', restaurantPartnerId)
+      .eq('order_status', order.order_status)
       .select()
       .single();
 
 
-  if (error) {
-
-    throw new Error(
-      error.message,
-    );
-
+  if (error || !data) {
+    throw new Error(error?.message ?? 'Order status changed concurrently; refresh and retry');
   }
 
         // Live Socket Update
