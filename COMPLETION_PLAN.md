@@ -519,3 +519,6 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 - [ ] Review legacy SocketService handshake authentication and room-join lifecycle: the reviewed legacy service does not currently attach the customer JWT or handle reconnect room rejoin. Prefer DeliverySocketService for authenticated order tracking; confirm legacy service callers and retire/secure it before release.
 - [ ] Review customer logout/session invalidation and secure local token storage; SharedPreferences is currently used for token persistence, and clearing local preferences is not server-side revocation.
 - [ ] Run Flutter analyze/tests and socket runtime integration checks; these changes have not been locally executed or staged.
+
+- [x] Customer profile screen no longer prints raw profile API exceptions in debug output.
+- [x] Expired customer sessions clear cached token, customer ID, name and email before redirecting to login; pending payment reconciliation data remains untouched.
