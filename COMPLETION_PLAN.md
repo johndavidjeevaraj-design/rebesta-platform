@@ -625,3 +625,11 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 - [!] The endpoint still does not return the attempt/order ID in its error response, so customer-facing recovery UX needs a safe way to retrieve the active attempt. Do not tell customers to immediately create a second payment attempt. Add an authenticated active-attempt lookup/retry flow and test timeout-after-provider-success and DB-session-write failure before release.
 - Static source edit only; tests and live Cashfree replay not run. No migration, deployment or merge.
 - Commit: `00b54660`.
+
+
+## Authenticated Cashfree active-attempt recovery endpoint (2026-11-25)
+- [x] Added `GET /payments/active-attempt`, protected by `CustomerJwtGuard` and a 10/minute throttle. It scopes the newest unresolved `created` Cashfree attempt to the authenticated customer and returns only the order ID, optional payment-session ID, amount, state and creation time.
+- [x] Returns `ready` when a payment session is present, `reconciliation_required` when the attempt exists without a session, and `none` when there is no unresolved attempt. The client can use the returned Cashfree order ID with the existing authenticated reconciliation endpoint rather than blindly creating a second attempt.
+- [!] This is a recovery primitive, not a complete duplicate-attempt lock. Concurrent create-order requests can still create multiple attempts; a database-backed active-attempt uniqueness/claim strategy and customer UI integration are required. The `created` state is intentionally retained for uncertain provider outcomes, so the client must reconcile before offering a fresh payment.
+- Static source edits only; tests, compilation and Cashfree sandbox replay not run. No migration, deployment or merge.
+- Commits: `ee855d8f` (service lookup), `d0b378ab` (controller endpoint).
