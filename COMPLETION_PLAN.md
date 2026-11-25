@@ -172,3 +172,12 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 - The verification and reconciliation paths query Cashfree's authoritative payments list and require a successful payment matching the expected order, amount and INR currency. A success webhook triggers this same authoritative lookup instead of trusting its payload alone.
 - Failure webhooks intentionally do not mutate attempt state; reconciliation handles terminal failure/expiry after checking provider state.
 - **Not verified:** live schema/types/constraints/grants, RPC race behavior under simultaneous webhook + verify + reconcile, malformed snapshot rollback, duplicate provider payment IDs, sandbox event ordering, and integration tests. No migration applied and no deployment performed.
+
+
+## Database security / privileged RPC audit notes (2026-11-25)
+- Reviewed the public-schema lockdown migration: it enables RLS for all tables currently in the public schema and revokes direct table/sequence privileges from anon and authenticated roles. This is a deliberate API-only architecture boundary; staging must verify all app flows still use backend APIs and the service-role smoke test.
+- The migration does not establish default privileges for future public tables; newly created tables/functions must be reviewed separately and secure grants/RLS explicitly.
+- RPCs reviewed in this pass use SECURITY DEFINER and explicit search_path, with service_role-only execution grants/revokes for the inspected functions.
+- **Concurrency concern for rider assignment:** the acceptance RPC locks the order row, but its check against the rider's other active offer/assignment is not a rider-level serialization lock. Simultaneous accepts of separate orders by the same rider need staging race testing and likely rider-level locking/constraint strategy.
+- **Schema review is not live verification:** storage bucket policies, all existing public-table policies, live RPC grants, default privileges, direct mobile Supabase access dependencies and live table ownership remain unverified without database inspection.
+- No migration or deployment was performed during this review.
