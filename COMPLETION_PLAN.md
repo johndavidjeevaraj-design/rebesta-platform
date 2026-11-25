@@ -280,3 +280,9 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 ## OTP profile-completion abuse protection (2026-11-25)
 - [x] Added endpoint-specific throttling (5 requests/minute) to customer profile completion, which previously had no route-level throttle.
 - [ ] Validate throttling in staging and review distributed throttler storage for multi-instance deployments.
+
+
+## Partner OTP provider hardening (2026-11-25)
+- [x] Partner OTP send/verify now suppress upstream diagnostic details and normalize provider transport/response failures.
+- [x] Invalid OTP uses a generic authorization response.
+- [ ] Validate provider failure paths and login flows in staging; tests not executed.
