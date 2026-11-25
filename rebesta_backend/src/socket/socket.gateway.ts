@@ -223,7 +223,7 @@ emitToPartner(
 // ==========================================================
 
 @SubscribeMessage('join_delivery')
-joinDelivery(
+async joinDelivery(
   @MessageBody() deliveryPartnerId: string,
   @ConnectedSocket() client: Socket,
 ) {
@@ -245,15 +245,17 @@ joinDelivery(
     };
   }
 
-  client.join(
-    `delivery_${deliveryPartnerId}`,
-  );
+  const { data: rider, error: riderError } = await supabase
+    .from('delivery_partners')
+    .select('kyc_status')
+    .eq('id', deliveryPartnerId)
+    .maybeSingle();
 
-  // ==========================================================
-  // Shared feed room: every AUTHENTICATED rider listens
-  // here for new orders entering the delivery pool.
-  // ==========================================================
+  if (riderError || rider?.kyc_status !== 'verified') {
+    return { success: false, message: 'Verified KYC required' };
+  }
 
+  client.join(`delivery_${deliveryPartnerId}`);
   client.join('delivery_feed');
 
   console.log(
