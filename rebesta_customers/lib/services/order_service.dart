@@ -63,28 +63,11 @@ Future<Map<String, dynamic>> checkout({
     'wallet': wallet,
   };
 
-  debugPrint('================================');
-  debugPrint('📦 POST /orders/checkout');
-  debugPrint('addressId: $addressId');
-  debugPrint(
-    'restaurantPartnerId: $restaurantPartnerId',
-  );
-  debugPrint('couponCode: $couponCode');
-  debugPrint('wallet: $wallet');
-  debugPrint('DATA: $data');
-  debugPrint('================================');
-
   final response = await _dio.post(
     '/orders/checkout',
     data: data,
     options: await _authOptions(),
   );
-
-  debugPrint('================================');
-  debugPrint('📦 CHECKOUT RESPONSE');
-  debugPrint('STATUS: ${response.statusCode}');
-  debugPrint('DATA: ${response.data}');
-  debugPrint('================================');
 
   return Map<String, dynamic>.from(
     response.data,
@@ -99,12 +82,6 @@ Future<Map<String, dynamic>> checkout({
       '/orders/my',
       options: await _authOptions(),
     );
-
-    debugPrint('================================');
-  debugPrint('📦 GET MY ORDERS RESPONSE');
-  debugPrint('STATUS: ${response.statusCode}');
-  debugPrint('DATA: ${response.data}');
-  debugPrint('================================');
 
     return Map<String, dynamic>.from(
       response.data,
