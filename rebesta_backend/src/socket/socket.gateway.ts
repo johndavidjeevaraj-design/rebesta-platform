@@ -411,30 +411,65 @@ emitToAdmin(
 // ============================================================
 
 @SubscribeMessage('rider_location')
-handleLocation(
- client: Socket,
- payload:any
-){
+async handleLocation(
+  @ConnectedSocket() client: Socket,
+  @MessageBody() payload: { orderId?: unknown; latitude?: unknown; longitude?: unknown },
+) {
   const user = this.identity(client);
 
   if (user == null || user.role !== 'delivery') {
-    console.log('⛔ rider_location denied');
-
-    return {
-      success: false,
-      message: 'Not allowed',
-    };
+    return { success: false, message: 'Not allowed' };
   }
 
- console.log(payload);
+  const orderId = payload?.orderId;
+  const latitude = payload?.latitude;
+  const longitude = payload?.longitude;
 
- this.server
- .to(`order_${payload.orderId}`)
- .emit(
-   'rider_location_update',
-   payload
- );
+  if (
+    typeof orderId !== 'string' ||
+    orderId.length < 1 ||
+    orderId.length > 128 ||
+    typeof latitude !== 'number' ||
+    !Number.isFinite(latitude) ||
+    latitude < -90 ||
+    latitude > 90 ||
+    typeof longitude !== 'number' ||
+    !Number.isFinite(longitude) ||
+    longitude < -180 ||
+    longitude > 180
+  ) {
+    return { success: false, message: 'Invalid location payload' };
+  }
 
+  // Only the assigned rider may update location for an active order.
+  // Do not trust rider IDs or other fields supplied by the client.
+  const { data: order, error } = await supabase
+    .from('orders')
+    .select('id, delivery_partner_id, order_status')
+    .eq('id', orderId)
+    .eq('delivery_partner_id', user.sub)
+    .in('order_status', [
+      'accepted_for_delivery',
+      'arrived_at_restaurant',
+      'picked_up',
+      'out_for_delivery',
+      'arrived_at_customer',
+    ])
+    .maybeSingle();
+
+  if (error || !order) {
+    return { success: false, message: 'Not allowed' };
+  }
+
+  this.server.to(`order_${order.id}`).emit('rider_location_update', {
+    orderId: order.id,
+    deliveryPartnerId: user.sub,
+    latitude,
+    longitude,
+    updatedAt: new Date().toISOString(),
+  });
+
+  return { success: true };
 }
 
 // ============================================================
