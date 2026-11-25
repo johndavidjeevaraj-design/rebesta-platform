@@ -1,7 +1,17 @@
 -- Preserve delivery vs pickup intent across online payment attempts.
 -- Existing attempts default to delivery for backwards compatibility.
 ALTER TABLE public.payment_attempts
-  ADD COLUMN IF NOT EXISTS order_type text NOT NULL DEFAULT 'delivery';
+  ADD COLUMN IF NOT EXISTS order_type text;
+
+-- Older payment attempts did not persist order_type. A null address was
+-- the checkout contract for pickup; delivery attempts always required one.
+UPDATE public.payment_attempts
+SET order_type = CASE WHEN address_id IS NULL THEN 'pickup' ELSE 'delivery' END
+WHERE order_type IS NULL;
+
+ALTER TABLE public.payment_attempts
+  ALTER COLUMN order_type SET DEFAULT 'delivery',
+  ALTER COLUMN order_type SET NOT NULL;
 
 DO $$
 BEGIN
