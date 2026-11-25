@@ -245,10 +245,17 @@ async updateStatus(
   let error: any;
 
   if (newStatus === 'accepted') {
-    // Stock validation, stock deduction and status transition happen in one
-    // database transaction. This prevents two restaurants/orders from
-    // consuming the same remaining stock concurrently.
+    // Stock validation, deduction, movement ledger and status transition are
+    // committed together by the database RPC.
     const result = await supabase.rpc('accept_restaurant_order', {
+      p_order_id: orderId,
+      p_partner_id: restaurantPartnerId,
+    });
+    error = result.error;
+    data = result.data?.order ?? null;
+  } else if (newStatus === 'cancelled') {
+    // Restore only stock consumed at acceptance, and only once.
+    const result = await supabase.rpc('cancel_restaurant_order_and_restore_stock', {
       p_order_id: orderId,
       p_partner_id: restaurantPartnerId,
     });
