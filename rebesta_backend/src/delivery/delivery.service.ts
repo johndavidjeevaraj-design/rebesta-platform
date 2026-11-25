@@ -329,7 +329,7 @@ export class DeliveryService {
       .maybeSingle();
 
     if (updateError) {
-      throw new BadRequestException(updateError.message);
+      throw new BadRequestException('Unable to update delivery status');
     }
     if (!data) {
       throw new BadRequestException('Order status changed concurrently; refresh and retry');
@@ -396,7 +396,7 @@ export class DeliveryService {
       .single();
 
     if (updateError) {
-      throw new BadRequestException(updateError.message);
+      throw new BadRequestException('Unable to update delivery status');
     }
 
     if (!data) {
@@ -603,7 +603,7 @@ export class DeliveryService {
       .single();
 
     if (updateError) {
-      throw new BadRequestException(updateError.message);
+      throw new BadRequestException('Unable to update delivery status');
     }
 
     this.socketGateway.sendOrderUpdate(
