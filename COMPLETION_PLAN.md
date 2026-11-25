@@ -443,3 +443,10 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 - [!] MIME checks validate declared MIME only, not file magic bytes or malware scanning; route-level multipart limits and authorization must be verified. This service alone does not establish access control for issuing signed URLs (caller authorization must be audited).
 - [!] Repository tree inspection found storage service but no dedicated storage controller in backend src; verify actual upload routes and partner/customer call sites before integrating.
 - [ ] Tests and build not run; staging storage bucket configuration/access policies not verified.
+
+
+## Socket identity logging reduction (2026-11-25)
+- [x] Removed socket gateway success/denial debug messages that included customer, partner, delivery or JWT subject identifiers; generic comments replace those logs.
+- [!] Socket rooms remain process-local; multi-instance delivery requires a Socket.IO adapter/shared pub-sub and deployment validation.
+- [!] Socket disconnect/reconnect strategy and durable event replay are not implemented; order state must remain retrievable through REST and client reconciliation.
+- [!] Admin socket shared-key model remains broad and needs identity/role-based admin authorization and audit events.
