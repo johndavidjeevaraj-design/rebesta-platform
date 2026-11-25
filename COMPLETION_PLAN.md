@@ -312,3 +312,15 @@ Steps 1–5 only. Play Store release preparation and publishing are deferred unt
 - [x] Sanitized delivery completion RPC failure responses to avoid exposing database/provider details.
 - [ ] Review completion RPC and ledger uniqueness/atomicity directly in database migrations; verify earnings aggregation completeness and configured payout rules.
 - [ ] Runtime validation and tests pending.
+
+
+## Restaurant partner security audit (2026-11-25; six areas reviewed, runtime verification pending)
+- [x] Ownership and scope: partner menu, stock, order listing, order details, and order-status paths use JWT-derived restaurant partner ID filters; no ID is taken from a client body for these scopes in the inspected paths.
+- [x] Order isolation: partner order queries and order detail lookups are scoped by restaurant partner ID. Order status writes also use scoped conditional updates or partner-bound atomic RPCs.
+- [x] Menu operations: create/update/delete/availability operations are partner-ID scoped; update now omits undefined fields rather than overwriting omitted optional fields. Partner-menu debug output removed and menu database failures sanitized.
+- [x] Inventory: stock edits are scoped to partner-owned menu item and DTO bounds quantity to 0–1,000,000. Acceptance/cancellation stock movements rely on reviewed atomic RPCs.
+- [x] Acceptance/cancellation: acceptance and stock consumption are performed by atomic RPC; cancellation of accepted/preparing orders uses stock restoration RPC. Pending unpaid online order acceptance guard remains in place.
+- [x] Order-status logs/errors: removed noisy partner order query diagnostics and customer-data-bearing log context; sanitized order retrieval and status-transition error responses.
+- [!] Findings/follow-up: menu create/update DTO validation and multipart conversion need end-to-end testing; partner JWT currently appears to validate claims rather than re-query account approval/block state on every request; profile updates need a strict DTO and field-level validation review; public restaurant listing and dashboard revenue semantics need reconciliation (e.g. delivered/completed status variants, paid/COD/refunded treatment); payout/admin permissions remain shared-key based.
+- [ ] Tests and staging checks for cross-partner access, menu price update, stock bounds, concurrent accept/cancel, cancellation stock restore, blocked partner tokens, and revenue/payout reconciliation. Not executed here.
+- No UI changes, migration, merge or deployment.
