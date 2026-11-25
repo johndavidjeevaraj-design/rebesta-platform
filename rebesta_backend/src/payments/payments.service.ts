@@ -466,22 +466,27 @@ if (!Number.isFinite(totalAmount) || totalAmount <= 0 || !Number.isSafeInteger(M
       return { success: true, state: 'confirmed', order: existingOrder };
     }
 
-    const orderResponse = await axios.get(
-      `${this.cashfreeBaseUrl()}/orders/${encodeURIComponent(cashfreeOrderId)}`,
-      { headers: this.cashfreeHeaders(), timeout: 15000 },
-    );
-    const payment = await this.getSuccessfulCashfreePayment(cashfreeOrderId, attempt);
-    if (payment) {
-      const result = await this.createOrderFromCashfreeAttempt(attempt, String(payment.cf_payment_id));
+    const [orderResponse, paymentListResponse] = await Promise.all([
+      axios.get(
+        `${this.cashfreeBaseUrl()}/orders/${encodeURIComponent(cashfreeOrderId)}`,
+        { headers: this.cashfreeHeaders(), timeout: 15000 },
+      ),
+      axios.get(
+        `${this.cashfreeBaseUrl()}/orders/${encodeURIComponent(cashfreeOrderId)}/payments`,
+        { headers: this.cashfreeHeaders(), timeout: 15000 },
+      ),
+    ]);
+    const providerOrderStatus = orderResponse.data?.order_status;
+    const payments = Array.isArray(paymentListResponse.data) ? paymentListResponse.data : [];
+    const successfulPayment = payments.find((item: any) => item.payment_status === 'SUCCESS');
+    if (successfulPayment) {
+      this.assertCashfreePaymentMatchesAttempt(successfulPayment, attempt);
+      const result = await this.createOrderFromCashfreeAttempt(
+        attempt,
+        String(successfulPayment.cf_payment_id),
+      );
       return { success: true, state: 'confirmed', order: result.order };
     }
-
-    const providerOrderStatus = orderResponse.data?.order_status;
-    const paymentListResponse = await axios.get(
-      `${this.cashfreeBaseUrl()}/orders/${encodeURIComponent(cashfreeOrderId)}/payments`,
-      { headers: this.cashfreeHeaders(), timeout: 15000 },
-    );
-    const payments = Array.isArray(paymentListResponse.data) ? paymentListResponse.data : [];
     const terminalFailureStatuses = ['FAILED', 'USER_DROPPED', 'CANCELLED'];
     const allAttemptsFailed = payments.length > 0 &&
       payments.every((item: any) => terminalFailureStatuses.includes(String(item.payment_status).toUpperCase()));
