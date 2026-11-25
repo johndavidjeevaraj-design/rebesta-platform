@@ -573,24 +573,47 @@ return this.createOrderFromAttempt(
       );
     }
 
-    const { data: updatedOrder, error: updateError } = await supabase
-      .from('orders')
-      .update({ payment_status: 'refunded' })
-      .eq('id', orderId)
-      .eq('payment_status', 'refund_pending')
-      .select('id')
-      .maybeSingle();
+    // Razorpay can accept a refund while it is still pending. Do not mark
+    // the order refunded until the provider confirms a processed refund.
+    // The signed refund.processed / refund.failed webhooks finalize the state.
+    const providerStatus = providerRefund?.status;
+    if (providerStatus === 'processed') {
+      const { data: updatedOrder, error: updateError } = await supabase
+        .from('orders')
+        .update({ payment_status: 'refunded' })
+        .eq('id', orderId)
+        .eq('payment_status', 'refund_pending')
+        .select('id')
+        .maybeSingle();
 
-    if (updateError || !updatedOrder) {
-      throw new BadRequestException(
-        'Refund was accepted by Razorpay but order status update failed. Reconcile this order before retrying.',
-      );
+      if (updateError || !updatedOrder) {
+        throw new BadRequestException(
+          'Refund was processed by Razorpay but order status update failed. Reconcile this order before retrying.',
+        );
+      }
+    } else if (providerStatus === 'failed') {
+      const { error: restoreError } = await supabase
+        .from('orders')
+        .update({ payment_status: 'paid' })
+        .eq('id', orderId)
+        .eq('payment_status', 'refund_pending');
+
+      if (restoreError) {
+        throw new BadRequestException(
+          'Razorpay rejected the refund but the order payment state could not be restored. Reconcile this order.',
+        );
+      }
     }
 
     return {
       success: true,
-      message: 'Refund processed successfully',
+      message: providerStatus === 'processed'
+        ? 'Refund processed successfully'
+        : providerStatus === 'failed'
+          ? 'Razorpay rejected the refund'
+          : 'Refund submitted; awaiting Razorpay confirmation',
       refundId: providerRefund?.id ?? null,
+      refundStatus: providerStatus ?? 'unknown',
     };
   }
   // ============================================================
